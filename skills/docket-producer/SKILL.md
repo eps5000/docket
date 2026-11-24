@@ -63,6 +63,7 @@ Follow `docket-planner`. Before a ticket goes to Ready, it has:
 
 ## 5. Dispatch in parallel
 
+- **Take a Docket update first.** If `get_digest` has an `update:` line, take it as `docket-coordinator` says, before dispatching, so new worktrees get current skills. If it can't land, tell the owner and carry on.
 - **One implementer, one ticket, its own worktree at current main.** It owns the ticket through tested, merged and deployed, as far as the project allows.
 - **Fresh, short briefs.** Start each implementer as a new agent. The brief is the ticket, worktree, branch and how to report. Docket holds the requirements.
 - **Implementers don't wait on each other.** Start everything Startable, within any limit the project sets.

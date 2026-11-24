@@ -65,6 +65,8 @@ import { newId } from './ids.js';
 import {
   INSTALL_COLUMNS,
   inspectPushInstall,
+  isPendingUpdate,
+  markUpdateLanded,
   type InstallDbRow,
   type ManifestMap,
 } from './installs.js';
@@ -411,6 +413,23 @@ function record(
     if (ifChanged) return { report_id: null, drift_ids: [] };
     store();
     return { report_id: reportId, drift_ids: [] };
+  }
+
+  // Decision 56: an agent running on the main branch shows a fetched update got there.
+  if (input.source === 'agent' && input.run_id) {
+    const stored = db.sqlite
+      .prepare('SELECT token_sha256 FROM installs WHERE id = ?')
+      .get(install.id) as { token_sha256: string | null };
+    if (isPendingUpdate({ ...install, token_sha256: stored.token_sha256 })) {
+      const on = db.sqlite
+        .prepare(
+          `SELECT json_extract(u.workspace, '$.branch') AS branch, p.main_branch AS main
+           FROM runs u JOIN projects p ON p.key = ? WHERE u.id = ?`,
+        )
+        .get(install.project_key, input.run_id) as
+        { branch: string | null; main: string } | undefined;
+      if (on?.branch && on.branch === on.main) markUpdateLanded(w, install);
+    }
   }
 
   // Plan first, so a quiet push check writes nothing.

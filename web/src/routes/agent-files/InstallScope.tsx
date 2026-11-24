@@ -82,7 +82,7 @@ export function InstallOverviewCard({
                 <p className="src">
                   {rows.length === 0
                     ? 'Nothing is installed yet. Choose a project to install into its repo.'
-                    : 'Installs are per project. Choose one to install or update.'}
+                    : 'Installs are per project. Choose one to install. A project’s coordinator takes updates in.'}
                 </p>
                 <div className="row wrap">
                   <label htmlFor={selectId} className="inlabel">
@@ -161,6 +161,9 @@ export function InstallOverviewCard({
                               <Chip kind={chip.kind}>{chip.label}</Chip>
                               {r.state !== 'up_to_date' && r.worktree && (
                                 <div className="src">{worktreeText(r.worktree)}</div>
+                              )}
+                              {r.state === 'update_available' && (
+                                <div className="src">Its coordinator will take this in.</div>
                               )}
                             </td>
                             <td className="afacts">

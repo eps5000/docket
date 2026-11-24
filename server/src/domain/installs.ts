@@ -63,6 +63,7 @@ import {
   CONNECTION_KEY,
   IMPORT_AGENTS_LINE,
   INSTALL_CLIENTS,
+  INSTALLED_SCRIPT_KEYS,
   importsAgentsMd,
   installClientsOf,
   ConnectionFileError,
@@ -87,6 +88,9 @@ import {
   normalizeWorkspace,
   renderAgentsBlock,
   uninstallCommands,
+  UPDATE_SCRIPT_KEYS,
+  updateCommands,
+  updateNotice,
   USER_WIDE_REFUSED,
   WAIT_SCRIPT_KEYS,
   withoutCr,
@@ -110,11 +114,20 @@ import {
   type InstallBundle,
   type InstallsService,
   type PreparedInstall,
+  type PreparedUpdate,
   type ReadContext,
   type ServiceDeps,
 } from './contracts.js';
 import { newId } from './ids.js';
-import { CHECK_SCRIPT_PS1, CHECK_SCRIPT_SH, checkPs1, checkSh } from './check-scripts.js';
+import {
+  CHECK_SCRIPT_PS1,
+  CHECK_SCRIPT_SH,
+  SHIPPED_CHECK_SHA256,
+  checkPs1,
+  checkSh,
+} from './check-scripts.js';
+import { readMainManifests } from './install-main.js';
+import { updatePs1, updateSh } from './update-scripts.js';
 import { waitPs1, waitSh } from './wait-scripts.js';
 import { installPs1, installSh, installWrapperPs1, installWrapperSh } from './install-scripts.js';
 import { PushRoot, SymlinkRefused } from './push-root.js';
@@ -248,7 +261,7 @@ function filesFor(
         sha256: hashText(text),
       };
     });
-  for (const script of waitScriptFiles(layout)) files.push(script);
+  for (const script of scriptFiles(layout)) files.push(script);
   if (target === 'repo') {
     files.push(connectionFileFor(client, connection.url, connection.protectedMode));
   }
@@ -258,15 +271,20 @@ function filesFor(
 /** The `version_id` of an installed script: its text's hash (scripts have no stored versions). */
 const scriptVersionId = (text: string): string => `script:${hashText(text).slice(0, 12)}`;
 
-const WAIT_SCRIPTS: Record<(typeof WAIT_SCRIPT_KEYS)[number], () => string> = {
+const MANIFEST_SCRIPTS: Record<
+  (typeof WAIT_SCRIPT_KEYS)[number] | (typeof UPDATE_SCRIPT_KEYS)[number],
+  () => string
+> = {
   [WAIT_SCRIPT_KEYS[0]]: waitSh,
   [WAIT_SCRIPT_KEYS[1]]: waitPs1,
+  [UPDATE_SCRIPT_KEYS[0]]: updateSh,
+  [UPDATE_SCRIPT_KEYS[1]]: updatePs1,
 };
 
-/** `docket-wait` as installed (decision 40), one manifest entry per script. */
-function waitScriptFiles(layout: ReturnType<typeof installLayout>): InstallFile[] {
-  return WAIT_SCRIPT_KEYS.map((key) => {
-    const content = WAIT_SCRIPTS[key]();
+/** `docket-wait` (decision 40) and `docket-update` (decision 56), one manifest entry per script. */
+function scriptFiles(layout: ReturnType<typeof installLayout>): InstallFile[] {
+  return INSTALLED_SCRIPT_KEYS.map((key) => {
+    const content = MANIFEST_SCRIPTS[key]();
     return {
       key,
       version_id: scriptVersionId(content),
@@ -288,7 +306,7 @@ export function manifestJson(meta: {
   target_kind: InstallTargetKind;
   project: string | null;
   installed_at: string;
-  files: InstallFile[];
+  files: Pick<InstallFile, 'key' | 'path' | 'version_id' | 'sha256'>[];
 }): string {
   const head = {
     install_id: meta.install_id,
@@ -669,11 +687,70 @@ export function outdatedKeys(
       if (manifest[key]!.version_id !== connectionVersionId(protectedMode)) out.push(key);
     } else if (!isScriptKey(key) && !now.has(key)) out.push(key);
   }
-  // Decision 40: an install without the current docket-wait is out of date.
-  for (const key of WAIT_SCRIPT_KEYS) {
-    if (manifest[key]?.version_id !== scriptVersionId(WAIT_SCRIPTS[key]())) out.push(key);
+  // Decisions 40 and 56: an install without the current scripts is out of date.
+  for (const key of INSTALLED_SCRIPT_KEYS) {
+    if (manifest[key]?.version_id !== scriptVersionId(MANIFEST_SCRIPTS[key]())) out.push(key);
   }
   return out;
+}
+
+/**
+ * Decision 56: an update fetched by `docket-update`, not yet seen on the main
+ * branch. It's a command row with no token, so the log and the state skip it
+ * (they need a used token) while drift can still compare reports against it.
+ */
+export const isPendingUpdate = (
+  row: Pick<InstallDbRow, 'method' | 'token_used_at' | 'removed_at'> & {
+    token_sha256?: string | null;
+  },
+): boolean =>
+  row.method === 'command' && !row.token_sha256 && !row.token_used_at && !row.removed_at;
+
+const PENDING_UPDATE_SQL = `method = 'command' AND token_sha256 IS NULL AND token_used_at IS NULL AND removed_at IS NULL`;
+
+/** Whether two manifests name the same version and hash for every key. */
+function sameManifest(a: ManifestMap, b: ManifestMap): boolean {
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every(
+      (k) =>
+        b[k] !== undefined &&
+        a[k]!.version_id === b[k]!.version_id &&
+        a[k]!.sha256.toLowerCase() === b[k]!.sha256.toLowerCase(),
+    )
+  );
+}
+
+/** The latest install a project's repo has for a client, as the state reads it. */
+function latestInstall(db: Db, project: string, client: InstallClient): InstallDbRow | undefined {
+  return db.sqlite
+    .prepare(
+      `SELECT ${INSTALL_COLUMNS} FROM installs
+       WHERE client = ? AND target_kind = 'repo' AND project_key = ?
+         AND (method = 'push' OR token_used_at IS NOT NULL)
+       ORDER BY coalesce(token_used_at, at) DESC, id DESC LIMIT 1`,
+    )
+    .get(client, project) as InstallDbRow | undefined;
+}
+
+/** Record that an update reached the main branch: from here on it's the repo's install. */
+export function markUpdateLanded(w: WriteContext, row: InstallDbRow): void {
+  w.update('installs', row.id, { token_used_at: w.now });
+  const count = Object.keys(JSON.parse(row.manifest) as ManifestMap).length;
+  w.event({
+    type: 'install.recorded',
+    summary: `Update reached the main branch: ${describe({ ...row, count })}`,
+    project_key: row.project_key,
+    objects: [{ kind: 'install', id: row.id }],
+    data: {
+      method: row.method,
+      client: row.client,
+      target_kind: row.target_kind,
+      files: count,
+      stage: 'update_on_main',
+    },
+  });
 }
 
 /** A text file in the bundle, under `docket-install/`. */
@@ -691,6 +768,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
     url: mcpUrlOf(config.allowedHosts ?? []),
     protectedMode: config.protectedMode === true,
   });
+  /** This Docket's address, for the commands an agent or the owner copies. */
+  const baseUrl = () => `http://${config.allowedHosts?.[0] ?? '127.0.0.1:7420'}`;
 
   /** The push root, opened and checked; `validation` when push is off or the folder isn't there. */
   async function pushRoot(): Promise<PushRoot> {
@@ -1087,23 +1166,62 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
       const effective = effectiveAgentFiles(r.db, project);
       const markers = await clientMarkers(target, query.path);
       const worktrees = worktreesByPath(r.db);
+      const protectedMode = connection().protectedMode;
+      // Decision 56: what the repo's main branch holds, where Docket can read it.
+      const repo = project
+        ? (r.db.sqlite
+            .prepare('SELECT repo_path, main_branch FROM projects WHERE key = ?')
+            .get(project) as { repo_path: string | null; main_branch: string })
+        : null;
+      const onMain = repo ? await readMainManifests(config, repo, INSTALL_CLIENTS) : null;
       const clients = INSTALL_CLIENTS.map((client) => {
-        // The latest install of this client there: push, or a command that was downloaded.
-        const latest = project
-          ? (r.db.sqlite
-              .prepare(
-                `SELECT ${INSTALL_COLUMNS}
-                 FROM installs
-                 WHERE client = ? AND target_kind = ? AND project_key = ?
-                   AND (method = 'push' OR token_used_at IS NOT NULL)
-                 ORDER BY coalesce(token_used_at, at) DESC, id DESC
-                 LIMIT 1`,
+        const main = onMain?.get(client) ?? { state: 'unknown' as const, branch: null };
+        const mainOutdated =
+          main.state === 'present'
+            ? outdatedKeys(
+                { manifest: JSON.stringify(main.manifest), target_kind: 'repo' },
+                effective,
+                protectedMode,
               )
-              .get(client, target, project) as InstallDbRow | undefined)
-          : undefined;
+            : null;
+        const repo_main = {
+          state:
+            main.state === 'present'
+              ? mainOutdated!.length > 0
+                ? ('behind' as const)
+                : ('current' as const)
+              : main.state,
+          branch: main.branch,
+        };
+        // The latest install of this client there: push, or a command that was downloaded.
+        let latest = project ? latestInstall(r.db, project, client) : undefined;
+        // An update the main branch already holds is the install, even before the next check.
+        if (project && main.state === 'present' && main.install_id) {
+          const landed = r.db.sqlite
+            .prepare(
+              `SELECT ${INSTALL_COLUMNS}, token_sha256 FROM installs
+               WHERE id = ? AND project_key = ? AND client = ? AND target_kind = 'repo'`,
+            )
+            .get(main.install_id, project, client) as
+            (InstallDbRow & { token_sha256: string | null }) | undefined;
+          if (landed && isPendingUpdate(landed)) latest = landed;
+        }
         // Decision 50: a removed install is no longer there.
         const row = latest && !latest.removed_at ? latest : undefined;
         const has = markers === null ? null : markers[client];
+        const fetched = project
+          ? (r.db.sqlite
+              .prepare(
+                `SELECT id, at FROM installs
+                 WHERE client = ? AND target_kind = 'repo' AND project_key = ? AND ${PENDING_UPDATE_SQL}
+                 ORDER BY at DESC, id DESC LIMIT 1`,
+              )
+              .get(client, project) as { id: string; at: string } | undefined)
+          : undefined;
+        const update_on_branch =
+          fetched && fetched.id !== row?.id && (!row || fetched.at >= row.at)
+            ? { install_id: fetched.id, at: fetched.at }
+            : null;
         if (!row) {
           return {
             client,
@@ -1113,6 +1231,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             drift_ids: [],
             markers: has,
             worktree: null,
+            repo_main,
+            update_on_branch,
           };
         }
         const drift = (
@@ -1120,7 +1240,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
             .prepare(`SELECT id FROM drift WHERE install_id = ? AND state = 'open' ORDER BY id`)
             .all(row.id) as { id: string }[]
         ).map((d) => d.id);
-        const outdated = outdatedKeys(row, effective, connection().protectedMode);
+        // Where the main branch can be read, it decides: that's what new worktrees start from.
+        const outdated = mainOutdated ?? outdatedKeys(row, effective, protectedMode);
         return {
           client,
           state:
@@ -1134,6 +1255,8 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
           drift_ids: drift,
           markers: has,
           worktree: row.path ? (worktrees.get(normalizeWorkspace(row.path)) ?? null) : null,
+          repo_main,
+          update_on_branch,
         };
       });
       const marked = INSTALL_CLIENTS.filter((c) => markers?.[c]);
@@ -1144,6 +1267,7 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
         target_kind: target,
         clients,
         defaults: picked.length > 0 ? picked : [...INSTALL_CLIENTS],
+        update_command: updateCommands(baseUrl(), protectedMode),
       };
     },
 
@@ -1466,6 +1590,293 @@ export function createInstallsService(deps: ServiceDeps): InstallsService {
           stage: 'downloaded',
         },
       });
+    },
+
+    prepareUpdate(r, input) {
+      requireProject(r.db, input.project);
+      const effective = effectiveAgentFiles(r.db, input.project);
+      if (effective.length === 0) {
+        throw new ToolError(
+          'validation',
+          'No agent files are loaded yet. They load when Docket starts; restart it and try again.',
+        );
+      }
+      const target = filesFor(
+        effective.map((e) => ({
+          key: e.key,
+          version_id: e.version.id,
+          content: e.version.content,
+        })),
+        input.client,
+        'repo',
+        input.project,
+        connection(),
+      );
+      const layout = installLayout(input.client, 'repo');
+      const reported = new Map(input.files.map((f) => [f.key, f]));
+      const plan: PreparedUpdate['plan'] = [];
+      const copied: PreparedUpdate['copied'] = [];
+      const manifest: PreparedUpdate['manifest'] = [];
+      let block: string | null = null;
+      let conn: string | null = null;
+      const modeOf = (path: string) => (path.endsWith('.sh') ? 0o755 : 0o644);
+
+      for (const f of target) {
+        const local = reported.get(f.key);
+        const sha = local?.sha256.toLowerCase();
+        const sent = local?.sent?.toLowerCase();
+        const note =
+          f.key === AGENTS_BLOCK_KEY
+            ? 'its Docket section'
+            : f.key === CONNECTION_KEY
+              ? 'its docket server entry'
+              : undefined;
+        if (local && sha !== f.sha256 && sha !== sent) {
+          // Edited here: left alone, and the manifest keeps what Docket last sent.
+          plan.push({ change: 'kept', path: f.path, note: 'edited locally' });
+          if (sent && local.version_id) {
+            manifest.push({
+              key: f.key,
+              path: f.path,
+              version_id: local.version_id,
+              sha256: sent,
+            });
+          }
+          continue;
+        }
+        manifest.push({ key: f.key, path: f.path, version_id: f.version_id, sha256: f.sha256 });
+        if (sha === f.sha256) {
+          plan.push({ change: 'same', path: f.path });
+          continue;
+        }
+        plan.push({
+          change: local ? 'updated' : 'added',
+          path: f.path,
+          ...(note ? { note } : {}),
+        });
+        if (f.key === AGENTS_BLOCK_KEY) block = f.content;
+        else if (f.key === CONNECTION_KEY) conn = f.content;
+        else copied.push({ path: f.path, text: f.content, mode: modeOf(f.path) });
+      }
+
+      // docket-check isn't in the manifest: a copy Docket shipped is replaced, an edit is kept.
+      for (const [name, text] of checkScripts()) {
+        const path = `${layout.dir}/${name}`;
+        const local = reported.get(`script:${name}`)?.sha256.toLowerCase();
+        if (local === hashText(text)) plan.push({ change: 'same', path });
+        else if (local && !SHIPPED_CHECK_SHA256.includes(local)) {
+          plan.push({ change: 'kept', path, note: 'edited locally' });
+        } else {
+          plan.push({ change: local ? 'updated' : 'added', path });
+          copied.push({ path, text, mode: modeOf(path) });
+        }
+      }
+
+      const shipped = new Set(target.map((f) => f.key));
+      for (const f of input.files) {
+        if (f.sent && f.key.startsWith('skill:') && !shipped.has(f.key)) {
+          plan.push({
+            change: 'retired',
+            path: installPathOf(layout, f.key),
+            note: 'Docket no longer ships it; left in place',
+          });
+        }
+      }
+
+      const from = input.from ? installRowById(r.db, input.from) : undefined;
+      const own =
+        from &&
+        from.project_key === input.project &&
+        from.client === input.client &&
+        from.target_kind === 'repo' &&
+        !from.removed_at
+          ? from
+          : undefined;
+      const wanted = manifestOf(manifest);
+      const manifestSame = !!own && sameManifest(JSON.parse(own.manifest) as ManifestMap, wanted);
+      const changed =
+        !manifestSame ||
+        plan.some((p) => p.change === 'added' || p.change === 'updated' || p.change === 'retired');
+      if (changed) {
+        plan.push({ change: input.from ? 'updated' : 'added', path: layout.manifest });
+      }
+      return {
+        input,
+        changed,
+        path: own?.path ?? latestInstall(r.db, input.project, input.client)?.path ?? null,
+        plan,
+        copied,
+        block,
+        connection: conn,
+        manifest,
+      };
+    },
+
+    recordUpdate(w, p) {
+      const { project, client, from } = p.input;
+      if (!p.changed) return from ?? null;
+      const wanted = manifestOf(p.manifest);
+      // Running it again on another branch reuses the same unconfirmed install.
+      const pending = w.db.sqlite
+        .prepare(
+          `SELECT ${INSTALL_COLUMNS} FROM installs
+           WHERE client = ? AND target_kind = 'repo' AND project_key = ? AND ${PENDING_UPDATE_SQL}
+           ORDER BY at DESC, id DESC LIMIT 20`,
+        )
+        .all(client, project) as InstallDbRow[];
+      const same = pending.find(
+        (row) =>
+          row.path === p.path && sameManifest(JSON.parse(row.manifest) as ManifestMap, wanted),
+      );
+      if (same) return same.id;
+      const id = newId('ins', Date.parse(w.now));
+      w.insert('installs', {
+        id,
+        at: w.now,
+        client,
+        target_kind: 'repo',
+        project_key: project,
+        path: p.path,
+        method: 'command',
+        manifest: wanted,
+      });
+      w.event({
+        type: 'install.recorded',
+        summary: `Update fetched by the project: ${describe({
+          client,
+          target_kind: 'repo',
+          project_key: project,
+          path: p.path,
+          count: p.manifest.length,
+        })}`,
+        project_key: project,
+        objects: [{ kind: 'install', id }],
+        data: {
+          method: 'command',
+          client,
+          target_kind: 'repo',
+          files: p.manifest.length,
+          stage: 'update_fetched',
+        },
+      });
+      return id;
+    },
+
+    async updateBundle(p, installId, now) {
+      const at = new Date(now);
+      const entry = (name: string, text: string, mode = 0o644): TarFileEntry => {
+        const bytes = Buffer.from(text, 'utf8');
+        return {
+          name: `docket-update/${name}`,
+          size: bytes.length,
+          mtime: at,
+          mode,
+          source: { bytes },
+        };
+      };
+      const planText = p.plan.map((x) => `${x.change}\t${x.path}\t${x.note ?? ''}\n`).join('');
+      const entries = [entry('plan.txt', planText)];
+      if (p.changed) {
+        const { client, project } = p.input;
+        const layout = installLayout(client, 'repo');
+        const imports = importsAgentsMd(client, 'repo');
+        entries.push(
+          ...p.copied.map((x) => entry(`files/${x.path}`, x.text, x.mode)),
+          entry(
+            `files/${layout.manifest}`,
+            manifestJson({
+              install_id: installId!,
+              client,
+              target_kind: 'repo',
+              project,
+              installed_at: now,
+              files: p.manifest,
+            }),
+          ),
+          entry('files.txt', `${[...p.copied.map((x) => x.path), layout.manifest].join('\n')}\n`),
+          ...(p.block !== null ? [entry('block.md', p.block)] : []),
+          ...(p.connection !== null ? [entry('connection.txt', p.connection)] : []),
+          entry('install.sh', installSh(layout.instructions, layout.dir, client, imports), 0o755),
+          entry('install.ps1', installPs1(layout.instructions, layout.dir, client, imports)),
+        );
+      }
+      return tarGzBytes(entries);
+    },
+
+    updateNoticeFor(r, { project, reported }) {
+      const effective = effectiveAgentFiles(r.db, project);
+      const protectedMode = connection().protectedMode;
+      // A file the owner has seen as edited isn't a reason to ask for the update again.
+      const behind = (row: InstallDbRow) => {
+        const known = new Set(
+          (
+            r.db.sqlite
+              .prepare(
+                `SELECT DISTINCT file_key FROM drift WHERE install_id = ? AND state IN ('open', 'kept_local')`,
+              )
+              .all(row.id) as { file_key: string }[]
+          ).map((d) => d.file_key),
+        );
+        return outdatedKeys(row, effective, protectedMode).filter((k) => !known.has(k));
+      };
+      let count = 0;
+      if (reported) {
+        const row = installRowById(r.db, reported);
+        if (!row || row.project_key !== project || row.target_kind !== 'repo' || row.removed_at) {
+          return null;
+        }
+        count = behind(row).length;
+        if (count === 0) return null;
+        // A branch behind a main that already has it needs a merge, not an update.
+        const newest = latestInstall(r.db, project, row.client);
+        if (newest && newest.id !== row.id && !newest.removed_at && behind(newest).length === 0) {
+          return null;
+        }
+      } else {
+        for (const client of INSTALL_CLIENTS) {
+          const row = latestInstall(r.db, project, client);
+          if (row && !row.removed_at) count = Math.max(count, behind(row).length);
+        }
+        if (count === 0) return null;
+      }
+      return updateNotice(count, updateCommands(baseUrl(), protectedMode));
+    },
+
+    async landedUpdates(r) {
+      const rows = r.db.sqlite
+        .prepare(
+          `SELECT i.id, i.client, i.project_key, p.repo_path, p.main_branch
+           FROM installs i JOIN projects p ON p.key = i.project_key AND p.deleted_at IS NULL
+           WHERE i.target_kind = 'repo' AND p.repo_path IS NOT NULL
+             AND i.method = 'command' AND i.token_sha256 IS NULL
+             AND i.token_used_at IS NULL AND i.removed_at IS NULL`,
+        )
+        .all() as {
+        id: string;
+        client: InstallClient;
+        project_key: string;
+        repo_path: string;
+        main_branch: string;
+      }[];
+      const out: string[] = [];
+      for (const key of new Set(rows.map((x) => x.project_key))) {
+        const mine = rows.filter((x) => x.project_key === key);
+        const main = await readMainManifests(config, mine[0]!, INSTALL_CLIENTS);
+        for (const row of mine) {
+          const m = main.get(row.client);
+          if (m?.state === 'present' && m.install_id === row.id) out.push(row.id);
+        }
+      }
+      return out;
+    },
+
+    confirmLanded(w, { ids }) {
+      for (const id of ids) {
+        const row = w.db.sqlite
+          .prepare(`SELECT ${INSTALL_COLUMNS}, token_sha256 FROM installs WHERE id = ?`)
+          .get(id) as (InstallDbRow & { token_sha256: string | null }) | undefined;
+        if (row && isPendingUpdate(row)) markUpdateLanded(w, row);
+      }
     },
 
     async pushTarget() {

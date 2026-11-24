@@ -656,6 +656,9 @@
             "paused": {
               "type": "string"
             },
+            "agent_files_update": {
+              "type": "string"
+            },
             "cursor": {
               "type": "string"
             },
@@ -1555,6 +1558,9 @@
               "type": "string"
             },
             "branch_hint": {
+              "type": "string"
+            },
+            "agent_files_update": {
               "type": "string"
             },
             "replayed": {

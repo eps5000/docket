@@ -191,6 +191,21 @@ export function installStateChip(
   return INSTALL_STATE_VIEW[state];
 }
 
+/**
+ * Decision 56: what the repo's main branch holds, in words. When Docket can't
+ * read the repo it says so, rather than implying the last install was merged.
+ */
+export function repoMainText(main: {
+  state: 'current' | 'behind' | 'absent' | 'unknown';
+  branch: string | null;
+}): string {
+  const branch = main.branch ?? 'the main branch';
+  if (main.state === 'current') return `On ${branch}: current.`;
+  if (main.state === 'behind') return `${branch} has older files.`;
+  if (main.state === 'absent') return `Not on ${branch} yet.`;
+  return 'Docket can’t read this repo’s main branch, so it can’t tell what has been merged.';
+}
+
 /** What installing does to a client in each state: never a plain Install once it's installed. */
 export type InstallVerb = 'Install' | 'Update' | 'Reinstall';
 export const installVerb = (state: InstallState | undefined): InstallVerb =>

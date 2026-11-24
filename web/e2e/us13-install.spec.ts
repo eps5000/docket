@@ -244,7 +244,7 @@ test.describe('Install and check (US13)', () => {
     await expect(row).toHaveAttribute('data-method', 'push');
     await expect(row).toContainText('Claude Code');
     await expect(row).toContainText('Recipe App’s repo');
-    await expect(row).toContainText('11 files');
+    await expect(row).toContainText('13 files');
     await row.getByRole('button', { name: 'Versions sent' }).click();
     await expect(row.locator('[data-sent="skill:docket-worker"]')).toContainText(
       'Docket’s version v1',

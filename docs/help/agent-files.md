@@ -166,13 +166,36 @@ The button says what happens: *Install* for clients not installed yet, *Update* 
 **Installed in Recipe App's repo**, above the install log, shows each client's state there, and the Install dialog shows the same next to each client:
 
 - **Installed · up to date:** the files match what Docket would install now. *Check* compares them with the repo (or gives the check command for a command install); *Reinstall* writes them again.
-- **Installed · update available:** Docket would now install something newer: a new version it shipped, your edit of the default or the project's copy, a skill added or removed, or another trust mode for the connection file. *Update* opens the dialog with that client ticked.
+- **Installed · update available:** Docket has something newer: a new version it shipped, your edit of the default or the project's copy, a skill added or removed, or another trust mode for the connection file. **Your project's coordinator will take this in** (see **How a project takes an update**). *Show the command* has the command, if you'd rather run it yourself.
 - **Changed outside Docket:** a file there was edited, deleted or added (see **Changed outside Docket** above). *Review changes* takes you to it, to adopt, restore or keep it.
 - **Not installed:** nothing installed by push, and no command run. *Install* opens the dialog with that client ticked.
 
-The state comes from the latest install's versions and the change checks, so it's as current as the last scheduled check or agent report for a command install.
+The state comes from the latest install's versions and the change checks. Each row also says what's **on the main branch**:
 
-**Installed in worktree X, not merged yet** means an agent reported that folder as a separate worktree on its own branch, so the files may not be on the repo's main branch. Docket doesn't read Git for this.
+- **On main: current**, **main has older files** or **Not on main yet:** Docket read the manifest on the repo's main branch, read-only. It's as current as the repo's last fetch.
+- **Docket can't read this repo's main branch:** the project has no repository folder inside the push folder, so Docket can't tell what has been merged. An update then counts once an agent reports from the main branch.
+- **An update was fetched on a branch:** the project has taken it, and it counts once it reaches main.
+
+**Installed in worktree X, not merged yet** means an agent reported that folder as a separate worktree on its own branch, so the files may not be on the repo's main branch.
+
+## How a project takes an update
+
+Docket publishes a new version, and **the project takes it in through its own normal workflow**. Docket doesn't reach into a project to manage its files.
+
+1. At the start of a session, the project's coordinator sees that an update is available, from `get_digest`.
+2. Before dispatching work, it runs `docket-update` on a new branch, and merges that one small change through the project's usual PR and CI. New worktrees then start with the current skills.
+3. Workers don't update files. If a claim tells them an update is available, they tell the coordinator.
+4. If the update can't land, work carries on.
+
+`docket-update` (`.sh` and `.ps1`, next to `docket-check`) runs in any checkout of the repo:
+
+- It changes only Docket's files, by the same rules as an install: the skills, the Docket section, the docket server entry and the scripts.
+- **A file edited locally is never overwritten.** It's listed as kept, and stays under **Changed outside Docket** for you to adopt, restore or keep.
+- It prints exactly what changed. **It never commits, pushes, opens a PR or touches another worktree.**
+- Running it again changes nothing. It refuses a folder that isn't a git repo, and says so if Docket can't be reached.
+- In protected mode it reads the `DOCKET_TOKEN` environment variable. No credential is ever written to the repo.
+
+**Installs from before this existed** don't have the script. Their agents get the exact one-line command from `get_digest` or `claim_lead`, so nobody has to copy anything.
 
 ## Remove an install
 
@@ -200,7 +223,7 @@ Line endings changed by Git on Windows don't count as edits.
 
 ## Set up one-click install (the push folder)
 
-A push folder lets Docket write the files for you. It's optional: without it, Install gives you a command instead. It's set up once for the whole service, in **Settings → One-click install**; Agent files links there (*Set up one-click install*) while it isn't set up.
+A push folder lets Docket write the files for you the **first time** you set up a repo. It's optional: without it, Install gives you a command instead. It isn't how a project gets updates (see **How a project takes an update**). It's set up once for the whole service, in **Settings → One-click install**; Agent files links there (*Set up one-click install*) while it isn't set up.
 
 The **Push folder** card shows whether one is set up (**Not set up**, **Ready** or **Not writable**), its path on your computer and inside Docket, and *Test*, which writes a small file there and removes it.
 
