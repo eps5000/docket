@@ -32,7 +32,10 @@ export function FinishedPartlyNote({
       data-finished-partly={partly.left}
       title={partly.reasons.join('\n')}
     >
-      <Mark /> {finishedPartlyText(partly.left)}
+      {/* One flex item, so the mark stays with its words. */}
+      <span>
+        <Mark /> {finishedPartlyText(partly.left)}
+      </span>
     </div>
   );
 }
