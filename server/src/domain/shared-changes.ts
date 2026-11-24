@@ -130,6 +130,7 @@ import {
 import { coordinatorOf } from './recovery-model.js';
 import type { InverseOp, WriteContext } from './write.js';
 import { explain, graceText } from './problems.js';
+import { idleTickets } from './idle.js';
 
 // ---- Rows ----
 
@@ -203,6 +204,7 @@ function inFlightFor(
   key: string,
   except?: string,
   statuses: readonly Status[] = IN_FLIGHT_STATUSES,
+  now?: string,
 ): InFlightChange[] {
   const rows = db.sqlite
     .prepare(
@@ -222,7 +224,14 @@ function inFlightFor(
     note: string | null;
     member: string | null;
   }[];
-  return rows.map(({ member, ...r }) => (member === null ? r : { ...r, member }));
+  // Decision 62: an idle ticket (In progress, nobody on it for days) isn't in flight for a claim.
+  const idle =
+    now !== undefined && rows.some((r) => r.status === 'progress')
+      ? idleTickets(db, now, { ids: rows.filter((r) => r.status === 'progress').map((r) => r.id) })
+      : null;
+  return rows
+    .filter((r) => !idle?.has(r.id))
+    .map(({ member, ...r }) => (member === null ? r : { ...r, member }));
 }
 
 /** An item's declared changes, as the classification reads them (decision 39). */
@@ -377,13 +386,14 @@ export function overlapsFor(
   project: string,
   statuses: readonly Status[] = IN_FLIGHT_STATUSES,
   docketLinks = false,
+  now?: string,
 ): ClassifiedOverlap[] {
   const mine = policyChanges(db, itemId);
   if (mine.length === 0) return [];
   const mode = overlapHandling(db, project);
   const peers = new Map<string, InFlightChange>();
   for (const key of new Set(mine.map((c) => c.base))) {
-    for (const other of inFlightFor(db, project, key, itemId, statuses)) {
+    for (const other of inFlightFor(db, project, key, itemId, statuses, now)) {
       if (!peers.has(other.id)) peers.set(other.id, other);
     }
   }
@@ -983,7 +993,7 @@ export function syncOverlaps(
   resolveOverlaps(w, itemId, links);
   const item = requireItem(w.db, itemId);
   const claimed = (CLAIMED_STATUSES as readonly Status[]).includes(item.status);
-  for (const o of overlapsFor(w.db, item.id, item.project_key, CLAIMED_STATUSES, true)) {
+  for (const o of overlapsFor(w.db, item.id, item.project_key, CLAIMED_STATUSES, true, w.now)) {
     // An unclaimed item raises nothing new, but a pair it's already in is classified again,
     // so narrowing a declaration lifts the blocker Docket added.
     if (!claimed && !liveOverlapRow(w.db, item.id, o.with.id)) continue;
@@ -1092,8 +1102,9 @@ const STATUS_WORDS: Partial<Record<Status, string>> = {
 export function claimOverlaps(
   db: Db,
   item: { id: string; project_key: string },
+  now?: string,
 ): ClassifiedOverlap[] {
-  return overlapsFor(db, item.id, item.project_key, CLAIMED_STATUSES).map((o) =>
+  return overlapsFor(db, item.id, item.project_key, CLAIMED_STATUSES, false, now).map((o) =>
     // A sequence that would close a cycle can't be automatic.
     o.outcome === 'sequence' && cycleFor(new BlockIndex(db), o.with.id, item.id)
       ? { ...o, outcome: 'owner' as const, reason: 'blocker_cycle' as const }
@@ -1110,7 +1121,7 @@ export function settleClaim(
   links: OverlapLinks,
   item: { id: string; project_key: string },
 ): void {
-  const overlaps = claimOverlaps(w.db, item);
+  const overlaps = claimOverlaps(w.db, item, w.now);
   if (overlaps.some((o) => o.outcome !== 'parallel')) {
     throw new SeamConflict(item, overlaps, links);
   }
@@ -1428,7 +1439,9 @@ export function settleUndeclared(
       disputed: false,
     };
     const peers = new Set(
-      inFlightFor(w.db, item.project_key, part, item.id, CLAIMED_STATUSES).map((p) => p.id),
+      inFlightFor(w.db, item.project_key, part, item.id, CLAIMED_STATUSES, w.now).map(
+        (p) => p.id,
+      ),
     );
     // Decision 39: touching a part whose unapproved design change is with the owner holds.
     const designHeld = [...peers].some((id) =>

@@ -19,6 +19,7 @@ import { Label } from './Label';
 import { StatusBar } from './StatusBar';
 import { EpicDepsNote } from './EpicDeps';
 import { EpicReadinessNote } from './EpicReadiness';
+import { EpicMidflightNote } from './EpicMidflight';
 
 /** `codex · orca-w1`. */
 export function leadName(lead: { client: string; label: string | null }): string {
@@ -265,6 +266,8 @@ export function EpicCard({
       {epic.waits_on && <EpicDepsNote waits={epic.waits_on} namesId={depsId} />}
       {/* Decision 58: Not ready to start, or Started with N unshaped tickets. */}
       {epic.readiness && <EpicReadinessNote readiness={epic.readiness} />}
+      {/* Decision 62: tickets added after it started, and how many are untriaged. */}
+      {epic.midflight && <EpicMidflightNote midflight={epic.midflight} />}
     </Link>
   );
 }

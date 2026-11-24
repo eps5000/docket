@@ -48,6 +48,7 @@ export {
 export type { CalloutTone, ErrorLike } from './Card';
 export { EpicDepsLine, EpicDepsNote, epicDepsNames, epicDepsText } from './EpicDeps';
 export { EpicReadinessLine, EpicReadinessNote } from './EpicReadiness';
+export { EpicMidflightLine, EpicMidflightNote } from './EpicMidflight';
 export { Section } from './Section';
 export type { SectionProps } from './Section';
 export { ViewTabs } from './ViewTabs';

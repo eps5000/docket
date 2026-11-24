@@ -96,6 +96,7 @@ import type { ReadContext } from './contracts.js';
 import { git, GitUnknown, known } from './git-read.js';
 import { newId } from './ids.js';
 import { explain } from './problems.js';
+import { idleTickets } from './idle.js';
 import { callerName, ms, requireItem } from './model.js';
 import { branchWarning } from './project-git.js';
 import { isInside, rootSegments } from './push-root.js';
@@ -566,13 +567,22 @@ function itemBasis(db: Db, id: string): string {
   return JSON.stringify([row, parts, reportedFiles(db, id)]);
 }
 
-const inFlightItems = (db: Db, project: string) =>
-  db.sqlite
-    .prepare(
-      `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
+/**
+ * The items whose branches the radar checks: In progress or in Review, and
+ * not idle (decision 62: nobody has worked on it for days, so its old
+ * branches raise nothing; the sweeper clears what was open against them).
+ */
+export function inFlightItems(db: Db, project: string, now: string) {
+  const idle = idleTickets(db, now, { project });
+  return (
+    db.sqlite
+      .prepare(
+        `SELECT id, jira_key FROM items WHERE project_key = ? AND status IN ('progress', 'review')
        AND archived_at IS NULL ORDER BY length(id), id`,
-    )
-    .all(project) as { id: string; jira_key: string | null }[];
+      )
+      .all(project) as { id: string; jira_key: string | null }[]
+  ).filter((i) => !idle.has(i.id));
+}
 
 function isInFlight(db: Db, id: string): boolean {
   return !!db.sqlite
@@ -599,7 +609,7 @@ export async function planRadar(
   if (!p)
     throw new ToolError('not_found', `No project ${project}. Check the key with list_projects.`);
   // Read before git, so anything that changes during the run differs from it.
-  const items = inFlightItems(db, project);
+  const items = inFlightItems(db, project, r.now);
   const basis: RadarBasis = {
     project: projectBasis(db, project),
     items: Object.fromEntries(items.map(({ id }) => [id, itemBasis(db, id)])),

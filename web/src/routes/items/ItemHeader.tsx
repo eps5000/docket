@@ -8,6 +8,7 @@ import {
   Button,
   Chip,
   EpicDepsLine,
+  EpicMidflightLine,
   EpicReadinessLine,
   Label,
   Provenance,
@@ -234,6 +235,7 @@ export function ItemHeader({ id, data }: { id: string; data?: ItemDetailResponse
         </div>
         {epic && data?.epic_waits && <EpicDepsLine waits={data.epic_waits} />}
         {epic && data?.epic_readiness && <EpicReadinessLine readiness={data.epic_readiness} />}
+        {epic && data?.epic_midflight && <EpicMidflightLine midflight={data.epic_midflight} />}
       </div>
     </div>
   );

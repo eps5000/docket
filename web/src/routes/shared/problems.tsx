@@ -43,6 +43,7 @@ export const PROBLEM_TITLES: Record<Problem['kind'], string> = {
   wait_owner_unasked: 'Waiting on a decision nobody asked for',
   agent_files_drift: 'Agent files changed outside Docket',
   radar_conflict: 'Heading for a merge conflict',
+  idle_ticket: 'In progress, but nobody is on it',
 };
 
 /** The banner's warning icon: an exclamation with an accessible name (decision 37). */

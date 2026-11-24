@@ -28,6 +28,7 @@ import { pausedForCoordinators, projectPause } from './project-pause.js';
 import { WaitReader, digestWait } from './wait.js';
 import { waitKindsOf } from './wait-kind.js';
 import { unshapedByEpic } from './epic-readiness.js';
+import { midflightByEpic } from './midflight.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -159,6 +160,35 @@ function startedUnshaped(
     .filter((e) => (byEpic.get(e.id)?.length ?? 0) > 0)
     .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
     .map((e) => ({ id: e.id, title: e.title, unshaped: byEpic.get(e.id)!.map((t) => t.id) }));
+}
+
+/** Decision 62: open epics with tickets added after they started that are still in Inbox. */
+function untriagedEpics(
+  r: ReadContext,
+  project: string,
+): NonNullable<Digest['untriaged_epics']>['rows'] {
+  const epics = r.db.sqlite
+    .prepare(
+      `SELECT id, title, priority FROM items
+       WHERE project_key = ? AND type = 'Epic' AND archived_at IS NULL AND status IN ('progress', 'review')`,
+    )
+    .all(project) as { id: string; title: string; priority: number }[];
+  if (epics.length === 0) return [];
+  const added = midflightByEpic(
+    r.db,
+    epics.map((e) => e.id),
+  );
+  return epics
+    .filter((e) => (added.get(e.id)?.untriaged ?? 0) > 0)
+    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      untriaged: added
+        .get(e.id)!
+        .added.filter((t) => t.untriaged)
+        .map((t) => ({ id: t.id, type: t.type })),
+    }));
 }
 
 export function createDigestService(deps: ServiceDeps): DigestService {
@@ -313,6 +343,10 @@ export function createDigestService(deps: ServiceDeps): DigestService {
       const unshaped = startedUnshaped(r, input.project).filter(
         (x) => since === null || keep(x.id) || x.unshaped.some((t) => keep(t)),
       );
+      // Decision 62: the producer triages these: a bug to Ready, a story to the owner.
+      const untriaged = untriagedEpics(r, input.project).filter(
+        (x) => since === null || keep(x.id) || x.untriaged.some((t) => keep(t.id)),
+      );
       // Decision 56: on a full snapshot only, so a repeated digest stays small.
       const update =
         since === null
@@ -324,6 +358,9 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         ...(update ? { agent_files_update: update } : {}),
         ...(unshaped.length > 0
           ? { unshaped_epics: section(unshaped, DIGEST_CAPS.unshaped_epics) }
+          : {}),
+        ...(untriaged.length > 0
+          ? { untriaged_epics: section(untriaged, DIGEST_CAPS.untriaged_epics) }
           : {}),
         cursor: String(latest),
         since: since === null ? null : String(since),

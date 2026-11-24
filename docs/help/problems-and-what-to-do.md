@@ -20,6 +20,7 @@ anchors:
   - problems.backup_missed
   - problems.agent_files_drift
   - problems.radar_conflict
+  - problems.idle_ticket
   - needs-you.shared-questions
   - needs-you.agent-problems
   - needs-you.resolutions

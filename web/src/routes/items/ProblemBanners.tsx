@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import type { ItemDetailResponse, Problem, ResolutionRow } from '@docket/shared';
+import { acknowledgedText, type ItemDetailResponse, type Problem, type ResolutionRow } from '@docket/shared';
 import { apiClient } from '../../app/queryClient';
 import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
@@ -19,11 +19,15 @@ import {
 
 /**
  * The problem banner (owner decision 37; UI_SPEC §6.3): at the top of every
- * tab while the item has an open problem, acknowledged or not, until it is
- * resolved. Each says what's wrong, what fixes it and who acts, with a
- * warning icon, any proposed resolution, "Acknowledged by you <when>", and
- * the same actions as the Problems card. Several stack, with a count.
- * `?problem=<id>` (the Problems card's *Open*) focuses that one.
+ * tab while the item has an open problem, until it is resolved. Each says
+ * what's wrong, what fixes it and who acts, with a warning icon, any proposed
+ * resolution, and the same actions as the Problems card. Several stack, with
+ * a count. `?problem=<id>` (the Problems card's *Open*) focuses that one.
+ *
+ * Decision 62: acknowledged problems aren't open. They fold into one quiet
+ * line, "You acknowledged N problems", which expands to show them (each with
+ * "Acknowledged by you <when>" and its actions), and they aren't counted. One
+ * comes back as open when it needs you again (decision 37's rules).
  *
  * Open overlap and undeclared-changes questions on the item are problems
  * too: their cards, with their decisions, stack here as well.
@@ -32,7 +36,12 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
   const id = data.item.id;
   const [params] = useSearchParams();
   const focus = params.get('problem');
-  const problems = data.problems ?? NO_PROBLEMS;
+  const all = data.problems ?? NO_PROBLEMS;
+  const problems = all.filter((p) => !p.acknowledged);
+  const acked = all.filter((p) => p.acknowledged);
+  // Opened on an acknowledged one (`?problem=`): show them.
+  const [showAcked, setShowAcked] = useState(() => acked.some((p) => p.id === focus));
+  const ackedId = useId();
   const resolutions = data.resolutions ?? NO_RESOLUTIONS;
   const shared = useQuery({
     queryKey: queryKeys.itemShared(id),
@@ -57,9 +66,9 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
     focused.current = focus;
     el.focus();
     el.scrollIntoView?.({ block: 'nearest' });
-  }, [focus, total]);
+  }, [focus, total, showAcked]);
 
-  if (total === 0) return null;
+  if (total === 0 && acked.length === 0) return null;
   return (
     <section
       ref={root}
@@ -83,6 +92,25 @@ export function ProblemBanners({ data }: { data: ItemDetailResponse }) {
       {holds.map((h) => (
         <HoldCard key={h.id} hold={h} banner />
       ))}
+      {acked.length > 0 && (
+        <div className="prob-acked" data-acked-problems={acked.length}>
+          <button
+            type="button"
+            className="linkbtn src"
+            aria-expanded={showAcked}
+            aria-controls={ackedId}
+            onClick={() => setShowAcked((v) => !v)}
+          >
+            {acknowledgedText(acked.length)} <span aria-hidden="true">{showAcked ? '▾' : '▸'}</span>
+          </button>
+          <div id={ackedId} hidden={!showAcked}>
+            {showAcked &&
+              acked.map((p) => (
+                <ProblemBanner key={p.id ?? p.kind} problem={p} focused={p.id === focus} />
+              ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

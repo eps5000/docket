@@ -696,6 +696,9 @@
             },
             "unshaped_epics": {
               "type": "object"
+            },
+            "untriaged_epics": {
+              "type": "object"
             }
           },
           "required": [
