@@ -1,8 +1,6 @@
 # Design: ticket types by kind of work
 
-**Status:** proposed on 2026-11-24 for the owner's review.
-- **Release is approved and being built** (owner, 2026-11-24, B84).
-- The other types and the open questions below still need the owner's answer.
+**Status:** approved by the owner on 2026-11-24 (owner decision 67). Built in B84.
 
 ## Why
 
@@ -87,17 +85,14 @@ Docket shows the types in:
 - the planner and producer skills, which follow the order exploration, design, build, release;
 - the importer, Help and the specs.
 
-## Open questions for the owner
+## The owner's answers (2026-11-24)
 
-1. **Documentation:** fold it into Design as above, or make a separate **Docs** type? I recommend folding it in for now, because it keeps the list short and docs that define behavior are design.
-2. **Exploration:** add it as its own type, as above? I recommend yes.
-   - Its result is knowledge, not code, so its gates differ: no PR and no shared changes.
-   - It can run before the epic is Ready.
-   - This replaces my earlier suggestion to treat spikes as Design.
+1. **Documentation is Design.**
+2. **Exploration is its own type.** A spike is an Exploration ticket when its purpose is to learn, and an Implementation ticket when its code is meant to stay.
 
 ## Build outline
 
-1. **B84 (approved): the Release type**, its automatic dependencies, gates, epic closing, Map column, migration of existing epics, and skills and Help.
-2. Once approved: the other types, the mapping, transition aliases, the inferred marker and the count of inferred types remaining.
+1. **The Release type** first: its automatic dependencies, gates, epic closing, Map column, migration of existing epics, and skills and Help.
+2. The other types, the mapping, transition aliases, the inferred marker and the count of inferred types remaining.
 3. Dependency meaning by blocker type, Exploration's readiness exception, and the finish-wait wording in Queued and the Map.
 4. Skills (planner, producer, worker), Help and the specs, within the token budgets, using reference files (decision 66).
