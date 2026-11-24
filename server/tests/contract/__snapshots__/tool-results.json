@@ -1809,6 +1809,69 @@
             ],
             "additionalProperties": false
           },
+          "known_gaps": {
+            "type": "object",
+            "properties": {
+              "gaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer"
+                    },
+                    "gap": {
+                      "type": "string"
+                    },
+                    "settled": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "gap",
+                    "settled"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "open": {
+                "type": "integer"
+              },
+              "approved": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "decision_id": {
+                        "type": "string"
+                      },
+                      "at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "decision_id",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "gaps",
+              "open",
+              "approved"
+            ],
+            "additionalProperties": false
+          },
           "unread_owner_notes": {
             "type": "array",
             "items": {
@@ -3276,6 +3339,69 @@
             ],
             "additionalProperties": false
           },
+          "known_gaps": {
+            "type": "object",
+            "properties": {
+              "gaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": {
+                      "type": "integer"
+                    },
+                    "gap": {
+                      "type": "string"
+                    },
+                    "settled": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "n",
+                    "gap",
+                    "settled"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "open": {
+                "type": "integer"
+              },
+              "approved": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "decision_id": {
+                        "type": "string"
+                      },
+                      "at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "decision_id",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "gaps",
+              "open",
+              "approved"
+            ],
+            "additionalProperties": false
+          },
           "waiting_runs": {
             "type": "object",
             "properties": {
@@ -4445,6 +4571,45 @@
                 "cursor",
                 "item_id",
                 "type"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "total",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
+      "unshaped_epics": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "unshaped": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "unshaped"
               ],
               "additionalProperties": false
             }

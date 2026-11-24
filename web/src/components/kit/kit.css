@@ -1004,6 +1004,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Decision 58: one line; the unshaped tickets are its tooltip. */
+.tl .epicready {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl .epicready.not_ready {
+  color: var(--text);
+}
 .tl .pbar {
   height: 10px;
   border-radius: 5px;

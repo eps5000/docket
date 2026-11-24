@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { questionChoiceSchema } from './question-form.js';
 import { contextSharedSchema } from './shared-changes.js';
 import { WAIT_KINDS } from '../wait-kind.js';
+import { knownGapsSchema } from '../epic-readiness.js';
 import {
   ADDED_BY,
   CHECK_STATES,
@@ -496,6 +497,8 @@ export const itemSchema = itemSummarySchema.extend({
   resume: itemResumeSchema.nullable(),
   /** Decision 42: present while the story is between workers under one producer. */
   producer_hold: producerHoldSchema.optional(),
+  /** Decision 58: what implementation will settle, and the owner's approval; absent when none. */
+  known_gaps: knownGapsSchema.optional(),
   /** Returned once, then marked read. */
   unread_owner_notes: z.array(z.object({ id: z.string(), text: z.string(), at: z.string() })),
   documents: z.array(
@@ -663,6 +666,11 @@ export const contextBundleSchema = z.object({
    * Display only: any open blocker still refuses a claim. Never cut.
    */
   wait_kind: z.object({ kind: z.enum(WAIT_KINDS), text: z.string() }).optional(),
+  /**
+   * Decision 58: known gaps to shape, each with how it was settled. Placed
+   * with the essentials and never cut.
+   */
+  known_gaps: knownGapsSchema.optional(),
   /** Decision 45: parked runs this item would unblock, at most `WAIT_FLAGS.context_waiters`. */
   waiting_runs: z.object({ total: z.number().int(), rows: z.array(waitingRunSchema) }).optional(),
   problems: z

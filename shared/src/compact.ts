@@ -48,6 +48,7 @@ import type {
 } from './mcp/types.js';
 import { DIGEST_MAX_CHARS, DIGEST_TEXT_CHARS, type Digest } from './mcp/digest.js';
 import type { RecoveryWorkspace } from './mcp/recovery.js';
+import type { KnownGaps } from './epic-readiness.js';
 
 export interface RenderOptions {
   /** "Now", for HH:MMZ vs MM-DD. Defaults to the current time. */
@@ -491,6 +492,23 @@ function questionLines(item: AnyItem, now: Date): string[] {
  * An item, as `get_item` returns it. Works for every view and for
  * `fields`-trimmed items: each section appears only when its fields are present.
  */
+/**
+ * Decision 58: a ticket's known gaps, each with how it was settled. `toShape`
+ * is get_context's prominent heading for the implementer.
+ */
+export function knownGapLines(k: KnownGaps, toShape = false): string[] {
+  const approval = k.approved ? `approved by the owner ${k.approved.decision_id}` : 'not approved';
+  const head = toShape
+    ? `known gaps to shape (${k.open} open${SEP}${approval}; record how each was settled with update_item known_gaps):`
+    : `${I1}known gaps (${k.open} open${SEP}${approval}):`;
+  return [
+    head,
+    ...k.gaps.map(
+      (g) => `${I1}${g.n}. ${g.gap}${SEP}${g.settled ? `settled: ${g.settled}` : 'open'}`,
+    ),
+  ];
+}
+
 export function renderItem(
   item: AnyItem,
   opts: RenderOptions & { view?: 'summary' | 'standard' | 'full' } = {},
@@ -511,6 +529,7 @@ export function renderItem(
   if (item.acceptance && item.acceptance.length > 0) {
     lines.push(`${I1}acceptance:`, ...item.acceptance.map((a) => `${I1}- ${a}`));
   }
+  if (item.known_gaps) lines.push(...knownGapLines(item.known_gaps));
 
   if (item.counts) {
     const c = item.counts;
@@ -659,6 +678,8 @@ export function renderContext(ctx: ContextBundle, opts: RenderOptions = {}): str
   if (it.outcome_md) lines.push(...block('outcome', it.outcome_md));
   if (it.acceptance.length > 0)
     lines.push(`${I1}acceptance:`, ...it.acceptance.map((a) => `${I1}- ${a}`));
+  // Decision 58: right under the acceptance, never cut.
+  if (ctx.known_gaps) lines.push(...knownGapLines(ctx.known_gaps, true));
   const q = it.open_question;
   if (q) {
     lines.push(`${I1}question: ${q.id} ${q.text}${SEP}asked ${formatTime(q.asked_at, now)}`);
@@ -1020,7 +1041,27 @@ function renderDigest(d: Digest, now: Date): string {
     total: d.changed.total,
     rows: d.changed.rows.map((x) => [x.cursor, x.item_id, x.type].filter(Boolean).join(' ')),
   };
-  const rest = [nextWork, bottlenecks, ready, runs, blocked, owner, problems, leases, conflicts];
+  // Decision 58: a quiet flag for the producer; full snapshots only.
+  const unshaped = {
+    title: 'started unshaped',
+    total: d.unshaped_epics?.total ?? 0,
+    rows: (d.unshaped_epics?.rows ?? []).map(
+      (x) =>
+        `${x.id} started with ${x.unshaped.length} unshaped: ${partList(x.unshaped, 3)}${SEP}${clip(x.title, 30)}`,
+    ),
+  };
+  const rest = [
+    nextWork,
+    bottlenecks,
+    unshaped,
+    ready,
+    runs,
+    blocked,
+    owner,
+    problems,
+    leases,
+    conflicts,
+  ];
   const parts = d.since === null ? [...rest, changed] : [changed, ...rest];
   const build = () =>
     [

@@ -32,16 +32,16 @@ export const SERVER_INSTRUCTIONS = [
   "- After any pause, call get_item: it delivers the owner's notes, answers and review decisions, each once.",
   '- Send only what changes. update_item, set_plan and set_checks patch: whatever you leave out stays as it is. Use get_item view "summary" when you only need status.',
   '',
-  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused). On conflict, read the current state in the error and retry only if your change still makes sense.',
+  'Errors are structured (code: validation | conflict | not_found | forbidden | unavailable | internal | seam_conflict | not_declared | lease_held | design_review | project_paused | epic_not_ready). On conflict, read the current state in the error and retry only if your change still makes sense.',
 ].join('\n');
 
 /** MCP_SPEC §5: the exact `description` registered for each tool. */
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   whoami:
     'Check your connection: how the server identifies you, limits and server time. Call once at session start.',
-  list_projects: 'List projects with item counts. Use the key when creating items or searching.',
+  list_projects: 'List projects with item counts and keys.',
   search_items:
-    'Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text. Returns summaries; get_item has details.',
+    'Find items. Filters: ready_to_start (Ready, unblocked, unclaimed: what you may start), resumable (In progress with no lead, usually sent back by review: resume it), blocked, waiting_for_review (handed off, waiting on the owner), mine (items you lead), deferred_review (owner deferred a check; cleanup). Combine with project, status, type, label, epic or text.',
   get_item:
     "Get one item: description, acceptance, blockers, checklist (plan, checks, human review), runs, open question and answer, unread owner notes, documents, packets, recent activity. Owner notes and answers are returned once, then marked delivered: read them now. Use view 'summary' for status only, and get_context when starting work. Step details show as '· details' unless view is 'full'; read one with get_step.",
   get_context:
@@ -53,20 +53,20 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_changes:
     'Read changes since a cursor instead of re-reading items. Without a cursor, returns the latest cursor; then pass next_cursor. Watch for review.decided, question.answered and owner_note.added on your items. To wait, run the installed docket-wait script, which costs no tokens. Without a shell, pass wait_s (at most 45) to hold this call. Never poll in a sleep loop.',
   get_digest:
-    "One compact snapshot for coordinators, instead of many reads: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Long sections end in '+N more'. Read-only.",
+    'One compact snapshot for coordinators, instead of many reads: what to start next, bottlenecks, ready items, running, stale and parked runs (resume_ready flagged), blocked items and why, what waits on the owner, agent-actionable problems, leases, conflicts ahead, and the change cursor. Pass cursor for only what changed since then. Read-only.',
   create_item:
     'Create an Epic, Story, Task or Bug, in Inbox (or Planning if you are shaping it). Small steps go in the checklist (set_plan). To split a ticket, pass split_from: move and copy are 1-based acceptance positions; also brings blockers, parts or steps.',
   update_item:
-    "Edit an item's fields. Pass expected_version from your last read. Dates you set are labelled as set by you. Status goes through set_status, the plan through set_plan.",
+    "Edit an item's fields. Pass expected_version from your last read. Status goes through set_status, the plan through set_plan. known_gaps: what implementation will settle, each settled once done.",
   set_status:
-    'Move an item. Allowed: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only with no undecided human review item); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs shared changes declared (declare_shared_changes), else not_declared. When closing as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing with design_review. Hand off for review with submit_packet, not this.',
+    'Move an item. Allowed: inbox→planning; planning↔ready; ready→progress; progress→ready (gives up the work); progress or review→done (only with no undecided human review item); any open status→canceled (reason required); done→progress (reopen, reason required). Moving to ready needs shared changes declared (declare_shared_changes), else not_declared; open known_gaps ask the owner. When closing as done, pass changed_files and branch. An unapproved change to an approved design refuses starting or closing with design_review. Hand off for review with submit_packet, not this.',
   link_items:
-    "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (default, or the project's default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates it. A cycle is rejected with its path.",
+    "Link two items. type 'blocks': from must finish before to can start; 'relates' is informational. For blocks, satisfied_when sets what 'finished' means: done (the default), merged (done and a PR reported merged with link_artifact) or verified (done and every human review item approved). Calling again updates it. A cycle is rejected with its path.",
   unlink_items: 'Remove a link between two items.',
   upsert_label:
     'Create a label or update its brief. Use a label for an initiative spanning several epics; the brief holds the shared decisions.',
   claim_lead:
-    "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and, if a coordinator briefed you, brief, so the work can restart after a crash; instructions with the installed docket-check script's output; and branch, so conflicts are spotted early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner, so pick other work and leave it); design_review (it changes an approved design awaiting the owner: pause it and take other work).",
+    "Claim an item as its lead before working on it. Works on Ready items (moves them to In progress) and In progress items with no lead (resuming sent-back or interrupted work). Pass workspace and brief (if a coordinator briefed you) so work can restart after a crash, instructions with docket-check's output, and branch so conflicts show early. Returns run_id: pass it on every later call. Errors: conflict (someone holds it, with who and until when: do not work on it); seam_conflict (its shared parts collide with an item in flight: Docket queued it or asked the owner: take other work); design_review (it changes an approved design awaiting the owner: pause it, take other work).",
   release_lead:
     'Give up the lead claim without finishing. The item returns to Ready; your plan and notes stay. Under a producer it waits for the next worker unless you pass release_story.',
   start_run:
@@ -87,7 +87,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Record what a subagent contributed, as a short line under its step. provenance 'observed' if you saw its run or output, 'relayed' if passing on its report. Never creates a ticket.",
   set_checks:
     'Publish what you will verify yourself (tests, measurements, reviews), with state and evidence. Patches like set_plan: nothing is removed unless listed in remove. Owner-added checks are always kept.',
-  update_check: "Update one check's state and evidence, for example when tests pass.",
+  update_check: "Update one check's state and evidence.",
   declare_human_review:
     "Declare what the owner must verify by hand before this item can close, one plain instruction each ('On your phone, drag a recipe. Does it feel right?'). Declare early, usually in Planning. For one PR across an epic, declare once on the epic. With none, you may close the item yourself once your checks pass.",
   update_human_review:
@@ -125,9 +125,9 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   get_step:
     "Read one checklist step in full: text, state, source, details (Markdown), history and subagent notes. Call before working on a step get_item shows with '· details'. Read-only.",
   apply_batch:
-    'Run up to 100 writes in one call, for large onboardings: each operation names a tool and its arguments. Each runs as its single call would, in order: a failure doesn\'t undo the others, and the result lists each operation\'s ID or error. "$1" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.',
+    'Run up to 100 writes in one call: each operation names a tool and its arguments. Each runs as its single call would, in order: a failure doesn\'t undo the others, and the result lists each operation\'s ID or error. "$1" means the ID operation 1 wrote. Pass idempotency_key, so a retry runs only what failed.',
   declare_shared_changes:
-    'Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. Pass branches, every branch the work is on (or branch for one); they replace those reported, and an empty list clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.',
+    'Declare the shared parts this item will change (tables, models, endpoints, shared files), each with add, change or remove and a short note, or none: true. Required before Ready. Each call replaces the whole declaration. Use keys from list_shared_parts; register a missing one with new_parts. Name the member when you can (model:Token.expiresAt): different members run in parallel; a bare part is sequenced. Set design_impact: changes_approved_design with a design_note when it alters an approved design: this item pauses until the owner approves. Set disputed: true when agents disagree who owns a part. branches (or branch) replace the reported ones; [] clears them. Returns in-flight items on the same parts, each with outcome parallel, sequence or owner.',
   list_shared_parts:
     "List a project's shared parts: each key, the file paths mapped to it, whether it is single-writer, who holds its lease, and in-flight items declaring changes to it. Read-only.",
   take_lease:

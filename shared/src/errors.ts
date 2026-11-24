@@ -21,6 +21,8 @@ export const ERROR_CODES = [
   'design_review',
   // Decision 53: the owner paused this project, so no new claim or resume.
   'project_paused',
+  // Decision 58: an epic can't start while any of its tickets is in Inbox or Planning.
+  'epic_not_ready',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -53,6 +55,7 @@ export const HTTP_STATUS: Record<ErrorCode, number> = {
   not_declared: 400,
   design_review: 409,
   project_paused: 409,
+  epic_not_ready: 409,
 };
 
 export class ToolError extends Error {

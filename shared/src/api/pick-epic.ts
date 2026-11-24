@@ -9,13 +9,16 @@ import { jsonResponse, noInput } from './common.js';
 import { projectParams } from './deps.js';
 import { json, route } from './route.js';
 import { epicWaitSchema } from './types.js';
+import { epicReadinessSchema } from '../epic-readiness.js';
 
 /**
  * - `available`: nobody holds it and it wouldn't likely park;
  * - `being_worked`: a live lead or producer already holds it or one of its tickets;
- * - `likely_parks`: nothing can start, or most of its tickets wait on outside work.
+ * - `likely_parks`: nothing can start, or most of its tickets wait on outside work;
+ * - `not_ready`: it hasn't started and some tickets are in Inbox or Planning
+ *   (decision 58), so it can't start yet and is never Best next.
  */
-export const EPIC_PICK_FITS = ['available', 'being_worked', 'likely_parks'] as const;
+export const EPIC_PICK_FITS = ['available', 'being_worked', 'likely_parks', 'not_ready'] as const;
 export type EpicPickFit = (typeof EPIC_PICK_FITS)[number];
 
 export const epicPickSchema = z.object({
@@ -55,6 +58,8 @@ export const epicPickSchema = z.object({
   fit: z.enum(EPIC_PICK_FITS),
   /** One plain sentence when `fit` is `likely_parks`; null otherwise. */
   park_reason: z.string().nullable(),
+  /** Decision 58: Not ready to start, or Started with N unshaped tickets, with links; absent when all are Ready. */
+  readiness: epicReadinessSchema.optional(),
 });
 export type EpicPick = z.infer<typeof epicPickSchema>;
 
