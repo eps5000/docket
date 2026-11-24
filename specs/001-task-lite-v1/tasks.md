@@ -717,6 +717,13 @@ A slice **fills in** stubs in its own files: `server/src/mcp/tools/<group>.ts`, 
 - [x] T312 [US13] One short pointer from `docket-coordinator`, paid for by trimming duplicate wording, so its token count doesn't rise.
 - [x] T313 [US13] Tests: listing, install for both clients, drift, uninstall, update available from an older install, skills lint, a guard against project-specific names, token budgets.
 
+## Phase 49: Pick next epic (owner decision 54)
+
+- [x] T314 [US4] Spec plus code in one PR: decision 54 in REQUIREMENTS_DRAFT and the BUILD_SPEC log; BUILD_SPEC §5.38; UI_SPEC §6.2.5; spec FR-307–FR-312 and SC-036; Help.
+- [x] T315 [US4] `domain/epic-picks.ts` and `GET /api/projects/:key/pick-epic`: the six numbers, fit, order and the Best next reason, on `BlockIndex`, `readyStates` and `upstreamOf`.
+- [x] T316 [US4] The Pick next epic page, the link from Work, and the outside-dependency indicator on epic cards and the epic page.
+- [x] T317 [US4] Tests: self-contained, transitive and no-epic chains, cleared and canceled blockers, cycles, paused projects, being worked, order, Best next, empty states, the indicator; e2e and axe in both themes at 1024 px and 1440 x 900 on stress data.
+
 ## How to run the build
 
 **One batch = one fresh agent session = one branch = one PR.** Never run `/speckit-implement` across the whole list. `tasks.md` holds the state: each run ticks off its tasks, so the next run starts where the last stopped.
@@ -834,6 +841,7 @@ Open a PR titled "<Bn>: <phase name>" with the checkpoint evidence. Do not queue
 | 45 A bundled delivery skill | B66 (decision 52) |
 | 47 Pause project | B69 (decision 53) |
 | 48 A bundled producer skill | B71 (decision 55) |
+| 49 Pick next epic | B70 (decision 54) |
 
 **Within a phase:** tests (failing) → services → replace stubs or fill handlers → fill screens → checkpoint.
 

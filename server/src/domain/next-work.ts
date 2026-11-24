@@ -39,11 +39,15 @@ function blockerWords(ids: readonly string[]): string {
   return ids.length > BLOCKERS_SHOWN ? `${shown} and ${ids.length - BLOCKERS_SHOWN} more` : shown;
 }
 
-/** Startable or Waiting, for each of these Ready items. */
+/**
+ * Startable or Waiting, for each of these Ready items. `ignorePause` is for
+ * Pick next epic (decision 54), which shows what could start once resumed.
+ */
 export function readyStates(
   db: Db,
   index: BlockIndex,
   ids: readonly string[],
+  opts: { ignorePause?: boolean } = {},
 ): Map<string, ReadyState> {
   const out = new Map<string, ReadyState>();
   if (ids.length === 0) return out;
@@ -60,7 +64,7 @@ export function readyStates(
   const overlap = waitingOnOverlap(db, [...ids]);
   const design = waitingOnDesign(db, ids);
   // Decision 53: nothing in a paused project can start, so none of it counts as Startable.
-  const paused = projectPauses(db);
+  const paused = opts.ignorePause ? new Map() : projectPauses(db);
   for (const id of ids) {
     const blockedBy = index.state(id).blocked_by;
     const lead = leads.get(id);

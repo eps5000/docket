@@ -2223,3 +2223,42 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Decision 54: Pick next epic. */
+.tl .pickepic-lede {
+  margin: 0 0 10px;
+}
+.tl .pickepic .pe-table {
+  min-width: 860px;
+}
+.tl .pickepic .pe-table td {
+  vertical-align: top;
+}
+.tl .pickepic .pe-table td a {
+  text-decoration: underline;
+}
+.tl .pickepic .pe-epic {
+  min-width: 240px;
+  overflow-wrap: anywhere;
+}
+.tl .pickepic .pe-sort {
+  all: unset;
+  cursor: pointer;
+}
+.tl .pickepic .pe-sort:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.tl .pickepic .pe-group th {
+  background: var(--panel-2);
+  color: var(--ink-2);
+}
+.tl .pickepic tbody[data-pick-group='likely_parks'] tr:not(.pe-group) {
+  background: var(--panel-2);
+}
+.tl .pickepic tr[data-best-next] {
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+.tl .epicdeps-line {
+  margin-top: 6px;
+}

@@ -116,6 +116,15 @@ export const activityRowSchema = eventRowSchema.extend({
 });
 export type ActivityRow = z.infer<typeof activityRowSchema>;
 
+/** Decision 54: another epic, or "no epic" (`epic: null`), that an epic's open chain depends on. */
+export const epicWaitSchema = z.object({
+  epic: z.string().nullable(),
+  title: z.string().nullable(),
+  /** Distinct open tickets there that this epic's chain depends on. */
+  tickets: z.number().int(),
+});
+export type EpicWait = z.infer<typeof epicWaitSchema>;
+
 /** An epic on the Epics row and the epic page header. */
 export const epicCardSchema = itemSummarySchema.extend({
   children: z.object({
@@ -125,6 +134,8 @@ export const epicCardSchema = itemSummarySchema.extend({
     /** Children with a packet ready or an open question ("N for you", UI_SPEC §4). */
     for_you: z.number().int(),
   }),
+  /** Decision 54: what it waits on; empty means none. Absent unless it's open with open tickets. */
+  waits_on: z.array(epicWaitSchema).optional(),
 });
 export type EpicCard = z.infer<typeof epicCardSchema>;
 
