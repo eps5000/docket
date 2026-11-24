@@ -83,7 +83,20 @@ Parallel items collide when they change the same table, model, endpoint or share
 - **Two items that change the same part:** Docket decides. Safe overlaps run in parallel, the rest run in order (first claimed goes first), and the owner hears only about cycles and disputes. If you know which should go first, link them now (`link_items { type: "blocks" }`). "Add-only" doesn't prevent a merge conflict: two branches inserting at the same line still conflict, and the radar gives them a merge order.
 - **A problem that needs a new plan** (an epic branch far behind main, two items that keep colliding): propose it with `propose_resolution { problem, kind: "split" | "rescope" | "reorder" | "other", plan_md, reason }`, using the problem's ID from `get_context`, and wait for the owner's choice in `resolutions:`. Routine fixes (a rebase, dropping an old branch from the item's branches) need no proposal.
 
-## 7. Many writes at once
+## 7. Known gaps and epic readiness
+
+**An epic can't start while any of its tickets is in Inbox or Planning** (`epic_not_ready`). Inbox is an idea nobody is ready to plan; Planning still has gaps. Before an epic starts, make every ticket at least Ready: shape it, name its known gaps, move it to the epic it belongs in (`update_item { epic }`), or take it out (`update_item { epic: null }`).
+
+**Known gaps** are the few things that are better settled during implementation, such as an exact limit or the wording of a message. A ticket can name up to 6:
+
+```
+update_item { id, expected_version, known_gaps: [{ gap: "Which retry limit to use" }] }
+set_status { id, status: "ready" }
+```
+
+With open gaps, `set_status ready` is refused and **Docket asks the owner** ("Approve moving GF-1 to Ready with these gaps?"). Don't ask again with `ask_owner`. If they approve, Docket records their decision and moves the ticket to Ready; if not, keep shaping. A gap you've settled gets `settled: "<how>"` and no longer needs approval. Changing a gap clears an approval.
+
+## 8. Many writes at once
 
 When a breakdown or an onboarding runs to dozens of items, documents or links, send them with `apply_batch`: up to 100 `operations` a call, each naming a tool (`create_item`, `update_item`, `link_items`, `upsert_label`, `set_plan`, `update_step`, `put_document`, `publish_decision`) with the arguments you would give it.
 
@@ -92,11 +105,11 @@ When a breakdown or an onboarding runs to dozens of items, documents or links, s
 - Pass `idempotency_key` on each batch: a retry then replays what succeeded.
 - **Steps imported from Jira** (they have a `source`): you may add to their details, keeping the current text at the start. Their text stays the owner's.
 
-## 8. Hand back
+## 9. Hand back
 
 1. Add one `add_note` on the epic: how you broke it down, what's blocked on what, and any open questions.
 2. If something needs an owner decision, `ask_owner` on the epic, with options and your recommendation.
-3. Move items to Ready (`set_status { status: "ready" }`) **only if the project allows it**. Even then, only items with acceptance criteria, the expected planning docs, their shared changes declared, and no open questions.
+3. Move items to Ready (`set_status { status: "ready" }`) **only if the project allows it**. Even then, only items with acceptance criteria, the expected planning docs, their shared changes declared, and no open questions. Open known gaps go to the owner instead (§7).
 
 ## Don't
 

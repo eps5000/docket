@@ -26,6 +26,7 @@ import { BlockIndex, OPEN_STORED_SQL, actorName, leaseExpired, ms, type RunRow }
 import { readyStates } from './next-work.js';
 import { waitKindsOf } from './wait-kind.js';
 import { projectPause } from './project-pause.js';
+import { readinessOf, unshapedByEpic } from './epic-readiness.js';
 
 /** How many startable tickets a row names. */
 const FIRST_SHOWN = 3;
@@ -337,6 +338,11 @@ export function pickEpics(
   const ready = readyStates(db, index, readyIds, { ignorePause: true });
   const holders = holdersByItem(db, graph, now);
   const kinds = waitKindsOf(db, now, index, ctx);
+  // Decision 58: an epic not yet started with Inbox or Planning tickets can't start.
+  const unshaped = unshapedByEpic(
+    db,
+    epics.map((e) => e.id),
+  );
 
   const rows = epics
     .map((e): EpicPick => {
@@ -356,6 +362,8 @@ export function pickEpics(
         not_shaped,
         canStart: startable.length,
       });
+      const readiness = readinessOf(e, unshaped.get(e.id));
+      const notReady = readiness?.state === 'not_ready';
       return {
         id: e.id,
         title: e.title,
@@ -372,8 +380,16 @@ export function pickEpics(
         not_shaped,
         waiting: { queued: waits.queued, blocked: waits.blocked },
         worked_by,
-        fit: worked_by.length > 0 ? 'being_worked' : park_reason ? 'likely_parks' : 'available',
-        park_reason: worked_by.length > 0 ? null : park_reason,
+        fit:
+          worked_by.length > 0
+            ? 'being_worked'
+            : notReady
+              ? 'not_ready'
+              : park_reason
+                ? 'likely_parks'
+                : 'available',
+        park_reason: worked_by.length > 0 || notReady ? null : park_reason,
+        ...(readiness ? { readiness } : {}),
       };
     })
     .sort(compareEpicPicks);

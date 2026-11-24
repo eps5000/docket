@@ -14,6 +14,7 @@ import {
   projectKey,
   text,
 } from './common.js';
+import { KNOWN_GAPS } from '../epic-readiness.js';
 import { LABEL_NAME_RE, LIMITS, TEXT_LIMITS } from './limits.js';
 import { branchInput, changedFilesInput } from './shared-changes.js';
 import {
@@ -105,6 +106,19 @@ export const updateItemInput = mutationInput({
   planned_start: date.nullable().optional(),
   planned_end: date.nullable().optional(),
   effort: z.number().min(0).nullable().optional(),
+  /**
+   * Decision 58: what implementation will settle. Replaces the list; on a
+   * ticket the owner approved, only `settled` may change.
+   */
+  known_gaps: z
+    .array(
+      z.strictObject({
+        gap: text(KNOWN_GAPS.gap),
+        settled: text(KNOWN_GAPS.settled).optional(),
+      }),
+    )
+    .max(KNOWN_GAPS.max)
+    .optional(),
 });
 export const updateItemOutput = mutationOutput({ item: itemSummarySchema });
 

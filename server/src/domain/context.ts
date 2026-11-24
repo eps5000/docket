@@ -61,6 +61,7 @@ import { currentWorkflow } from './agent-files.js';
 import { inScopeOf, labelsOf } from './decisions.js';
 import { BlockIndex, activeLead, coordinatorParkOf, currentSteps, requireItem } from './model.js';
 import { contextResolutions } from './problems.js';
+import { knownGapsView } from './epic-readiness.js';
 import { pausedForAgents, projectPause } from './project-pause.js';
 import { choiceField } from './question-form.js';
 import { storedActivity } from './run-activity.js';
@@ -143,6 +144,8 @@ interface Full {
   last_review: Bundle['last_review'];
   wait?: NonNullable<Bundle['wait']>;
   wait_kind?: NonNullable<Bundle['wait_kind']>;
+  /** Decision 58: known gaps to shape, each with how it was settled. */
+  known_gaps?: NonNullable<Bundle['known_gaps']>;
   waiting_runs?: NonNullable<Bundle['waiting_runs']>;
   /** Decision 53: the line an agent reads while the owner has this project paused. */
   paused?: string;
@@ -343,7 +346,14 @@ function gather(r: ReadContext, deps: ServiceDeps, id: string): Full {
     ...waitSections(r, row.id, index),
     ...waitKindSection(r, deps, row.id, index),
     ...(pause ? { paused: pausedForAgents(row.project_key, pause) } : {}),
+    ...knownGapsSection(row.known_gaps),
   };
+}
+
+/** Decision 58: the ticket's known gaps, for the implementer to shape. */
+function knownGapsSection(raw: unknown): Pick<Full, 'known_gaps'> {
+  const view = knownGapsView(raw);
+  return view ? { known_gaps: view } : {};
 }
 
 /** Decision 57: Queued, Blocked or Held, from the one classification. */
@@ -447,6 +457,8 @@ export function assemble(
     // Decision 45: short and bounded, and with the blockers, so it is never cut.
     ...(full.wait ? { wait: full.wait } : {}),
     ...(full.wait_kind ? { wait_kind: full.wait_kind } : {}),
+    // Decision 58: what the implementer must shape, with the essentials; never cut.
+    ...(full.known_gaps ? { known_gaps: full.known_gaps } : {}),
     ...(full.waiting_runs ? { waiting_runs: full.waiting_runs } : {}),
   };
   const larger = budget === 'large' ? ' left out' : '; ask get_context with a larger budget';
