@@ -5,6 +5,7 @@
  * neighbour, or back to the page you came from. Kept in sessionStorage.
  */
 import type { ItemType } from '@docket/shared';
+import type { MapZoom } from '../components/ProgressMap';
 import type { ItemTab } from '../lib/paths';
 
 export const MAX_OPEN_TABS = 8;
@@ -16,6 +17,8 @@ export interface OpenTab {
   title?: string;
   /** The view tab this item was last on. */
   view?: ItemTab;
+  /** The epic map's zoom while this item tab remains open. */
+  mapZoom?: MapZoom;
 }
 
 export interface OpenTabsState {

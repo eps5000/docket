@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { ItemDetailResponse } from '@docket/shared';
 import { Link } from 'react-router';
 import { Card, EmptyState } from '../../components/kit';
+import type { MapZoom } from '../../components/ProgressMap';
+import { useShell } from '../../app/ShellState';
 import { paths } from '../../lib/paths';
 import { GoalMap } from '../shared/GoalMap';
 
@@ -15,6 +17,9 @@ import { GoalMap } from '../shared/GoalMap';
 export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
   const hrs = data.item.checklist.human_review;
   const { id, title, project } = data.item;
+  const { tabs, updateTab } = useShell();
+  const mapZoom = tabs.tabs.find((tab) => tab.id === id)?.mapZoom;
+  const onZoomChange = useCallback((zoom: MapZoom) => updateTab(id, { mapZoom: zoom }), [id, updateTab]);
   // Stable, so the map doesn't re-measure on every render.
   const home = useMemo(() => ({ project }), [project]);
   const goals = useMemo(() => [{ id, title }], [id, title]);
@@ -57,6 +62,8 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
         ) : (
           <GoalMap
             items={children}
+            mapZoom={mapZoom}
+            onZoomChange={onZoomChange}
             outside={data.outside}
             links={data.links}
             outsideTitle="Outside this epic"
