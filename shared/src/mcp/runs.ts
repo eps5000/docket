@@ -132,6 +132,15 @@ export const waitingOnInput = z.strictObject({
   orchestrator: z.boolean().optional(),
   person: z.boolean().optional(),
   until: isoTime.optional(),
+  /** External wake for a coordinator wait. Docket records it but cannot deliver it. */
+  wake: z
+    .strictObject({
+      actor: text(LIMITS.orchestrator_name),
+      event: text(160).regex(/^[^\r\n<>]*$/, 'Name one short event, not raw output.'),
+      due_at: isoTime,
+      source_item: itemId.optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -306,18 +315,37 @@ export const updateRunStatusInput = mutationInput({
   park_minutes: z.number().int().min(1).max(COORDINATOR_PARK.max_minutes).optional(),
   /** Resume a parked run, or end a coordinator's park early. Not with the park fields. */
   resume: z.literal(true).optional(),
+  /** Verified external Orca observation; never a signal from the claimed run. */
+  dispatch_observation: z
+    .strictObject({
+      claimed_run: objectId,
+      dispatch_id: z
+        .string()
+        .regex(/^ctx_[A-Za-z0-9_-]{1,96}$/, 'Use the exact Orca ctx_ dispatch ID.'),
+      state: z.enum([
+        'live',
+        'failed',
+        'exited',
+        'supervisor_unavailable',
+        'supervisor_disabled',
+        'supervisor_missing_target',
+      ]),
+    })
+    .optional(),
 }).superRefine((value, ctx) => {
   if (
     value.current_action === undefined &&
     value.park_reason === undefined &&
     value.waiting_on === undefined &&
     value.park_minutes === undefined &&
-    value.resume === undefined
+    value.resume === undefined &&
+    value.dispatch_observation === undefined
   ) {
     ctx.addIssue({
       code: 'custom',
       path: ['current_action'],
-      message: 'Pass current_action, park_reason, waiting_on, park_minutes or resume.',
+      message:
+        'Pass current_action, park_reason, waiting_on, park_minutes, resume or dispatch_observation.',
     });
   }
   if (
@@ -330,6 +358,20 @@ export const updateRunStatusInput = mutationInput({
       code: 'custom',
       path: ['resume'],
       message: 'Resume, or change what it waits on, not both.',
+    });
+  }
+  if (
+    value.dispatch_observation &&
+    (value.current_action !== undefined ||
+      value.park_reason !== undefined ||
+      value.waiting_on !== undefined ||
+      value.park_minutes !== undefined ||
+      value.resume)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['dispatch_observation'],
+      message: 'Report an Orca observation alone; it must not change or resume the run.',
     });
   }
 });

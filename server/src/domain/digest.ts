@@ -130,7 +130,12 @@ function problemRows(view: NeedsYouResponse): Digest['problems']['rows'] {
   const seen = new Set<string>();
   const out: Digest['problems']['rows'] = [];
   for (const p of open) {
-    if (p.explanation?.who !== 'agent') continue;
+    if (
+      p.explanation?.who !== 'agent' &&
+      p.kind !== 'wait_missing_wake' &&
+      p.kind !== 'dispatch_custody'
+    )
+      continue;
     const id = p.id ?? `${p.kind}:${p.item_id ?? ''}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -138,7 +143,7 @@ function problemRows(view: NeedsYouResponse): Digest['problems']['rows'] {
       id,
       kind: p.kind,
       item_id: p.item_id,
-      fix: p.explanation.fix ?? p.reason,
+      fix: p.explanation?.fix ?? p.reason,
     });
   }
   return out;

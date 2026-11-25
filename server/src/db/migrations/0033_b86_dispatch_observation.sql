@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `dispatch_observation` text;

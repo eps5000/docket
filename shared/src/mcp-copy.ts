@@ -78,7 +78,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   park_run:
     'Park when the work itself stops (another item, the coordinator, a person), not while CI runs. Keeps your claim; say what you wait on. Any write with your run_id resumes it. Details: docket-worker reference waiting.',
   update_run_status:
-    "Coordinators: set a lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes. No run_id; coordinator is your name. Grants no other power. Details: docket-coordinator reference parked-workers.",
+    "Coordinators: set a lead run's status or wait, or report verified Orca dispatch liveness through dispatch_observation. No run_id; coordinator is your name. Reporting never resumes or releases the run. Details: docket-coordinator reference parked-workers.",
   set_plan:
     "Publish or revise your plan as one-line steps, with optional details and source. Patches: steps with an id update, others are added, remove lists what goes; mode 'replace' restates it.",
   update_step:

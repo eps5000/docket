@@ -258,7 +258,14 @@ const INPUTS: Record<string, [string[], string[]]> = {
   ],
   update_run_status: [
     ['id', 'coordinator'],
-    ['current_action', 'park_reason', 'waiting_on', 'park_minutes', 'resume'],
+    [
+      'current_action',
+      'park_reason',
+      'waiting_on',
+      'park_minutes',
+      'resume',
+      'dispatch_observation',
+    ],
   ],
   set_plan: [['id'], ['reason', 'mode', 'steps', 'remove']],
   update_step: [

@@ -1280,6 +1280,29 @@
                             },
                             "until": {
                               "type": "string"
+                            },
+                            "wake": {
+                              "type": "object",
+                              "properties": {
+                                "actor": {
+                                  "type": "string"
+                                },
+                                "event": {
+                                  "type": "string"
+                                },
+                                "due_at": {
+                                  "type": "string"
+                                },
+                                "source_item": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "actor",
+                                "event",
+                                "due_at"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "additionalProperties": false
@@ -9439,6 +9462,29 @@
                             },
                             "until": {
                               "type": "string"
+                            },
+                            "wake": {
+                              "type": "object",
+                              "properties": {
+                                "actor": {
+                                  "type": "string"
+                                },
+                                "event": {
+                                  "type": "string"
+                                },
+                                "due_at": {
+                                  "type": "string"
+                                },
+                                "source_item": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "actor",
+                                "event",
+                                "due_at"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "additionalProperties": false
@@ -10382,6 +10428,29 @@
                             },
                             "until": {
                               "type": "string"
+                            },
+                            "wake": {
+                              "type": "object",
+                              "properties": {
+                                "actor": {
+                                  "type": "string"
+                                },
+                                "event": {
+                                  "type": "string"
+                                },
+                                "due_at": {
+                                  "type": "string"
+                                },
+                                "source_item": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "actor",
+                                "event",
+                                "due_at"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "additionalProperties": false
@@ -11227,6 +11296,29 @@
                             },
                             "until": {
                               "type": "string"
+                            },
+                            "wake": {
+                              "type": "object",
+                              "properties": {
+                                "actor": {
+                                  "type": "string"
+                                },
+                                "event": {
+                                  "type": "string"
+                                },
+                                "due_at": {
+                                  "type": "string"
+                                },
+                                "source_item": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "actor",
+                                "event",
+                                "due_at"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "additionalProperties": false

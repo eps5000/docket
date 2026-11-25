@@ -68,6 +68,18 @@ export const PROBLEM_ROWS: Record<
     tone: 'bad',
     actions: [{ label: 'Inspect', kind: 'link', to: itemTab('activity') }],
   },
+  wait_missing_wake: {
+    help: 'problems.wait_missing_wake',
+    icon: 'pause',
+    tone: 'warn',
+    actions: [{ label: 'Inspect', kind: 'link', to: onBanner('activity'), banner: true }],
+  },
+  dispatch_custody: {
+    help: 'problems.dispatch_custody',
+    icon: 'failed',
+    tone: 'bad',
+    actions: [{ label: 'Inspect', kind: 'link', to: onBanner('activity'), banner: true }],
+  },
   cycle: {
     help: 'problems.cycle',
     icon: 'cycle',

@@ -497,6 +497,8 @@ export const runs = sqliteTable(
     coordinator_park: text('coordinator_park', { mode: 'json' }),
     /** Decision 45: `{flags, resume_key?}`, the wait flags raised and the last resume told. */
     wait_flags: text('wait_flags', { mode: 'json' }),
+    /** Last bounded Orca observation from an authorized coordinator; external evidence. */
+    dispatch_observation: text('dispatch_observation', { mode: 'json' }),
     /**
      * Decision 61: `{outcome, left: [{text, why, needs, item}], via, at}`, how the run
      * finished, from park_run, release_lead, finish_run or closing as Done.

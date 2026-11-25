@@ -137,6 +137,8 @@ export const PROBLEM_KINDS = [
   // A parked run's wait has no next step, or an owner decision nobody asked for (decision 45; B54)
   'wait_no_next_step',
   'wait_owner_unasked',
+  'wait_missing_wake',
+  'dispatch_custody',
   // An In progress ticket nobody has worked on for days (decision 62; B79)
   'idle_ticket',
 ] as const;

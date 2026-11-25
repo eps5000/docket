@@ -252,7 +252,14 @@ describe('§7.12 parking while you wait (MCP_SPEC §10 test 17)', () => {
       await call(h.a, 'park_run', {
         run_id,
         reason: 'Waiting for the coordinator',
-        waiting_on: { orchestrator: true },
+        waiting_on: {
+          orchestrator: true,
+          wake: {
+            actor: 'owner',
+            event: 'next review',
+            due_at: new Date(h.server.clock.now().getTime() + 72 * 3_600_000).toISOString(),
+          },
+        },
       }),
     );
     h.server.clock.advance(h.server.runtime.config.parkMaxMs);
