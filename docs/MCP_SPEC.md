@@ -420,7 +420,8 @@ type WaitCard = { run_id: string; item_id: string; label: string|null; client: s
 type Workspace = { host: string|null; repo: string|null; path: string|null; branch: string|null;
   base_ref: string|null; base_sha: string|null; head_sha: string|null; pushed_sha: string|null; dirty: boolean|null;
   state: 'in_use'|'parked'|'at_risk'|'safe_to_prune'|'unknown'; updated_at: string };
-type WaitingOn = { items?: string[]; orchestrator?: boolean; person?: boolean; until?: string };
+type WaitingOn = { items?: string[]; orchestrator?: boolean; person?: boolean; until?: string;
+  wake?: { actor: string; event: string; due_at: string; source_item?: string } };
 type Resource = { id: string; kind: 'process'|'dev_server'|'session'|'container'|'temp_dir'|'port'|'other';
   label: string; locator: { pid?: number; port?: number; session_id?: string; container?: string; path?: string; host?: string };
   started_at: string; released_at: string|null; release_note: string|null };
@@ -685,12 +686,13 @@ The format for each tool below:
   - **Only work resumes it (decision 42):** `heartbeat` or any other mutating tool with its `run_id`. A read tool, `get_item` included, leaves its state, lease and park unchanged and writes no event.
 
 #### `update_run_status`
-**Description:** "Coordinators: set a lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes. No run_id; coordinator is your name. Grants no other power. Details: docket-coordinator reference parked-workers."
-- **Input:** `id`, `coordinator` (≤ 40), `current_action?` (≤ 2,000), `park_reason?` (≤ 500), `waiting_on?`, `park_minutes?` (1–240; decision 44), `resume?` (`true`). At least one of the last five; `resume` not with `park_reason`, `waiting_on` or `park_minutes`. A new park needs `park_minutes`, `park_reason` and `waiting_on`.
+**Description:** "Coordinators: set a lead run's status or wait, or report verified Orca dispatch liveness through dispatch_observation. No run_id; coordinator is your name. Reporting never resumes or releases the run. Details: docket-coordinator reference parked-workers."
+- **Input:** `id`, `coordinator` (≤ 40), `current_action?` (≤ 2,000), `park_reason?` (≤ 500), `waiting_on?`, `park_minutes?` (1–240; decision 44), `resume?` (`true`), `dispatch_observation?`. At least one optional field is required; `resume` not with `park_reason`, `waiting_on` or `park_minutes`. A new park needs `park_minutes`, `park_reason` and `waiting_on`.
 - **Output:** `{ id, run_state, updated_by, resume_ready, parked_until? }`.
 - **Errors:** `forbidden` (not the run's recorded orchestrator or a coordinator registered for the project), `validation` (no active lead; a park change or resume on a run that isn't parked; `park_minutes` over 240, past 24 hours since the run's last own signal, or on a run that parked itself; a new park without a reason or waiting-on; unknown item in `waiting_on.items`), `conflict` (the run's lease has run out).
 - **Rules:** names the item and takes no `run_id`, so it never counts as the run's signal and renews no lease. It grants no claim, close, review or owner power. Recorded as `run.status_updated` (or `run.parked`, `run.resumed`) naming the coordinator and the calling client. Runs show it as `status_update`, and the run's own next note replaces it.
 - **Time-limited park (decision 44; BUILD_SPEC §5.25):** `park_minutes` parks an open lead, or renews a coordinator's park. A limit is never clamped. `resume` ends it early on the short lease. At the deadline the sweeper returns the run to `open` on a restart-grace lease and appends `run.park_expired`, and a run that stays silent ends by `lease_expired`. The run's own `park_run` replaces the limit, its next write resumes it, and reads don't. Runs and digest rows show `coordinator_park`.
+- **B86 external evidence:** `dispatch_observation?: { claimed_run, dispatch_id, state }`, where `state` is `live`, `failed`, `exited`, `supervisor_unavailable`, `supervisor_disabled`, or `supervisor_missing_target`. Send it alone, without status or resume fields. The bearer-authenticated coordinator names the current lead run and its recorded dispatch. A verified `live` handoff may supply a replacement dispatch ID. Docket stores only the state, dispatch ID, coordinator, and server time, never raw Orca output. This call does not signal or resume the claimed run. The coordinator or scoped watchdog must query Orca before reporting; no report is unknown, not a liveness finding. A coordinator-only `waiting_on` should include `wake: { actor, event, due_at, source_item? }`; `source_item` is optional and enables cycle detection through another parked item. Docket shows an advisory problem for missing, cyclic or overdue wakes and a distinct custody problem for a reported failed/exited dispatch or unavailable supervisor. Neither permits claim release, replacement dispatch, project unfreeze, or protected host work.
 
 ### 5.5 Checklist
 

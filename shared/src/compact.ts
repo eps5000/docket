@@ -313,6 +313,14 @@ export function waitCardLines(c: WaitCard, now: Date, indent = ''): string[] {
   ].filter((x): x is string => !!x);
   return [
     `${indent}wait: ${named.join(', ') || 'nothing named'}${SEP}waited ${waitedText(c.waited_since, now)} since ${parkClock(c.waited_since, now)}`,
+    ...(c.blockers.length > 1
+      ? [
+          `${indent}  item waits clear only when every listed item clears; an until time is a separate wake`,
+        ]
+      : []),
+    ...(c.coordinator
+      ? [`${indent}  coordinator waits need an explicit relay; Docket cannot wake that session`]
+      : []),
     ...(c.held_by
       ? [
           `${indent}  held by the owner's decision ${c.held_by.decision_id}: ${truncate(c.held_by.title)}`,

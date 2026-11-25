@@ -41,6 +41,8 @@ export const PROBLEM_TITLES: Record<Problem['kind'], string> = {
   resume_unattended: 'Ready to resume, unattended',
   wait_no_next_step: 'Waiting, with no next step',
   wait_owner_unasked: 'Waiting on a decision nobody asked for',
+  wait_missing_wake: 'Waiting without a clear wake',
+  dispatch_custody: 'Dispatch needs a custody check',
   agent_files_drift: 'Agent files changed outside Docket',
   radar_conflict: 'Heading for a merge conflict',
   idle_ticket: 'In progress, but nobody is on it',

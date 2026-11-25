@@ -305,7 +305,14 @@ describe('resume_ready and the parking Problems', () => {
 
   it('"Parked for 24 h" after PARK_MAX, and the run keeps its claim', () => {
     const { run_id } = claim('RCP-17');
-    park(run_id, { orchestrator: true });
+    park(run_id, {
+      orchestrator: true,
+      wake: {
+        actor: 'coordinator',
+        event: 'next review',
+        due_at: new Date(d.clock.now().getTime() + 72 * 3_600_000).toISOString(),
+      },
+    });
     d.clock.advance(cfg().parkMaxMs - minutes(1));
     expect(problems('parked_too_long')).toEqual([]);
     d.clock.advance(minutes(1));

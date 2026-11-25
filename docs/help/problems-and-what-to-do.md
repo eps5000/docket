@@ -13,6 +13,8 @@ anchors:
   - problems.orphaned_resources
   - problems.unpushed_work
   - problems.parked_too_long
+  - problems.wait_missing_wake
+  - problems.dispatch_custody
   - problems.resume_unattended
   - problems.wait_no_next_step
   - problems.wait_owner_unasked
@@ -95,6 +97,8 @@ Each choice reaches the agent as a note from you, and in its context. Each also 
 | Lead agent silent (stale) | You or your coordinator | Check whether the agent is still running. If it stopped, release its claim. See [Run states](/help/run-states). |
 | Lead run failed | You or your coordinator | Read the error in Activity, then restart the work or move it back to Ready. |
 | Parked a long time | Your coordinator first | Check it's still waiting for something real; resume it or release its claim. |
+| Waiting without a clear wake | Your coordinator, or you if none is named | Name the external wake event, actor and deadline, or revise a cyclic or overdue wait. Every listed item must clear; a coordinator-only wait needs an explicit relay. This does not lift a host HOLD or project freeze. |
+| Dispatch needs a custody check | Your coordinator, or you if none is named | Orca reported a failed or exited dispatch or unavailable supervisor while Docket still has a parked claim. Verify the exact dispatch and worktree before recording a live handoff or deciding a safe next step. No claim or host action happens automatically. |
 | Ready to resume, unattended | You or your coordinator | Ask your coordinator to resume it. |
 | Waiting, with no next step | Your coordinator first | A parked story waits on a ticket nobody is moving. Dispatch the ticket, or shape it or assign it. This holds nothing. |
 | Waiting on a decision nobody asked for | Your coordinator first | Its text says your decision is still needed, and nobody has asked. The coordinator asks you a real question. If it reaches you, no agent is there to ask: record your decision on the ticket, or start a coordinator. A ticket that is only waiting on a person doesn't raise this. |

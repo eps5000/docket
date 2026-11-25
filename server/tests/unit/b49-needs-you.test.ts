@@ -79,7 +79,14 @@ const wsState = (path: string) =>
 describe('parked_too_long goes to the coordinator first', () => {
   it('with a coordinator: agents handle it, in plain words, until the grace ends', () => {
     const run_id = claim('RCP-17', { orchestrator: orca });
-    park(run_id);
+    park(run_id, {
+      orchestrator: true,
+      wake: {
+        actor: 'orca',
+        event: 'next review',
+        due_at: new Date(d.clock.now().getTime() + 72 * 3_600_000).toISOString(),
+      },
+    });
     const id = `parked_too_long:${run_id}`;
     d.clock.advance(d.server.runtime.config.parkMaxMs + minutes(1));
     expect(owners(id)).toBeUndefined();
@@ -94,7 +101,14 @@ describe('parked_too_long goes to the coordinator first', () => {
 
   it('with no coordinator it reaches the owner at once, saying why', () => {
     const run_id = claim('RCP-17');
-    park(run_id);
+    park(run_id, {
+      orchestrator: true,
+      wake: {
+        actor: 'owner',
+        event: 'next review',
+        due_at: new Date(d.clock.now().getTime() + 72 * 3_600_000).toISOString(),
+      },
+    });
     d.clock.advance(d.server.runtime.config.parkMaxMs + minutes(1));
     const p = owners(`parked_too_long:${run_id}`)!;
     expect(p.reached_you).toBe('No coordinator or lead is on RCP-17');

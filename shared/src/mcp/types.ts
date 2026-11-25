@@ -236,6 +236,14 @@ export const waitingOnSchema = z.object({
   orchestrator: z.boolean().optional(),
   person: z.boolean().optional(),
   until: z.string().optional(),
+  wake: z
+    .object({
+      actor: z.string(),
+      event: z.string(),
+      due_at: z.string(),
+      source_item: z.string().optional(),
+    })
+    .optional(),
 });
 export type WaitingOn = z.infer<typeof waitingOnSchema>;
 
