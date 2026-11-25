@@ -90,6 +90,7 @@ const EXPECTED = [
   'POST /api/items/:id/split',
   'POST /api/items/:id/answer',
   'POST /api/items/:id/release',
+  'POST /api/items/:id/handoff-epic',
   'POST /api/items/:id/return-to-ready',
   'POST /api/items/:id/idle',
   'DELETE /api/links/:linkId',
@@ -204,7 +205,7 @@ describe('the route table', () => {
     const labels = ROUTE_IDS.map((id) => routeLabel(API_ROUTES[id]));
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual([...EXPECTED].sort());
-    expect(labels).toHaveLength(125);
+    expect(labels).toHaveLength(126);
   });
 
   it('puts each route in a known group, and every group has a route', () => {

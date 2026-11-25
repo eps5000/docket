@@ -104,10 +104,9 @@ import {
  * for those views). The run's next call gets `conflict` (§5.3).
  *
  * The run is not part of the owner's undo: undo restores the item's
- * status, not the run (BUILD_SPEC §5.1). So this event's inverse only
- * touches the item (a version bump), which keeps the mutation undoable
- * without reviving the run. The caller moves the item, with its own
- * `item.status_changed` event and inverse.
+ * status, not the run (BUILD_SPEC §5.1). A regular release's inverse only
+ * touches the item; its caller moves the item with a status event. An Epic
+ * handoff keeps the item In progress and is not undoable.
  *
  * Returns the run it ended, or undefined when the item has no lead. Child
  * runs are left as they are, as on lease expiry: they end themselves.
@@ -116,6 +115,7 @@ export function endLeadForOwner(
   w: WriteContext,
   item: { id: string; project_key: string },
   endReason: 'owner_released' | 'canceled',
+  opts: { handoffEpic?: boolean; reason?: string } = {},
 ): RunRow | undefined {
   const lead = activeLead(w.db, item.id);
   if (!lead) return undefined;
@@ -134,13 +134,21 @@ export function endLeadForOwner(
     type: 'claim.released',
     summary:
       endReason === 'owner_released'
-        ? `You released ${holder}’s lead claim on ${item.id}; its run is interrupted and the plan kept`
+        ? opts.handoffEpic
+          ? `You handed ${item.id} from ${holder} to its next producer; the epic stays In progress and its plan is kept${opts.reason ? ` (${opts.reason})` : ''}`
+          : `You released ${holder}’s lead claim on ${item.id}; its run is interrupted and the plan kept`
         : `${holder}’s lead run on ${item.id} was interrupted: you canceled the item`,
     item_id: item.id,
     project_key: item.project_key,
-    data: { run_id: lead.id, end_reason: endReason, from: lead.state },
+    data: {
+      run_id: lead.id,
+      end_reason: endReason,
+      from: lead.state,
+      ...(opts.handoffEpic ? { handoff: true } : {}),
+      ...(opts.reason ? { reason: opts.reason } : {}),
+    },
     objects: [{ kind: 'run', id: lead.id }],
-    inverse: [touchItem],
+    inverse: opts.handoffEpic ? null : [touchItem],
   });
   return lead;
 }
@@ -883,6 +891,12 @@ export function createRunsService(deps: ServiceDeps): RunsService {
     ownerRelease(w, input) {
       const item = w.checkVersion('items', input.id, input.expected_version) as unknown as ItemRow;
       requireItem(w.db, item.id);
+      if (item.type === 'Epic') {
+        throw new ToolError(
+          'validation',
+          `Use the Epic handoff action for ${item.id}; releasing it to Ready could block the next producer.`,
+        );
+      }
       const lead = endLeadForOwner(w, item, 'owner_released');
       if (!lead) {
         throw new ToolError(
@@ -902,6 +916,34 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           inverse: [inverse],
         });
       }
+      return summary(w, item.id);
+    },
+
+    ownerHandoffEpic(w, input) {
+      const item = w.checkVersion('items', input.id, input.expected_version) as unknown as ItemRow;
+      requireItem(w.db, item.id);
+      if (item.type !== 'Epic' || item.status !== 'progress') {
+        throw new ToolError(
+          'validation',
+          `${item.id} must be an In progress Epic to hand off its lead.`,
+        );
+      }
+      const lead = endLeadForOwner(w, item, 'owner_released', {
+        handoffEpic: true,
+        ...(input.reason ? { reason: input.reason } : {}),
+      });
+      if (!lead) {
+        throw new ToolError(
+          'conflict',
+          `${item.id} has no lead claim to hand off; reload to see the latest.`,
+          {
+            current: summary(w, item.id),
+          },
+        );
+      }
+      // Keep the Epic started. Moving it to Ready would rerun the start gate on
+      // children added mid-epic and could prevent the next producer claiming it.
+      w.update('items', item.id, {});
       return summary(w, item.id);
     },
 

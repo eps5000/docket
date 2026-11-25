@@ -20,6 +20,7 @@ import type {
   WorkspaceRow,
 } from '@docket/shared';
 import { AgentBar } from './items/AgentBar';
+import { ActivityTab } from './items/ActivityTab';
 import {
   ActiveRunsSection,
   RecentRunsSection,
@@ -89,14 +90,14 @@ function run(over: Partial<Run> = {}): Run {
 }
 
 function detail(
-  opts: { runs?: Run[]; status?: string; leadOf?: Run | null } = {},
+  opts: { runs?: Run[]; status?: string; leadOf?: Run | null; type?: string } = {},
 ): ItemDetailResponse {
   const runs = opts.runs ?? [];
   const lead = opts.leadOf === undefined ? (runs[0] ?? null) : opts.leadOf;
   return {
     item: {
       id: 'RCP-17',
-      type: 'Bug',
+      type: opts.type ?? 'Bug',
       title: 'Planner jumps back to the current week after reload',
       status: opts.status ?? 'progress',
       version: 3,
@@ -282,6 +283,21 @@ describe('the agent bar (B20)', () => {
         .getAllByRole('button')
         .map((x) => x.getAttribute('aria-label')),
     ).toEqual(['Help: Run states: live, parked, stale and more']);
+  });
+
+  it('an Epic shows its live producer and an owner handoff on the bar and Activity tab', async () => {
+    const data = detail({ type: 'Epic', runs: [run()] });
+    const { unmount } = wrap(<AgentBar data={data} />);
+    const button = within(bar()).getByRole('button', { name: 'Release lead claim…' });
+    await userEvent.click(button);
+    const dialog = screen.getByRole('dialog', { name: 'Release lead claim on RCP-17?' });
+    expect(within(dialog).getByText(/keep RCP-17 In progress/)).toBeTruthy();
+    expect(within(dialog).getByText(/another producer can claim it immediately/)).toBeTruthy();
+    unmount();
+
+    wrap(<ActivityTab kind="epic" data={data} />);
+    expect(screen.getByText('Lead and runs')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Release lead claim…' })).toBeTruthy();
   });
 
   it('no lead: a quiet "No agent on this" while In progress, nothing otherwise', () => {

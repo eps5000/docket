@@ -146,7 +146,6 @@ export function AgentBar({ data }: { data: ItemDetailResponse }) {
     </span>
   );
 
-  if (item.type === 'Epic') return null;
   if (!lead || !run) {
     // Decision 45: a blocker nobody leads is exactly where "this frees a parked run" matters.
     const frees = data.waiting_runs ? <WaitingRunsLine waiting={data.waiting_runs} /> : null;

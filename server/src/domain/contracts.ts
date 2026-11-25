@@ -294,6 +294,11 @@ export interface RunsService {
   release(w: WriteContext, input: In<'release_lead'>): ItemSummary;
   /** The owner's *Release lead claim*. */
   ownerRelease(w: WriteContext, input: { id: string } & RouteBody<'items.release'>): ItemSummary;
+  /** Hand an In progress Epic to another producer without restarting its readiness gates. */
+  ownerHandoffEpic(
+    w: WriteContext,
+    input: { id: string } & RouteBody<'items.handoffEpic'>,
+  ): ItemSummary;
   /** The owner's *Return to Ready*. */
   returnToReady(
     w: WriteContext,

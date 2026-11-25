@@ -479,9 +479,9 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **Accessibility:** the edit button's label is "Edit title" (etc.), and focus moves into the field on open and back to the button on close.
 
 **Agent bar** (B20), directly under the header, on every tab, so the coordination state is never a tab away. A `section` labelled "Lead agent".
-- **With a lead:** one line: the lead's `RunLine` (`state · client · label`) · "last signal 40s ago" · "step 2/4" (the step it's on, its text in `title`) · the worktree's `WorkspaceStateChip`, then at the right *Release lead claim…* (stale or parked lead) and *Copy resume note* (stale or parked). These are the Lead and runs actions (§6.3.2), the same code and dialog.
+- **With a lead:** one line: the lead's `RunLine` (`state · client · label`) · "last signal 40s ago" · "step 2/4" (the step it's on, its text in `title`) · the worktree's `WorkspaceStateChip`, then at the right *Release lead claim…* (stale or parked lead on a ticket; any active lead on an Epic) and *Copy resume note* (stale or parked). These are the Lead and runs actions (§6.3.2), the same code and dialog.
 - **Parked lead:** a second line, "Parked: waiting on the coordinator since 10:57" (or "waiting on RCP-12", "a person", "until …"; a day and time once it's over 24 h), with the park's own reason in `title`, plus a "Ready to resume" chip when it can.
-- **No lead:** nothing, except a quiet dashed "No agent on this" while the item is In progress (its run failed, or was released). Epics show no bar.
+- **No lead:** nothing, except a quiet dashed "No agent on this" while the item is In progress (its run failed, or was released). Epics use the same bar so a producer can be handed to another provider mid-epic.
 - It updates in place from the live stream without moving focus. A polite live region announces only a change of run state ("claude · orca-w4 is stale on RCP-17."), never the ages ticking.
 - Activity → Lead and runs stays: it is the full run history.
 
@@ -502,7 +502,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 | **Checklist** | Work (summary "n/N done · the agent's plan"; *Checklist history* in the header when there are revisions); Agent review ("n/N passed · what the agent verifies itself"); Human review ("n items · packet ready · what you verify yourself"; *Open packet* in the header when ready) | Same three sections, at epic level | Count: work done/total on tickets; total item count on epics; amber dot when a packet is ready |
 | **Dependencies** (ticket) | A plain card. h3 "Waits on n · unblocks n"; the 1-hop view (§6.3.3); a cycle callout with a *Remove "A blocks B"* button per cycle link; "Relates to (doesn't block): …"; *See it on the epic map →* | — | Count = links; red dot when in a cycle |
 | **Map** (epic) | — | Epic-level review strip (when the epic has human review), then a `ProgressMap` of its children | Count "done/total" |
-| **Activity** | Lead and runs, the full run history (summary "codex · orca-w1 · stale" or "unclaimed"); History (summary "n updates"), with the *note for the agent* box at the top | History with *note for the agents* | Amber dot on stale, failed or claim-conflict runs |
+| **Activity** | Lead and runs, the full run history (summary "codex · orca-w1 · stale" or "unclaimed"); History (summary "n updates"), with the *note for the agent* box at the top | Lead and runs, including an immediate producer handoff; History with *note for the agents* | Amber dot on stale, failed or claim-conflict runs |
 
 *+ New item in this epic* sits at the right of an epic's tab row.
 
@@ -573,6 +573,7 @@ A `ProgressMap` of the filtered set, titled "Outside this view". When no epic or
 - **Stale lead:**
   - *Release lead claim…* opens a destructive dialog titled "Release lead claim on RCP-15?". Body: "codex · orca-w1 has been silent for 47 minutes. Releasing will:", then the bullets "mark run r-58 as **interrupted**, not finished", "keep its checklist, log and partial work on the ticket", and "move RCP-15 back to Ready so another agent can claim it". Footnote: "If codex comes back, it gets a conflict response with the current state." Buttons: *Cancel* (focused) and *Release claim*.
   - Under the button: "Or wait: the lease expires on its own at 11:13."
+- **Epic producer handoff:** *Release lead claim…* is available on the Epic's agent bar and Activity → Lead and runs even when its lead is live. The destructive dialog says the current run becomes interrupted, its work stays, and the Epic stays In progress so another producer can claim it immediately. The action has no Undo; the previous run cannot resume. It does not send the Epic through Ready and its start gate.
 - **Failed run:** *Return to Ready*, with "This service never launches agents. A connected agent picks it up next."
 
 #### 6.3.3 1-hop dependency view
