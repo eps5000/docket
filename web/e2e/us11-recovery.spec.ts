@@ -204,10 +204,10 @@ test.describe.serial('US11 recovery', () => {
     await expect(r).toHaveCount(1);
   });
 
-  test('Parked for 24 h and Ready to resume, unattended, each opening Activity', async ({
+  test('Coordinator wake missing and Ready to resume, unattended, each opening Activity', async ({
     ownerPage: page,
   }) => {
-    // RCP-17 again (resumable): parked on the coordinator for over PARK_MAX.
+    // RCP-17 again (resumable): parked on the coordinator without a named wake.
     const a = await ok(agent, 'claim_lead', {
       id: 'RCP-17',
       agent_label: 'orca-w3',
@@ -238,24 +238,25 @@ test.describe.serial('US11 recovery', () => {
     ]);
 
     await openNeedsYou(page);
-    await expect(row(page, 'parked_too_long', 'RCP-17')).toContainText(
-      'waiting on the coordinator. It keeps its claim.',
+    await expect(row(page, 'wait_missing_wake', 'RCP-17')).toContainText(
+      'no wake event, actor and deadline are named',
     );
-    await expect(
-      row(page, 'parked_too_long', 'RCP-17').locator('.chip', { hasText: 'Parked' }),
-    ).toHaveText('Parked');
+    await expect(row(page, 'wait_missing_wake', 'RCP-17')).toContainText(
+      'record an external wake event and deadline',
+    );
+    await expect(row(page, 'parked_too_long', 'RCP-17')).toHaveCount(0);
     await expect(row(page, 'resume_unattended', 'RCP-18')).toContainText(
       'RCP-18 is ready to resume (RCP-11 is done), but nobody has resumed it. It has been parked 40m.',
     );
     await expect(
       row(page, 'resume_unattended', 'RCP-18').locator('.chip', { hasText: 'Parked' }),
     ).toHaveText('Parked');
-    // All four recovery rows are there; work with a coordinator is under "Agents are handling".
+    // The wake problem replaces the parked-age duplicate; the other recovery rows remain.
     await page.locator('[data-more-problems="agents"]').getByRole('button').first().click();
     for (const kind of [
       'orphaned_resources',
       'unpushed_work',
-      'parked_too_long',
+      'wait_missing_wake',
       'resume_unattended',
     ])
       await expect(page.locator(`[data-problem="${kind}"]`)).toHaveCount(1);
