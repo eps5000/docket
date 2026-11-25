@@ -2226,6 +2226,33 @@
             "until": {
               "type": "string",
               "format": "date-time"
+            },
+            "wake": {
+              "type": "object",
+              "properties": {
+                "actor": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "event": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "pattern": "^[^\\r\\n<>]*$"
+                },
+                "due_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "source_item": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actor",
+                "event",
+                "due_at"
+              ],
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -2327,7 +2354,7 @@
   },
   {
     "name": "update_run_status",
-    "description": "Coordinators: set a lead run's current action, park reason or waiting_on, resume it, or park it for park_minutes. No run_id; coordinator is your name. Grants no other power. Details: docket-coordinator reference parked-workers.",
+    "description": "Coordinators: set a lead run's status or wait, or report verified Orca dispatch liveness through dispatch_observation. No run_id; coordinator is your name. Reporting never resumes or releases the run. Details: docket-coordinator reference parked-workers.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2366,6 +2393,33 @@
             "until": {
               "type": "string",
               "format": "date-time"
+            },
+            "wake": {
+              "type": "object",
+              "properties": {
+                "actor": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "event": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "pattern": "^[^\\r\\n<>]*$"
+                },
+                "due_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "source_item": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actor",
+                "event",
+                "due_at"
+              ],
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -2378,6 +2432,35 @@
         "resume": {
           "type": "boolean",
           "const": true
+        },
+        "dispatch_observation": {
+          "type": "object",
+          "properties": {
+            "claimed_run": {
+              "type": "string"
+            },
+            "dispatch_id": {
+              "type": "string",
+              "pattern": "^ctx_[A-Za-z0-9_-]{1,96}$"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "live",
+                "failed",
+                "exited",
+                "supervisor_unavailable",
+                "supervisor_disabled",
+                "supervisor_missing_target"
+              ]
+            }
+          },
+          "required": [
+            "claimed_run",
+            "dispatch_id",
+            "state"
+          ],
+          "additionalProperties": false
         },
         "run_id": {
           "type": "string"

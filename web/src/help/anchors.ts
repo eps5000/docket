@@ -25,6 +25,8 @@ export const HELP_ANCHORS = {
   'problems.orphaned_resources': 'Problems row: orphaned resources',
   'problems.unpushed_work': 'Problems row: work left in a worktree',
   'problems.parked_too_long': 'Problems row: parked for 24 h',
+  'problems.wait_missing_wake': 'Problems row: coordinator wake missing or overdue',
+  'problems.dispatch_custody': 'Problems row: Orca dispatch custody',
   'problems.resume_unattended': 'Problems row: ready to resume, unattended',
   'problems.wait_no_next_step': 'Problems row: waiting, with no next step',
   'problems.wait_owner_unasked': 'Problems row: waiting on a decision nobody asked for',

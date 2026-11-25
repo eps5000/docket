@@ -25,6 +25,7 @@ import {
   jsonBytes,
   LIMITS,
   type ItemSummary,
+  type OrchestratorRef,
   type ResourceKind,
   type RunStatusUpdate,
   type SignalKind,
@@ -276,6 +277,22 @@ export function createRunsService(deps: ServiceDeps): RunsService {
 
   /** `waiting_on.items` must exist and not name the run's own item. */
   function checkWaiting(w: WriteContext, item: { id: string }, waiting: WaitingOn): void {
+    if (waiting.wake && !waiting.orchestrator) {
+      throw new ToolError(
+        'validation',
+        'A wake event belongs to a coordinator wait. Set waiting_on.orchestrator.',
+      );
+    }
+    if (
+      waiting.wake?.source_item &&
+      !w.db.sqlite
+        .prepare(
+          'SELECT 1 FROM items i JOIN projects p ON p.key = i.project_key WHERE i.id = ? AND p.deleted_at IS NULL',
+        )
+        .get(waiting.wake.source_item)
+    ) {
+      throw new ToolError('validation', `Unknown wake source item ${waiting.wake.source_item}.`);
+    }
     const unknown = (waiting.items ?? []).filter(
       (id) =>
         id === item.id ||
@@ -1322,6 +1339,46 @@ export function createRunsService(deps: ServiceDeps): RunsService {
       }
       assertCoordinator(w, item, lead, input.coordinator);
       if (leaseExpired(lead, w.now)) throw runEndedError(w.db, lead, w.now);
+      if (input.dispatch_observation) {
+        const observation = input.dispatch_observation;
+        const recorded = parseJson<OrchestratorRef>(lead.orchestrator);
+        if (
+          observation.claimed_run !== lead.id ||
+          !recorded?.name ||
+          (recorded.dispatch_id !== observation.dispatch_id && observation.state !== 'live')
+        ) {
+          throw new ToolError(
+            'validation',
+            'The observation must name this claimed run and its recorded dispatch. A verified live handoff may name a new dispatch.',
+          );
+        }
+        if (recorded.dispatch_id !== observation.dispatch_id) {
+          w.update('runs', lead.id, {
+            orchestrator: { ...recorded, dispatch_id: observation.dispatch_id },
+          });
+        }
+        w.update('runs', lead.id, {
+          dispatch_observation: {
+            dispatch_id: observation.dispatch_id,
+            state: observation.state,
+            by: input.coordinator,
+            at: w.now,
+          },
+        });
+        w.event({
+          type: 'run.status_updated',
+          summary: `${input.coordinator} reported Orca ${observation.state} for ${item.id}'s claimed run`,
+          item_id: item.id,
+          project_key: item.project_key,
+          data: {
+            run_id: lead.id,
+            dispatch_id: observation.dispatch_id,
+            dispatch_state: observation.state,
+            updated_by: input.coordinator,
+          },
+          objects: [{ kind: 'run', id: lead.id }],
+        });
+      }
       // Decision 53: only the owner's Resume project restarts work here.
       const pause = projectPause(w.db, item.project_key);
       if (pause && input.resume) throw projectPausedError(item.project_key, pause);
@@ -1362,7 +1419,7 @@ export function createRunsService(deps: ServiceDeps): RunsService {
         if (input.current_action !== undefined) {
           w.update('runs', run.id, { summary: input.current_action });
         }
-      } else {
+      } else if (input.current_action !== undefined || parkFields) {
         w.update('runs', run.id, {
           ...(input.current_action !== undefined ? { summary: input.current_action } : {}),
           ...(input.park_reason !== undefined ? { parked_reason: input.park_reason } : {}),

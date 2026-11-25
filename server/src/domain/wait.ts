@@ -190,6 +190,25 @@ export class WaitReader {
   private readonly owner = new Map<string, string | null>();
   private readonly parks = new Map<string, { at: string; run: string; waiting: WaitingOn }[]>();
 
+  /** Follow recorded item and external wake edges. This is advisory, never a release gate. */
+  wakeCycle(run: RunRow): boolean {
+    const seen = new Set<string>();
+    const visit = (id: string, depth: number): boolean => {
+      if (id === run.item_id) return true;
+      if (depth >= WAIT_FLAGS.chain_depth || seen.has(id)) return false;
+      seen.add(id);
+      const lead = this.lead(id);
+      if (!lead || lead.state !== 'parked') return false;
+      const wait = parseJson<WaitingOn>(lead.waiting_on) ?? {};
+      return [
+        ...(wait.items ?? []),
+        ...(wait.orchestrator && wait.wake?.source_item ? [wait.wake.source_item] : []),
+      ].some((next) => visit(next, depth + 1));
+    };
+    const wait = parseJson<WaitingOn>(run.waiting_on) ?? {};
+    return !!wait.orchestrator && !!wait.wake?.source_item && visit(wait.wake.source_item, 0);
+  }
+
   constructor(
     readonly db: Db,
     readonly now: string,
@@ -446,29 +465,35 @@ export class WaitReader {
     const registered = projectCoordinators(this.db, project)[0];
     const who: Pick<WaitCard['next_owner'], 'kind' | 'name'> = held_by
       ? { kind: 'owner', name: 'the owner' }
-      : live && live.state !== 'parked'
-        ? {
-            kind: 'lead',
-            name: actorName({ kind: 'agent', client: live.client, label: live.label }),
-          }
-        : orchestrator?.name
-          ? { kind: 'orchestrator', name: orchestrator.name }
-          : registered
-            ? { kind: 'coordinator', name: registered }
-            : { kind: 'owner', name: 'the owner' };
+      : waiting.orchestrator && waiting.wake && !blocker
+        ? { kind: 'orchestrator', name: waiting.wake.actor }
+        : live && live.state !== 'parked'
+          ? {
+              kind: 'lead',
+              name: actorName({ kind: 'agent', client: live.client, label: live.label }),
+            }
+          : orchestrator?.name
+            ? { kind: 'orchestrator', name: orchestrator.name }
+            : registered
+              ? { kind: 'coordinator', name: registered }
+              : { kind: 'owner', name: 'the owner' };
     const step = held_by
       ? HELD_STEP
-      : info.resume_ready
-        ? `tell run ${run.id} to continue`
-        : blocker
-          ? this.stepFor(blocker.moves, blocker.waiting)
-          : waiting.person
-            ? this.personStep(run.item_id, first.get('person') ?? parkedAt)
-            : waiting.orchestrator
-              ? `${run.item_id}: send it more work or resume it`
-              : waiting.until
-                ? `${run.item_id}: it can resume at ${waiting.until}`
-                : `${run.item_id}: resume it or say what it waits for`;
+      : waiting.orchestrator && this.wakeCycle(run)
+        ? `${run.item_id}: revise the wake; it depends on itself`
+        : info.resume_ready
+          ? `tell run ${run.id} to continue`
+          : blocker
+            ? this.stepFor(blocker.moves, blocker.waiting)
+            : waiting.person
+              ? this.personStep(run.item_id, first.get('person') ?? parkedAt)
+              : waiting.orchestrator
+                ? waiting.wake
+                  ? `${run.item_id}: on ${waiting.wake.event}, relay by ${waiting.wake.due_at}`
+                  : `${run.item_id}: name a wake event, actor and deadline`
+                : waiting.until
+                  ? `${run.item_id}: it can resume at ${waiting.until}`
+                  : `${run.item_id}: resume it or say what it waits for`;
 
     // Decision 53: a held run shows no flag, even before the next check clears it.
     const flagsNow = (held_by ? [] : openWaitFlags(run)).map((f) => ({
@@ -639,20 +664,31 @@ function resumeSentence(
   ready: boolean,
 ): string {
   const relay = relayText(run, orchestrator);
-  if (ready) return `Ready to resume: ${relay}.`;
+  if (ready)
+    return `${(waiting.items?.length ?? 0) > 1 ? 'Every listed item cleared. ' : ''}Ready to resume: ${relay}.`;
   const items = open
     .slice(0, WAIT_FLAGS.card_blockers)
     .map((b) => `${b.id} is ${CLEARS_WORD[b.clears_when]}`);
   if (open.length > WAIT_FLAGS.card_blockers) {
     items.push(`${open.length - WAIT_FLAGS.card_blockers} more clear`);
   }
+  if (
+    (waiting.items?.length ?? 0) === 1 &&
+    !waiting.person &&
+    !waiting.orchestrator &&
+    !waiting.until
+  ) {
+    return `Resumes when ${items[0]}: ${relay}.`;
+  }
   const parts = [
-    items.length > 0 ? items.join(' and ') : null,
+    items.length > 0 ? `every listed item clears (${items.join(' and ')})` : null,
     waiting.person ? 'a person answers' : null,
-    waiting.orchestrator ? 'the coordinator resumes it' : null,
+    waiting.orchestrator
+      ? 'the coordinator explicitly relays it; Docket cannot wake that session'
+      : null,
     waiting.until ? `it is ${waiting.until}` : null,
   ].filter(Boolean);
-  return `Resumes when ${parts.join(', or ') || 'someone resumes it'}: ${relay}.`;
+  return `Ready when ${parts.join('; or ') || 'someone resumes it'}. ${relay}.`;
 }
 
 /** What the coordinator should send, in the event and the digest. */

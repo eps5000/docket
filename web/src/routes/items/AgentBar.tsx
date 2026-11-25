@@ -68,6 +68,12 @@ function WaitCardLines({ wait, project }: { wait: WaitCard; project: string }) {
         </span>
       )}
       <span data-ab="wait-for">Waiting on {named.join(', ') || 'nothing named'}</span>
+      {wait.blockers.length + wait.more_blockers > 1 && (
+        <span>Every listed item must clear; the date, if shown, is a separate wake.</span>
+      )}
+      {wait.coordinator && (
+        <span>Docket cannot wake the coordinator session; someone must relay the event.</span>
+      )}
       <span data-ab="wait-since" title={isoTitle(wait.waited_since)}>
         Waited since {formatSince(wait.waited_since)}
       </span>

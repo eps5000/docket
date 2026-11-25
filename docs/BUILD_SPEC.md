@@ -791,6 +791,10 @@ A stale lead or one waiting for the owner's answer is neither working nor waitin
 
 ### 5.26 A parked story's wait (decision 45)
 
+**B86 orchestration liveness.** `waiting_on.wake` may name `{ actor, event, due_at, source_item? }` for an external coordinator relay. Item waits clear only when **every** listed item clears; `until` is a separate time condition. A coordinator-only wait has no automatic Docket wake, even when the named source item changes. A missing, overdue, or cyclic wake is one `wait_missing_wake` Problem in Needs you and the digest, with the next actor. A cycle follows parked item waits and `wake.source_item` up to the existing chain depth. Revising the wait or resuming clears it. Docket does not infer an Orca event from item status.
+
+`update_run_status.dispatch_observation` records a coordinator's bounded external Orca finding against the exact claimed lead run and recorded dispatch: `live`, `failed`, `exited`, `supervisor_unavailable`, `supervisor_disabled`, or `supervisor_missing_target`. Only a verified `live` report may rebind the dispatch as a handoff. A failed or unavailable observation on a parked claim produces one distinct `dispatch_custody` Problem until a live report or the claim's end. The mutation does not signal, resume, release, redispatch, start a supervisor, change a project pause, or act on a host. Docket's container cannot inspect local Orca; the coordinator or a scoped watchdog must inspect Orca and supply the observation. An absent report means **unknown**, never live or dead. Migration `0033_b86_dispatch_observation` adds the nullable run field; existing runs remain unknown until reported.
+
 - **The wait card** (`WaitCard`, `server/src/domain/wait.ts`) is derived on read for a parked lead. No git, and nothing is written.
   - **Waiting for:** each named blocker with status and `clears_when`, uncleared first (three listed, then a count), plus a person, the coordinator or a date.
   - **Waited:** the earliest time this run first named what it still waits on, from its `run.parked` and `run.status_updated` events. Later parks don't move it.

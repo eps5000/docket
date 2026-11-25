@@ -600,11 +600,76 @@ function recoveryProblems(
   }
 
   // Parked runs: too long, or ready to resume with nobody resuming them.
+  const waitReader = new WaitReader(db, now, s.index);
   for (const run of runs.open.filter((r) => r.state === 'parked')) {
     const since = run.parked_at ?? run.updated_at;
     const waiting = parseJson<WaitingOn>(run.waiting_on) ?? {};
+    const observation = parseJson<{ dispatch_id: string; state: string; by: string; at: string }>(
+      run.dispatch_observation,
+    );
+    const custody = observation && observation.state !== 'live';
+    const cycle = waitReader.wakeCycle(run);
+    const sourceMissing =
+      !!waiting.wake?.source_item &&
+      (!s.index.status(waiting.wake.source_item) ||
+        s.index.status(waiting.wake.source_item) === 'canceled');
+    const missingWake =
+      waiting.orchestrator &&
+      (!waiting.wake || cycle || sourceMissing || ms(waiting.wake.due_at) < ms(now));
+    if (custody) {
+      const coordinator = coordinatorOf(run);
+      const actor = coordinator ?? 'the owner';
+      const state = observation.state.replaceAll('_', ' ');
+      push({
+        ...base,
+        kind: 'dispatch_custody',
+        id: `dispatch_custody:${run.id}`,
+        item_id: run.item_id,
+        title: title(run.item_id),
+        run_id: run.id,
+        reason: `${run.item_id} keeps its claim · Orca ${state} reported for ${observation.dispatch_id} · custody needs checking`,
+        reached_you: `A parked claim has no verified live dispatch`,
+        explanation: {
+          what: `${run.item_id} is parked and keeps its claim. ${observation.by} reported Orca ${state} for dispatch ${observation.dispatch_id} at ${observation.at}.`,
+          fix: `${actor}: verify the current dispatch and worktree, name the next wake event, then record a live handoff or decide the safe next step. This report does not release the claim or authorize host work.`,
+          who: coordinator ? 'agent' : 'owner',
+          who_text: coordinator ? `Coordinator: ${coordinator}` : 'You: no coordinator is named',
+        },
+      });
+    } else if (missingWake) {
+      const coordinator = coordinatorOf(run);
+      const actor = waiting.wake?.actor ?? coordinator ?? 'the owner';
+      const why = cycle
+        ? 'the named wake depends on this parked item'
+        : !waiting.wake
+          ? 'no wake event, actor and deadline are named'
+          : sourceMissing
+            ? `wake source ${waiting.wake.source_item} is unavailable`
+            : `the named wake was due ${waiting.wake.due_at}`;
+      push({
+        ...base,
+        kind: 'wait_missing_wake',
+        id: `wait_missing_wake:${run.id}`,
+        item_id: run.item_id,
+        title: title(run.item_id),
+        run_id: run.id,
+        reason: `${run.item_id} waits for a coordinator · ${why} · next: ${actor}`,
+        reached_you: 'The coordinator wait needs a named next event',
+        explanation: {
+          what: `${run.item_id} is parked and keeps its claim, but ${why}. Docket cannot wake the Orca session.`,
+          fix: `${actor}: record an external wake event and deadline with update_run_status, or revise the wait. Verify custody before any handoff; no claim or host action is automatic.`,
+          who: coordinator ? 'agent' : 'owner',
+          who_text: coordinator ? `Coordinator: ${actor}` : 'You: no coordinator is named',
+        },
+      });
+    }
     const info = parkInfo(db, run, now, s.index);
-    if (info.resume_ready && ms(now) - ms(info.ready_since!) >= config.resumeUnattendedMs) {
+    if (
+      !custody &&
+      !missingWake &&
+      info.resume_ready &&
+      ms(now) - ms(info.ready_since!) >= config.resumeUnattendedMs
+    ) {
       const items2 = waiting.items ?? [];
       const why =
         items2.length > 0 && items2.every((id) => s.index.status(id) === 'done')
@@ -627,7 +692,7 @@ function recoveryProblems(
     // Decision 48: an owner's decision holds it, and aging restarts when the owner lifts it.
     const hold = decisionHold(db, run);
     const aging = agingFrom(since, hold);
-    if (!heldByOwner(hold) && ms(now) - ms(aging) >= config.parkMaxMs) {
+    if (!custody && !missingWake && !heldByOwner(hold) && ms(now) - ms(aging) >= config.parkMaxMs) {
       // Decision 41: its coordinator first. Waiting on a person is the owner's at once.
       const route: RecoveryRoute = waiting.person
         ? {

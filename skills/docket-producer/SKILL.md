@@ -87,7 +87,7 @@ Something better settled while building? Name it as a **known gap** (`update_ite
   - `run.resume_ready`: its blockers cleared. Tell that dispatch to continue;
   - a stale or interrupted claim: read `recovery_report`, then recover it as `docket-coordinator` says;
   - a new ticket in your epic: triage it (§8).
-- **Every wait names what's owed and who owes it,** in `waiting_on` and a plain reason. "Waiting" says nothing; "waiting for the schema ticket's merge, owed by its implementer" can be acted on.
+- **Every wait names what's owed and who owes it,** in `waiting_on` and a plain reason. For a coordinator-only wait, name the external event, actor and deadline in `waiting_on.wake`; the coordinator's parked-workers reference explains the relay and custody report. Every listed item must clear, so a report on one ticket alone does not wake the producer.
 - **No blocker sits without an owner.** If nobody is moving it, shape it, dispatch it or ask.
 
 ## 7. Resolve partial exits
