@@ -100,8 +100,8 @@ New tickets land in Inbox, even in a running epic: nothing joins it as Ready wit
 
 ## 9. Decide what you can
 
-- **Yours:** technical, reversible choices inside an approved design. Decide, and use `publish_decision` if others must follow.
-- **The owner's:** product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting decisions, and changes to an approved design.
+- **Yours:** choices within the approved design, recorded owner expectations and delegated bounds, including product details needed to deliver them. Decide and proceed. Use a narrowly scoped `publish_decision` when other tickets must follow; otherwise a ticket note suffices. Routine covered choices need no owner notification.
+- **The owner's:** a change to an approved outcome or constraint, conflicting owner decisions, a material risk or cost the owner did not accept, or a destructive or irreversible action without explicit authority. Ask with a recommendation and consequences. A category such as product behavior or deployment does not by itself require another approval when the design already settles it; project rules and explicit approval gates still apply.
 - **Check first:** decisions, the ticket, the plan and design docs, Workflow notes and the code.
 - **Then ask** with the `ask_owner` form: one plain `question`, its `context`, `why_it_matters`, two to four `options` with one recommended, and `recommendation_reason`. IDs and paths go in `details`.
 - **A question holds only what depends on it.** Keep everything else moving.

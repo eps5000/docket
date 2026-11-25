@@ -78,6 +78,8 @@ If the owner must check something by hand, `declare_human_review` during Plannin
 - **Planning docs:** add them as the project's `AGENTS.md` expects for the risk level, with `put_document { item_id, kind: "planning" }`. For example a short PRD for user-facing features, or a TDD for data-model changes. Uploading again under the same name makes a new version.
 - **Conventions:** record conventions that the epic's workers must share (units, API shapes, naming) with `publish_decision`, scoped to the epic or label. That way every worker gets them through `get_context`.
 
+**Forecast decisions while shaping.** In the planning document, separate the owner's expected outcomes, constraints and review points from choices the agents may make to reach them. Ask the owner which details matter when the goal or design leaves that boundary unclear; capture the answer in the design or an owner decision. Name likely implementation choices and their delegated bounds so later workers can decide without another approval. Do not turn every predicted choice into a question.
+
 ## 6. Shared changes: declare before Ready
 
 Parallel items collide when they change the same table, model, endpoint or shared file. Before an item can move to Ready, declare what it will change with `declare_shared_changes`, or `none: true` when it changes no shared part; moving an undeclared item fails with `not_declared`. **Never leave a ticket undeclared.** Read the shared-changes reference before you declare, or when a problem needs a new plan.
@@ -110,7 +112,7 @@ When a breakdown or an onboarding runs to dozens of items, documents or links, s
 ## 9. Hand back
 
 1. Add one `add_note` on the epic: how you broke it down, what's blocked on what, and any open questions.
-2. If something needs an owner decision, `ask_owner` on the epic, with options and your recommendation.
+2. If a material choice remains outside the documented owner expectations or delegated bounds, `ask_owner` on the epic, with options and your recommendation. An approved design already settles choices within its stated bounds.
 3. Move items to Ready (`set_status { status: "ready" }`) **only if the project allows it**. Even then, only items with acceptance criteria, the expected planning docs, their shared changes declared, and no open questions. Open known gaps go to the owner instead (§7).
 
 ## Don't

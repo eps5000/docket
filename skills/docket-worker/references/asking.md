@@ -1,13 +1,14 @@
 # Asking the owner
 
-**Read when:** You think only the owner can decide something, or your open question is out of date.
-**Don't read when:** The choice is technical, reversible, inside an approved design or follows a decision.
+**Read when:** A choice may exceed approved design or delegated bounds, carries new risk, or your open question is out of date.
+**Don't read when:** The approved design or owner decision already covers the choice.
 
 ## Ask less
 
 - **First check** decisions, the ticket, the plan and design docs, Workflow notes, the code and what other agents recorded.
-- **Decide it yourself** if it's technical, reversible, inside an approved design or follows a decision. Use `publish_decision` when others must follow it.
-- **Ask only** about product behavior, privacy or security, cost, irreversible or outward-facing actions, conflicting owner decisions, or a real change to an approved design.
+- **Decide it yourself** when the approved design, owner decision or delegated bounds cover the choice. That includes product details needed to meet an already approved outcome. Record a consequential choice in a narrowly scoped `publish_decision` when others must follow it; otherwise use a short ticket note. Routine covered choices need no owner notification.
+- **Ask** when the choice would change an approved outcome or constraint, owner decisions conflict, a material risk or cost is newly discovered, or a destructive or irreversible action lacks explicit authority. Privacy, security, production and external effects deserve this check against the actual approved bounds. Follow any project-specific approval gate even for a covered choice.
+- **If the boundary is unclear,** state the proposed choice, why existing instructions may or may not cover it, its consequence and the smallest owner decision that would unblock it. Ask once; carry on with independent work.
 
 ## Ask better
 
