@@ -149,15 +149,19 @@ test.describe('Agent files (US13)', () => {
     await expect(page.getByRole('button', { name: /user-wide/i })).toHaveCount(0);
 
     const table = page.getByRole('table', { name: 'Default agent files' });
-    // Seven skills, their 20 references (decisions 66 and 67), the AGENTS.md block and the
+    // Seven skills, their 21 references (decisions 66 and 67), the AGENTS.md block and the
     // onboarding guide (B30), plus the header row.
-    await expect(table.getByRole('row')).toHaveCount(30);
+    await expect(table.getByRole('row')).toHaveCount(31);
     // A reference is listed right after its skill, named by its path.
     const ref = fileRow(page, 'skill:docket-worker--exit-reports');
     await expect(ref).toHaveAttribute('data-default', 'task-lite');
     await expect(
       ref.getByRole('link', { name: 'docket-worker/references/exit-reports.md' }),
     ).toBeVisible();
+    await expect(fileRow(page, 'skill:docket-planner--owner-expectations')).toHaveAttribute(
+      'data-default',
+      'task-lite',
+    );
     for (const key of [
       'skill:docket-coordinator',
       'skill:docket-delivery',
