@@ -78,6 +78,8 @@ If the owner must check something by hand, `declare_human_review` during Plannin
 - **Planning docs:** add them as the project's `AGENTS.md` expects for the risk level, with `put_document { item_id, kind: "planning" }`. For example a short PRD for user-facing features, or a TDD for data-model changes. Uploading again under the same name makes a new version.
 - **Conventions:** record conventions that the epic's workers must share (units, API shapes, naming) with `publish_decision`, scoped to the epic or label. That way every worker gets them through `get_context`.
 
+**Forecast decisions while shaping.** In the planning document, separate the owner's expected outcomes, constraints and review points from choices the agents may make to reach them. Read the owner-expectations reference when shaping a new goal or when the approved boundary is unclear. Ask about genuine gaps and record the answer; don't turn every predicted choice into a question.
+
 ## 6. Shared changes: declare before Ready
 
 Parallel items collide when they change the same table, model, endpoint or shared file. Before an item can move to Ready, declare what it will change with `declare_shared_changes`, or `none: true` when it changes no shared part; moving an undeclared item fails with `not_declared`. **Never leave a ticket undeclared.** Read the shared-changes reference before you declare, or when a problem needs a new plan.
@@ -110,7 +112,7 @@ When a breakdown or an onboarding runs to dozens of items, documents or links, s
 ## 9. Hand back
 
 1. Add one `add_note` on the epic: how you broke it down, what's blocked on what, and any open questions.
-2. If something needs an owner decision, `ask_owner` on the epic, with options and your recommendation.
+2. If a material choice remains outside the documented owner expectations or delegated bounds, `ask_owner` on the epic, with options and your recommendation. An approved design already settles choices within its stated bounds.
 3. Move items to Ready (`set_status { status: "ready" }`) **only if the project allows it**. Even then, only items with acceptance criteria, the expected planning docs, their shared changes declared, and no open questions. Open known gaps go to the owner instead (§7).
 
 ## Don't
@@ -122,9 +124,10 @@ When a breakdown or an onboarding runs to dozens of items, documents or links, s
 
 ## References
 
-| File                                                           | Read when                                                                                                        | Don't read when                                                            |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| [`references/shared-changes.md`](references/shared-changes.md) | You declare an item's shared changes, register a part, set design impact, or a problem needs a new plan.         | The item is declared and nothing about its parts has changed.              |
-| [`references/needs-shaping.md`](references/needs-shaping.md)   | A producer sends you a ticket that needs shaping.                                                                | You're creating tickets yourself with an outcome, acceptance and `shared`. |
-| [`references/batch-writes.md`](references/batch-writes.md)     | You send more than a handful of writes in one go with `apply_batch`, or add details to steps imported from Jira. | You make a few single calls.                                               |
-| [`references/ticket-types.md`](references/ticket-types.md)     | You choose a ticket type, shape an epic's Release, or find a shared-environment rollout in acceptance.           | You only edit the checklist of an already typed ticket.                    |
+| File                                                                   | Read when                                                                                                        | Don't read when                                                                                  |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`references/shared-changes.md`](references/shared-changes.md)         | You declare an item's shared changes, register a part, set design impact, or a problem needs a new plan.         | The item is declared and nothing about its parts has changed.                                    |
+| [`references/needs-shaping.md`](references/needs-shaping.md)           | A producer sends you a ticket that needs shaping.                                                                | You're creating tickets yourself with an outcome, acceptance and `shared`.                       |
+| [`references/batch-writes.md`](references/batch-writes.md)             | You send more than a handful of writes in one go with `apply_batch`, or add details to steps imported from Jira. | You make a few single calls.                                                                     |
+| [`references/ticket-types.md`](references/ticket-types.md)             | You choose a ticket type, shape an epic's Release, or find a shared-environment rollout in acceptance.           | You only edit the checklist of an already typed ticket.                                          |
+| [`references/owner-expectations.md`](references/owner-expectations.md) | You shape a new goal or cannot tell which choices the owner delegated.                                           | The approved design already states the outcome, constraints, review points and delegated bounds. |

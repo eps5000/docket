@@ -405,6 +405,8 @@ O03.
 ### 5.14 Decision records
 Shared knowledge that agents must respect: "Nutrition is per serving", "Use the v2 design tokens". A record is short (title ≤ 120 characters, decision ≤ 4,000) and has a scope: project, epic, label or item. Agents see everything in scope for an item: its project, its epic, its labels, and the item itself.
 
+**Planning decision boundary.** The planner records the owner's expected outcomes, constraints and review points in the design, and names the implementation choices delegated to agents. It asks the owner about genuine gaps during shaping, before those choices stall delivery. After approval, agents may choose within those bounds without repeat approval or routine notification. They record consequential shared choices as narrowly scoped agent decisions, or local choices as ticket notes. A deviation, conflicting owner instruction, newly material risk or cost, or destructive or irreversible action outside explicit authority goes to the owner with a recommendation and consequences. Project-specific approval gates remain in force. A later owner correction becomes a change request or follow-up; it does not make every covered choice require advance approval.
+
 - **Authority:** `owner` or `agent`.
   - Agents publish with `authority=agent`.
   - The owner publishes with `authority=owner`, or **confirms** an agent record, which sets `authority=owner` and `confirmed_at`.
