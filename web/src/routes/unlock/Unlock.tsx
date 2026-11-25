@@ -49,7 +49,7 @@ export function Unlock() {
     <main className="unlock">
       <form className="card" onSubmit={submit} aria-labelledby="unlock-title">
         <div className="logo" style={{ padding: 0 }}>
-          <i aria-hidden="true">D</i>
+          <img src="/docket-mark.svg" alt="" aria-hidden="true" />
           <span>Docket</span>
         </div>
         <h1 id="unlock-title">Unlock Docket</h1>
