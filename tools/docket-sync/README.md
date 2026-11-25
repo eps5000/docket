@@ -53,7 +53,7 @@ To fail a run, throw an error with a short `code` such as `network`. The code go
 
 ## The GitHub source
 
-Every 5 minutes, for each project's repository, it reads open PRs and whatever changed since the last run. It sends the number, title, branch, state, draft flag, head SHA, merge time, CI result, and the ticket keys named in the title or body. **The PR body itself is never sent, logged or stored.** Mergify's temporary `merge queue:` PRs are left out.
+About once a minute, for each project's repository, it reads open PRs and whatever changed since the last run. The runner checks due sources every 30 seconds, so a change may take a little longer than a minute to appear. It sends the number, title, branch, state, draft flag, head SHA, merge time, CI result, and the ticket keys named in the title or body. **The PR body itself is never sent, logged or stored.** Mergify's temporary `merge queue:` PRs are left out.
 
 GitHub's 5,000 points per hour are shared with your other tools, so it:
 
