@@ -737,9 +737,9 @@ const orcaPresenceHandler: SyncHandler<OrcaPresenceRecord> = {
       }
       const wasLive =
         (run.orca_presence_at !== null &&
-          Date.parse(w.now) - Date.parse(run.orca_presence_at) <= 120_000) ||
+          Date.parse(w.now) - Date.parse(run.orca_presence_at) <= config.liveWindowMs) ||
         (run.last_signal_kind === 'session' &&
-          Date.parse(w.now) - Date.parse(run.last_signal_at) <= 120_000);
+          Date.parse(w.now) - Date.parse(run.last_signal_at) <= config.liveWindowMs);
       const renewed = new Date(Date.parse(w.now) + config.leaseMs).toISOString();
       update.run(w.now, renewed, renewed, run.id);
       if (!wasLive) {
