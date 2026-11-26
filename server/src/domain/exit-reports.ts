@@ -9,7 +9,8 @@
  * after it. That is derived from the ticket's own record, never stored, so it
  * can't drift: an acceptance edit or a split (`moved`), a new link (`linked`),
  * a new lead (`started`), a question to the owner on the ticket or its epic
- * (`asked`), a note (`noted`), or the ticket closed (`closed`). The run's own
+ * (`asked`), a note (`noted`), approval of its one remaining review item
+ * (`reviewed`), or the ticket closed (`closed`). The run's own
  * later writes don't count.
  *
  * While it waits, `get_digest` lists it as *Finished partly*, the card and
@@ -152,6 +153,7 @@ interface SettleRow {
   run_id: string | null;
   acceptance: number;
   new_status: string | null;
+  review_settled_run_id: string | null;
 }
 
 /** The first thing someone did on the ticket after a partial exit, or null while it waits. */
@@ -169,20 +171,21 @@ export function settledOf(
     .prepare(
       `SELECT seq, at, type, item_id, actor_kind, client, label, run_id,
               json_extract(data, '$.changed.acceptance') IS NOT NULL AS acceptance,
-              json_extract(data, '$.status.new') AS new_status
+              json_extract(data, '$.status.new') AS new_status,
+              json_extract(data, '$.settles_partial_exit') AS review_settled_run_id
        FROM events
        WHERE seq > @seq
          AND (item_id = @item
               OR (type = 'link.added' AND json_extract(data, '$.from') = @item)
               OR (item_id = @epic AND type = 'question.asked'))
-         AND type IN ('item.updated', 'item.split', 'link.added', 'claim.granted', 'question.asked',
+         AND type IN ('item.updated', 'item.split', 'link.added', 'claim.granted', 'question.asked', 'review.decided',
                       'note.added', 'owner_note.added', 'item.status_changed')
          AND (run_id IS NULL OR run_id <> @run)
        ORDER BY seq`,
     )
     .all({ seq: exit.seq, item: run.item_id, epic: epic ?? '', run: run.id }) as SettleRow[];
   for (const e of rows) {
-    const how = settleKind(e);
+    const how = settleKind(e, run.id);
     if (!how) continue;
     return {
       how,
@@ -197,7 +200,7 @@ export function settledOf(
   return null;
 }
 
-function settleKind(e: SettleRow): ExitSettleKind | null {
+function settleKind(e: SettleRow, runId: string): ExitSettleKind | null {
   switch (e.type) {
     case 'item.updated':
       return e.acceptance ? 'moved' : null;
@@ -209,6 +212,8 @@ function settleKind(e: SettleRow): ExitSettleKind | null {
       return 'started';
     case 'question.asked':
       return 'asked';
+    case 'review.decided':
+      return e.review_settled_run_id === runId ? 'reviewed' : null;
     case 'note.added':
     case 'owner_note.added':
       return 'noted';
