@@ -5,6 +5,7 @@
  * arrows, hover tracing and keyboard panning.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LinkEdge, Status } from '@docket/shared';
@@ -18,6 +19,7 @@ import {
   layoutMap,
   stepZoom,
   type MapItem,
+  type MapZoom,
 } from './index';
 
 afterEach(cleanup);
@@ -300,6 +302,43 @@ describe('<ProgressMap>', () => {
     fireEvent.click(fit);
     expect(fit.getAttribute('aria-pressed')).toBe('false');
     expect(pct()).toBe('100%');
+  });
+
+  it('restores zoom and Fit width when a map view remounts', () => {
+    function OpenMapTab() {
+      const [visible, setVisible] = useState(true);
+      const [mapZoom, setMapZoom] = useState<MapZoom>({ fit: false, z: 1 });
+      return (
+        <MemoryRouter>
+          <button onClick={() => setVisible((value) => !value)}>Switch view</button>
+          {visible && (
+            <ProgressMap
+              items={[item('RCP-11')]}
+              links={[]}
+              outsideTitle="Outside"
+              mapZoom={mapZoom}
+              onZoomChange={setMapZoom}
+            />
+          )}
+        </MemoryRouter>
+      );
+    }
+
+    render(<OpenMapTab />);
+    let zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    fireEvent.click(zoom.getByRole('button', { name: 'Zoom in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch view' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch view' }));
+    zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    expect(zoom.getByRole('button', { name: /^Zoom 125%/ })).toBeTruthy();
+
+    fireEvent.click(zoom.getByRole('button', { name: 'Fit width' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch view' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch view' }));
+    zoom = within(screen.getByRole('group', { name: 'Zoom' }));
+    expect(zoom.getByRole('button', { name: 'Fit width' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
   });
 
   it('hover and focus trace a card’s links and dim the rest', () => {

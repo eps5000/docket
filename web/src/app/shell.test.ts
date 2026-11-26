@@ -49,6 +49,20 @@ describe('open-item tabs (UI_SPEC §2)', () => {
     expect(updateTab(s, 'A-1', { view: 'activity' })).toBe(s);
   });
 
+  it('keeps each open map zoom and clears it when that tab closes', () => {
+    let s = open('A-1', 'A-2');
+    s = updateTab(s, 'A-1', { mapZoom: { fit: false, z: 1.25 } });
+    s = updateTab(s, 'A-2', { mapZoom: { fit: true } });
+    expect(parseTabs(JSON.parse(JSON.stringify(s))).tabs.map((tab) => tab.mapZoom)).toEqual([
+      { fit: false, z: 1.25 },
+      { fit: true },
+    ]);
+    s = closeTab(s, 'A-1', 'A-2').state;
+    s = openTab(s, 'A-1');
+    expect(s.tabs.find((tab) => tab.id === 'A-1')?.mapZoom).toBeUndefined();
+    expect(s.tabs.find((tab) => tab.id === 'A-2')?.mapZoom).toEqual({ fit: true });
+  });
+
   it('closing the active tab moves to its neighbour, or back to the page you came from', () => {
     const s = { ...open('A-1', 'A-2', 'A-3'), lastPage: '/work?layout=list' };
     expect(closeTab(s, 'A-2', 'A-2').goTo).toEqual({ tab: { id: 'A-3' } });

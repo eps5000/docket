@@ -61,6 +61,9 @@ import './progress-map.css';
 
 export interface ProgressMapProps {
   items: readonly MapItem[];
+  /** Optional zoom owned by an open item tab, so switching views preserves it. */
+  mapZoom?: MapZoom;
+  onZoomChange?: (zoom: MapZoom) => void;
   /** Cards for blockers outside the scope (the API's `outside`). */
   outside?: readonly MapItem[];
   links: readonly LinkEdge[];
@@ -108,7 +111,7 @@ const REDRAW_DEBOUNCE_MS = 80;
 /** Canvas padding (22 px) on both sides. */
 const PAD_X = 44;
 
-type Zoom = { fit: false; z: number } | { fit: true };
+export type MapZoom = { fit: false; z: number } | { fit: true };
 
 interface Arrow extends MapEdge {
   d: string;
@@ -137,6 +140,8 @@ const NO_EXTRAS: readonly MapItem[] = [];
 
 export function ProgressMap({
   items,
+  mapZoom,
+  onZoomChange,
   outside = NO_OUTSIDE,
   links,
   outsideTitle,
@@ -171,7 +176,9 @@ export function ProgressMap({
   const uid = useId().replace(/:/g, '');
   const mapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState<Zoom>({ fit: false, z: 1 });
+  const [localZoom, setLocalZoom] = useState<MapZoom>({ fit: false, z: 1 });
+  const zoom = mapZoom ?? localZoom;
+  const setZoom = onZoomChange ?? setLocalZoom;
   const [geo, setGeo] = useState<{
     w: number;
     h: number;
