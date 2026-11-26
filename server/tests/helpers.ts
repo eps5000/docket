@@ -205,6 +205,8 @@ export function without0010<T>(rows: T): T {
     const out = { ...(before0032(row) as Record<string, unknown>) };
     // B86 adds this nullable run observation after the historical fixtures were captured.
     delete out.dispatch_observation;
+    // Orca presence is likewise new and nullable on every historical run.
+    delete out.orca_presence_at;
     // commits.branch and runs have their own `branch`-free shapes; only drop 0010's on its tables.
     if ('shared_none_at' in out || 'main_branch' in out || 'held_undeclared' in out) {
       for (const c of COLUMNS_0010) delete out[c];
