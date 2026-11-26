@@ -772,7 +772,7 @@ Active now and Recent share one table, with these columns:
 - Doing / did;
 - Last signal ("40s ago");
 - Lease ("Until 12:02", "Expires 11:13", "Paused", "Released", "—");
-- How we know: "Client heartbeat" when live, `Provenance` for agent-reported, observed or relayed, or the gray chip "Unknown: no heartbeat" when stale.
+- How we know: "Active client observed" when live, `Provenance` for agent-reported, observed or relayed, or the gray chip "Unknown: no heartbeat" when stale.
 
 Rows link to the item. **Subagent log entries aren't listed here;** they show on their item's Checklist (§6.3.1).
 

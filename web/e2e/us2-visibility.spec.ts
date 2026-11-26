@@ -310,7 +310,7 @@ test.describe('Agents and the palette', () => {
     await expect(rows.nth(2)).toContainText('Unknown: no heartbeat');
     await expect(rows.nth(2)).toContainText(/Expires \d\d:\d\d/);
     const rcp14 = rows.filter({ hasText: 'RCP-14' });
-    await expect(rcp14).toContainText('Client heartbeat');
+    await expect(rcp14).toContainText('Active client observed');
     await expect(rcp14).toContainText(/Until \d\d:\d\d/);
     await expect(rows.nth(4)).toContainText('Agent-reported');
     // Subagent log entries live on their item's Checklist, not here.
