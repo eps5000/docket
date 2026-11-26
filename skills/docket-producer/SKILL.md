@@ -18,7 +18,7 @@ A producer owns the **outcome of one epic** and gets it finished through other a
 
 **This skill grants no authority.** It doesn't let you move tickets to Ready, merge, deploy or answer for the owner unless the project already allows it.
 
-**Any orchestrator, or none.** To dispatch is to start a fresh agent by whatever means you have: an orchestrator, a script, your client's own agents, or a person opening a session. If you can't start agents, work the tickets yourself, one at a time, following `docket-worker`.
+**Any orchestrator, or none.** To dispatch is to start a fresh agent by whatever means you have: an orchestrator, a script, your client's own agents, or a person opening a session. If you can't start agents, work the tickets yourself, one at a time, following `docket-worker`. For QA bug intake, arrange a separate investigator through the coordinator and keep other producer work moving instead of doing the investigation yourself.
 
 Rare paths live in reference files: read one only when the table at the end says so.
 
@@ -86,7 +86,7 @@ Something better settled while building? Name it as a **known gap** (`update_ite
   - `run.wait_flagged`: a wait has no next step, or needs an owner decision nobody asked for. Fix that;
   - `run.resume_ready`: its blockers cleared. Tell that dispatch to continue;
   - a stale or interrupted claim: read `recovery_report`, then recover it as `docket-coordinator` says;
-  - a new ticket in your epic: triage it (§8).
+  - a QA bug report or new ticket in your epic: route bug investigation, then triage it (§8).
 - **Every wait names what's owed and who owes it,** in `waiting_on` and a plain reason. For a coordinator-only wait, name the external event, actor and deadline in `waiting_on.wake`; the coordinator's parked-workers reference explains the relay and custody report. Every listed item must clear, so a report on one ticket alone does not wake the producer.
 - **No blocker sits without an owner.** If nobody is moving it, shape it, dispatch it or ask.
 
@@ -96,7 +96,7 @@ Every implementer reports how it finished. A **partial** exit lists what's left,
 
 ## 8. Triage what joins mid-flight
 
-New tickets land in Inbox, even in a running epic: nothing joins it as Ready without triage, and the epic can't close until each is triaged. The digest lists them under `added mid-flight`. Triage each one as the mid-epic-triage reference says. **A story adds scope, so it's the owner's:** ask, never add it yourself.
+New tickets land in Inbox, even in a running epic: nothing joins it as Ready without triage, and the epic can't close until each is triaged. A QA handoff may arrive before a ticket exists. **For a bug report, do brief intake and delegate red-evidence collection to a separate QA investigator; do not investigate it in the producer turn.** Read the mid-epic-triage reference for the handoff and decision. **A story adds scope, so it's the owner's:** ask, never add it yourself.
 
 ## 9. Decide what you can
 
@@ -131,7 +131,7 @@ When `get_digest` shows `paused`, or a claim returns `project_paused`:
 | File                                                             | Read when                                                                                                                | Don't read when                                           |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
 | [`references/epic-readiness.md`](references/epic-readiness.md)   | Before you claim an epic, or the digest or a claim shows `epic_not_ready`, `started unshaped` or a Release held by bugs. | The epic is running and its tickets are shaped.           |
-| [`references/mid-epic-triage.md`](references/mid-epic-triage.md) | The digest lists a ticket under `added mid-flight`, or a new bug or story arrives in your running epic.                  | Nothing was added to the epic since it started.           |
+| [`references/mid-epic-triage.md`](references/mid-epic-triage.md) | A QA handoff or new bug arrives, or the digest lists a ticket under `added mid-flight`.                                  | No bug report or ticket was added since the epic started. |
 | [`references/partial-exits.md`](references/partial-exits.md)     | The digest shows `finished partly`, or an implementer reports a partial exit.                                            | No partial exit is waiting.                               |
 | [`references/takeover.md`](references/takeover.md)               | You take over an epic from another session, or find a ticket held under another `producer` name.                         | You started producing this epic yourself in this session. |
 | [`references/release.md`](references/release.md)                 | You shape, dispatch or close the epic's Release, or it reports `release_gates`.                                          | The epic is still in ordinary ticket work.                |
