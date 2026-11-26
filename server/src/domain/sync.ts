@@ -10,7 +10,9 @@
  * - **Primary or related.** A PR is primary on a ticket only when its head branch
  *   names that one ticket, as a whole key. A key in its title or body, or a
  *   branch naming several tickets, is only ever related.
- * - Status is bookkeeping (`sync_sources`), so a quiet poll adds no event.
+ * - Status is bookkeeping (`sync_sources`). Orca resource observations that
+ *   advance only their timestamp add one quiet `sync.ingested` event per batch:
+ *   the write path still requires an event for every changed row.
  */
 import {
   DEFAULT_BRANCH_EXEMPT,
@@ -822,6 +824,7 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
   ingest(w, records) {
     let changed = 0;
     let ignored = 0;
+    let refreshed = 0;
     for (const record of records) {
       const at = Date.parse(record.observed_at);
       if (at < Date.parse(w.now) - 90_000 || at > Date.parse(w.now) + 5_000) {
@@ -860,6 +863,7 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
       w.db.sqlite
         .prepare('UPDATE runs SET resource_observation = ? WHERE id = ?')
         .run(JSON.stringify(record), row.id);
+      refreshed += 1;
       const category = (r: OrcaAuditRecord) =>
         `${r.outcome}|${r.liveness}|${r.terminal_state}|${r.protected_hold}|${r.agent_state}|${r.worktree_status}|${r.live_terminals}|${r.suspected_processes}|${r.process_read}|${r.artifacts}`;
       if (!previous || category(previous) !== category(record)) {
@@ -872,6 +876,16 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
           objects: [{ kind: 'run', id: row.id }],
         });
       }
+    }
+    // The write path requires an event for a changed row. A fresh observation
+    // with unchanged custody still advances observed_at, without a user-facing
+    // status change. One quiet event covers the whole batch in that case.
+    if (refreshed > 0 && changed === 0) {
+      w.event({
+        type: 'sync.ingested',
+        summary: 'Orca resource audit refreshed',
+        data: { source: 'orca-audit', refreshed },
+      });
     }
     return { accepted: records.length - ignored, changed, ignored };
   },

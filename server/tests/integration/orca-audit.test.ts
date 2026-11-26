@@ -167,6 +167,112 @@ describe('Docket dispatch resource reconciliation', () => {
     });
   const problems = () => d.services.views.needsYou(d.read(), { scope: 'GF' }).problems;
 
+  it('refreshes an unchanged observation without a visible status event or write-path failure', () => {
+    expect(post([record()])).toMatchObject({ accepted: 1, changed: 1 });
+    const first = d.row<{ resource_observation: string }>(
+      'SELECT resource_observation FROM runs WHERE id = ?',
+      run,
+    ).resource_observation;
+    d.clock.advance(60_000);
+    expect(post([record()])).toMatchObject({ accepted: 1, changed: 0 });
+    const second = d.row<{ resource_observation: string }>(
+      'SELECT resource_observation FROM runs WHERE id = ?',
+      run,
+    ).resource_observation;
+    expect(Date.parse(JSON.parse(second).observed_at)).toBeGreaterThan(
+      Date.parse(JSON.parse(first).observed_at),
+    );
+    expect(post([record()])).toMatchObject({ accepted: 1, changed: 0 });
+    const events = d.sql
+      .prepare(
+        "SELECT type FROM events WHERE type IN ('run.status_updated', 'sync.ingested') ORDER BY seq",
+      )
+      .all() as { type: string }[];
+    expect(events.map((event) => event.type)).toEqual(['run.status_updated', 'sync.ingested']);
+  });
+
+  it('uses a category event for a mixed batch and no quiet event for out-of-order records', () => {
+    const firstAt = d.clock.now().toISOString();
+    post([record()]);
+    d.clock.advance(60_000);
+    const changedAt = new Date(d.clock.now().getTime() + 100).toISOString();
+    expect(
+      post([
+        record(),
+        record({ observed_at: changedAt, terminal_state: 'released' }),
+        record({ key: 'ctx_other' }),
+      ]),
+    ).toMatchObject({ accepted: 2, changed: 1, ignored: 1 });
+    expect(post([record({ observed_at: firstAt })])).toMatchObject({
+      accepted: 1,
+      changed: 0,
+    });
+    const events = d.sql
+      .prepare(
+        "SELECT type FROM events WHERE type IN ('run.status_updated', 'sync.ingested') ORDER BY seq",
+      )
+      .all() as { type: string }[];
+    expect(events.map((event) => event.type)).toEqual(['run.status_updated', 'run.status_updated']);
+    expect(
+      JSON.parse(
+        d.row<{ resource_observation: string }>(
+          'SELECT resource_observation FROM runs WHERE id = ?',
+          run,
+        ).resource_observation,
+      ).observed_at,
+    ).toBe(changedAt);
+  });
+
+  it('emits one quiet event for a partially accepted unchanged batch', () => {
+    post([record()]);
+    d.clock.advance(60_000);
+    expect(post([record(), record({ key: 'ctx_other' })])).toMatchObject({
+      accepted: 1,
+      changed: 0,
+      ignored: 1,
+    });
+    const events = d.sql
+      .prepare(
+        "SELECT type FROM events WHERE type IN ('run.status_updated', 'sync.ingested') ORDER BY seq",
+      )
+      .all() as { type: string }[];
+    expect(events.map((event) => event.type)).toEqual(['run.status_updated', 'sync.ingested']);
+  });
+
+  it('emits only one quiet event for multiple refreshed runs in a batch', () => {
+    const otherItem = d.write(worker, (w, s) =>
+      s.items.create(w, {
+        project: 'GF',
+        type: 'Implementation',
+        title: 'Second synthetic rollout',
+        priority: 2,
+        status: 'planning',
+      }),
+    ).id;
+    forceStatus(d, otherItem, 'ready');
+    const otherDispatch = `ctx_${otherItem}`;
+    const otherRun = d.write(worker, (w, s) =>
+      s.runs.claim(w, {
+        id: otherItem,
+        orchestrator: { name: 'orca', dispatch_id: otherDispatch },
+      }),
+    ).run_id;
+    const second = () => record({ run_id: otherRun, key: otherDispatch });
+    expect(post([record(), second()])).toMatchObject({ accepted: 2, changed: 2 });
+    d.clock.advance(60_000);
+    expect(post([record(), second()])).toMatchObject({ accepted: 2, changed: 0 });
+    const events = d.sql
+      .prepare(
+        "SELECT type FROM events WHERE type IN ('run.status_updated', 'sync.ingested') ORDER BY seq",
+      )
+      .all() as { type: string }[];
+    expect(events.map((event) => event.type)).toEqual([
+      'run.status_updated',
+      'run.status_updated',
+      'sync.ingested',
+    ]);
+  });
+
   it('exposes the exact run state and update time for a single-dispatch reconciler', () => {
     const settings = d.services.sync.source(d.read(), 'orca-audit').settings;
     expect(settings.targets).toContainEqual(
