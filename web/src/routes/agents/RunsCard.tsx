@@ -56,7 +56,7 @@ export function recentRows(rows: readonly AgentRow[], now: Date = new Date()): A
 
 /** "How we know" (UI_SPEC §6.6). */
 function HowWeKnow({ row }: { row: AgentRow }) {
-  if (row.run_state === 'live') return <span className="src">Client heartbeat</span>;
+  if (row.run_state === 'live') return <span className="src">Active client observed</span>;
   if (row.run_state === 'stale') return <Chip kind="neutral">Unknown: no heartbeat</Chip>;
   if (row.provenance === 'agent')
     return <Provenance kind="agent" label="Agent-reported · no heartbeat" />;

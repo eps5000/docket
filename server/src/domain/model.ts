@@ -84,15 +84,16 @@ export interface RunWindows {
 }
 
 /**
- * Displayed run state (BUILD_SPEC §5.4). Live needs a *session* signal
- * within the live window; any signal within STALE_AFTER is *reported*;
- * older is *stale*. "Within" is inclusive. Parked is never stale.
+ * Displayed run state (BUILD_SPEC §5.4). A same-session MCP signal or a
+ * uniquely matched Orca working observation can show live. Otherwise a recent
+ * agent signal shows reported; older is stale. Parked is never stale.
  */
 export function displayRunState(
   run: {
     state: StoredRunState | string;
     last_signal_at: string;
     last_signal_kind: SignalKind | string;
+    orca_presence_at?: string | null;
   },
   windows: RunWindows,
   now: Date | string,
@@ -109,7 +110,14 @@ export function displayRunState(
     0,
     (typeof now === 'string' ? ms(now) : now.getTime()) - ms(run.last_signal_at),
   );
-  if (run.last_signal_kind === 'session' && age <= windows.liveWindowMs) return 'live';
+  const orcaAge = run.orca_presence_at
+    ? Math.max(0, (typeof now === 'string' ? ms(now) : now.getTime()) - ms(run.orca_presence_at))
+    : Infinity;
+  if (
+    (run.last_signal_kind === 'session' && age <= windows.liveWindowMs) ||
+    orcaAge <= windows.liveWindowMs
+  )
+    return 'live';
   if (age <= windows.staleAfterMs) return 'reported';
   return 'stale';
 }
@@ -125,6 +133,7 @@ export interface RunRow {
   state: StoredRunState;
   last_signal_at: string;
   last_signal_kind: SignalKind;
+  orca_presence_at: string | null;
   lease_expires_at: string | null;
   /** Decision 41: a child run's deadline to signal after a restart; null otherwise. */
   restart_deadline_at: string | null;

@@ -226,8 +226,8 @@ The item page adds "Open blockers: RCP-12 (needs merge), RCP-14" in plain text, 
 
 | Label | Icon | Meaning |
 |---|---|---|
-| live | solid green, pulsing | Working: the client session is responding |
-| reported | violet ring | The agent says it's working, with no recent session signal |
+| live | solid green, pulsing | Working: a client session or Orca chat is active |
+| reported | violet ring | The agent says it's working, with no recent activity observed |
 | stale | dashed ring | No signal; state unknown, not assumed finished |
 | parked | ring with a pause bar, `--ink-3` | Waiting on purpose (on an item, the coordinator or a person, or until a time). Keeps its claim; never mistaken for finished. Shown as "parked · waiting on RCP-12", "· waiting on the coordinator", "· waiting on a person", "· waiting until Nov 20 10:00", or "· ready to resume" once what it waited on has cleared. |
 | needs input | amber "?" | Waiting on you |

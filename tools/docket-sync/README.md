@@ -50,6 +50,7 @@ To fail a run, throw an error with a short `code` such as `network`. The code go
 - **`usage`** (B63, BUILD_SPEC §5.34): token use from the local Codex and Claude Code logs. Off by default, and with it off no log file is opened.
 - **`worktrees`** (B68, BUILD_SPEC §5.32): what each project's worktrees hold, read with git on this computer. It runs whenever the helper runs and a project has a repository folder.
 - **`git`** (B76, BUILD_SPEC §5.35): every other git read Docket needs: the conflict radar's trial merges, branch discovery, commit activity, the worktree check and Docket's install manifest on main. Docket runs no git itself, so without this source the radar says it's waiting for the host helper.
+- **`orca-presence`**: every 30 seconds, reads working local Orca chats and sends only session ID, client, one ticket key and worktree path. Docket marks an open run live and renews its lease only on a unique exact ticket/client/path match. Missing or incomplete observations expire; messages and titles never leave the collector.
 
 ## The GitHub source
 

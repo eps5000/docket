@@ -188,6 +188,20 @@ export type HostScanRecord = z.infer<typeof hostScanRecord>;
 export const hostWorktreeRecord = z.discriminatedUnion('kind', [hostTreeRecord, hostScanRecord]);
 export type HostWorktreeRecord = z.infer<typeof hostWorktreeRecord>;
 
+/** A current, working Orca chat observed by the local host helper. No chat text is sent. */
+export const orcaPresenceRecord = z.strictObject({
+  key: z.string().regex(/^orca:[0-9a-f-]{36}$/i),
+  session: z.uuid(),
+  client: z.enum(['codex', 'claude']),
+  item: z
+    .string()
+    .regex(/^[A-Z][A-Z0-9]*-[0-9]+$/)
+    .max(40),
+  path: hostPath,
+  observed_at: isoTime,
+});
+export type OrcaPresenceRecord = z.infer<typeof orcaPresenceRecord>;
+
 // ---- The git source (B76) ----
 
 /**

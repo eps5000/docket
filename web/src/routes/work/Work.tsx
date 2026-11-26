@@ -105,6 +105,8 @@ export function Work() {
   const query = useQuery({
     queryKey: queryKeys.work(q),
     queryFn: () => apiClient['work.get']({ query: q }),
+    refetchInterval: 30_000,
+    refetchOnMount: 'always',
   });
   const set = (patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams(params);

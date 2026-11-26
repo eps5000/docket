@@ -20,7 +20,7 @@ Companion template: [templates/AGENTS-docket.md](templates/AGENTS-docket.md) is 
 | Server info | `name: "docket"`, `version` = the app version |
 | Capabilities | `tools` and `prompts`, each with `listChanged: false`. No resources. Everything an agent needs comes from tools, and the server instructions point to the tools. The one prompt, `onboard` (§5.11; decision 31), offers the onboarding guide to clients that support prompts; `onboard_project` returns the same guide to those that don't. |
 | Client identity | `clientInfo.name` from `initialize`, normalised (BUILD_SPEC §3). Agents add `agent_label` on `claim_lead` and `start_run`. |
-| Liveness | The server pings each session that has an open run every 60 s. Answering pings is what lets a run show as *live* (BUILD_SPEC §5.4). |
+| Liveness | The server pings each session that has an open run every 60 s. Answering pings, or a fresh unique match from the local Orca presence collector, lets a run show as *live* (BUILD_SPEC §5.4). |
 
 Client setup commands are in §11.
 

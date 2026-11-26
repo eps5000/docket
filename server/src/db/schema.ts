@@ -450,6 +450,8 @@ export const runs = sqliteTable(
     state: text('state', { enum: STORED_RUN_STATES }).notNull().default('open'),
     last_signal_at: text('last_signal_at').notNull(),
     last_signal_kind: text('last_signal_kind', { enum: SIGNAL_KINDS }).notNull(),
+    /** Fresh host observation of this run's working Orca chat; independent of MCP reports. */
+    orca_presence_at: text('orca_presence_at'),
     lease_expires_at: text('lease_expires_at'),
     /**
      * Decision 41: a child run's deadline to signal after a restart. Children have
