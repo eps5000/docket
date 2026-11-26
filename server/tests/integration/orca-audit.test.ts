@@ -21,6 +21,70 @@ const source = await import(
 const now = new Date('2026-11-26T19:30:00.000Z');
 
 describe('bounded Orca resource projection', () => {
+  it('reads a workspace only after exact Orca dispatch, run and path custody agree', async () => {
+    const path = 'C:/Users/test/orca/workspaces/project/worker';
+    const target = {
+      run_id: 'run_docket',
+      dispatch_id: 'ctx_exact',
+      path,
+      main_branch: 'main',
+    };
+    const worker = {
+      dispatch: { id: 'ctx_exact', runId: 'run_orca_parent' },
+      worker: {
+        dispatchId: 'ctx_exact',
+        worktreeId: `repo::${path}`,
+      },
+      projection: {
+        id: 'ctx_exact',
+        dispatchId: 'ctx_exact',
+        runId: 'run_orca_parent',
+        workspace: { id: `repo::${path}` },
+        outcome: 'in_progress',
+        liveness: { verdict: 'live' },
+      },
+      terminalResource: { worktreeId: `repo::${path}` },
+    };
+    let scans = 0;
+    const scan = async (seenPath: string) => {
+      scans += 1;
+      expect(seenPath).toBe(path);
+      return {
+        worktree: 'in-progress',
+        terminals: 0,
+        processes: { count: 0, read: true },
+        artifacts: 'clean',
+      };
+    };
+    expect((await source.collectTarget(target, worker, scan, now.toISOString())).liveness).toBe(
+      'live',
+    );
+    expect(scans).toBe(1);
+    for (const [changedTarget, changedWorker] of [
+      [{ ...target, path: 'C:/Users/test/private' }, worker],
+      [target, { ...worker, dispatch: { ...worker.dispatch, id: 'ctx_other' } }],
+      [target, { ...worker, projection: { ...worker.projection, dispatchId: 'ctx_other' } }],
+      [target, { ...worker, projection: { ...worker.projection, runId: 'run_other' } }],
+      [target, { ...worker, worker: { ...worker.worker, worktreeId: 'repo::C:/other' } }],
+      [target, { ...worker, terminalResource: { worktreeId: 'repo::C:/other' } }],
+      [target, null],
+    ] as const) {
+      const result = await source.collectTarget(
+        changedTarget,
+        changedWorker,
+        scan,
+        now.toISOString(),
+      );
+      expect(result).toMatchObject({
+        liveness: 'unknown',
+        worktree_status: 'unknown',
+        process_read: false,
+        artifacts: 'unknown',
+      });
+      expect(scans).toBe(1);
+    }
+  });
+
   it('drops chat text and process identity, while preserving custody categories', () => {
     const record = source.projectAudit(
       { run_id: 'run_test', dispatch_id: 'ctx_test' },

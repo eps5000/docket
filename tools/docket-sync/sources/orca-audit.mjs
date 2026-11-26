@@ -12,6 +12,35 @@ export const enabled = (settings) => settings?.enabled === true;
 const DISPATCH = /^ctx_[A-Za-z0-9_-]{1,96}$/;
 const RUN = /^run_[A-Za-z0-9_-]{1,96}$/;
 const LOCAL_PATH = /^[A-Za-z]:[\\/](?![\\/])/;
+const workspacePath = (id) =>
+  typeof id === 'string' && id.includes('::') ? id.slice(id.indexOf('::') + 2) : null;
+const pathKey = (path) =>
+  typeof path === 'string' && LOCAL_PATH.test(path) && !/[\x00-\x1f\x7f]/.test(path)
+    ? path.replaceAll('/', '\\').replace(/\\+$/, '').toLowerCase()
+    : null;
+
+/** Docket's run/dispatch association is checked again at ingest; Orca's runId is a different ID. */
+export function verifiedCustody(target, worker) {
+  const projection = worker?.projection;
+  const dispatch = worker?.dispatch;
+  const path = workspacePath(projection?.workspace?.id);
+  const expected = pathKey(target?.path);
+  if (
+    !expected ||
+    pathKey(path) !== expected ||
+    dispatch?.id !== target.dispatch_id ||
+    projection?.id !== target.dispatch_id ||
+    projection?.dispatchId !== target.dispatch_id ||
+    worker?.worker?.dispatchId !== target.dispatch_id ||
+    !dispatch.runId ||
+    projection.runId !== dispatch.runId ||
+    (worker.worker.worktreeId && pathKey(workspacePath(worker.worker.worktreeId)) !== expected) ||
+    (worker.terminalResource?.worktreeId &&
+      pathKey(workspacePath(worker.terminalResource.worktreeId)) !== expected)
+  )
+    return null;
+  return path;
+}
 const orcaEnv = () =>
   Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^ORCA_/i.test(key)));
 
@@ -175,6 +204,23 @@ export function projectAudit(target, worker, worktree, terminals, processes, art
   };
 }
 
+/** Missing or inconsistent Orca identity is unknown, with no host path or process reads. */
+export async function collectTarget(target, worker, scan, at) {
+  const path = verifiedCustody(target, worker);
+  if (!path)
+    return projectAudit(target, null, 'unknown', 0, { count: 0, read: false }, 'unknown', at);
+  const result = await scan(path, target.main_branch);
+  return projectAudit(
+    target,
+    worker,
+    result.worktree,
+    result.terminals,
+    result.processes,
+    result.artifacts,
+    at,
+  );
+}
+
 export async function collect({ signal, settings, state }) {
   const exe = orcaExecutable();
   if (!exe) throw Object.assign(new Error('Orca unavailable'), { code: 'orca_unavailable' });
@@ -200,52 +246,53 @@ export async function collect({ signal, settings, state }) {
     } catch {
       /* Unknown custody stays unknown. */
     }
-    let worktree = 'unknown';
-    let terminals = 0;
-    if (safeLocalPath(target.path)) {
-      try {
-        const tree = await orca(
-          exe,
-          ['worktree', 'show', '--worktree', `path:${target.path}`],
-          signal,
-        );
-        const status = tree.worktree?.workspaceStatus;
-        worktree =
-          status === 'completed'
-            ? 'completed'
-            : status === 'in-progress'
-              ? 'in-progress'
-              : 'unknown';
-      } catch {
-        worktree = 'missing';
-      }
-      try {
-        const list = await orca(
-          exe,
-          ['terminal', 'list', '--worktree', `path:${target.path}`, '--limit', '50'],
-          signal,
-        );
-        terminals =
-          list.truncated === false && list.hostScope?.omittedHostIds?.length === 0
-            ? Math.min(50, list.totalCount)
-            : 50;
-      } catch {
-        terminals = 50;
-      }
-    }
-    const artifactState = await artifacts(target.path, target.main_branch, signal);
-    const processes = await suspectProcesses(target.path, signal);
-    records.push(
-      projectAudit(
-        target,
-        worker,
-        worktree,
-        terminals,
-        processes,
-        artifactState,
-        new Date().toISOString(),
-      ),
+    const record = await collectTarget(
+      target,
+      worker,
+      async (path, mainBranch) => {
+        let worktree = 'unknown';
+        let terminals = 0;
+        if (safeLocalPath(path)) {
+          try {
+            const tree = await orca(
+              exe,
+              ['worktree', 'show', '--worktree', `path:${path}`],
+              signal,
+            );
+            const status = tree.worktree?.workspaceStatus;
+            worktree =
+              status === 'completed'
+                ? 'completed'
+                : status === 'in-progress'
+                  ? 'in-progress'
+                  : 'unknown';
+          } catch {
+            worktree = 'missing';
+          }
+          try {
+            const list = await orca(
+              exe,
+              ['terminal', 'list', '--worktree', `path:${path}`, '--limit', '50'],
+              signal,
+            );
+            terminals =
+              list.truncated === false && list.hostScope?.omittedHostIds?.length === 0
+                ? Math.min(50, list.totalCount)
+                : 50;
+          } catch {
+            terminals = 50;
+          }
+        }
+        return {
+          worktree,
+          terminals,
+          artifacts: await artifacts(path, mainBranch, signal),
+          processes: await suspectProcesses(path, signal),
+        };
+      },
+      new Date().toISOString(),
     );
+    records.push(record);
   }
   return { records, state: { cursor: valid.length ? (start + records.length) % valid.length : 0 } };
 }
