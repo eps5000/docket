@@ -595,7 +595,7 @@ Every dependency stays listed (decision 60). A link the epic's map hides as impl
 Used on the epic Map tab, label pages and Work → Map.
 
 - **Header:**
-  - "n / N done" (big n);
+  - "n / N done" (big n); canceled tickets may remain visible for context but are excluded from N and from the epic Map tab's progress count;
   - a bar split by status in order: done, review, progress, ready, queued, blocked, planning, inbox, in the §5 status colours (decision 57: Ready behind an open blocker is its own **queued** or red **blocked** segment, so the bar adds up to the total);
   - status counts with swatches, including "n queued" and "n blocked" (only that one in red);
   - "n ready to start · working on wave x of y".
