@@ -1,0 +1,13 @@
+# Scoped Docket and Orca liveness inspection
+
+`docket-orca-liveness.mjs` is a read-only, local coordinator check for one Docket lead run, its recorded Orca Dispatch, one selected Epic, and one explicitly named Orca supervisor automation. The coordinator supplies the exact automation and workspace IDs after reviewing their scope. The tool does not infer that an automation belongs to an Epic from its name, prompt text or path.
+
+```powershell
+node tools/docket-orca-liveness.mjs --run-id run_... --dispatch-id ctx_... --epic-id GF-231 --automation-id <Orca UUID> --workspace-id '<Orca repo ID>::C:/exact/supervisor/worktree'
+```
+
+The result is one bounded `parked`, `problem`, or `hold` category. A problem may include a suggested `update_run_status.dispatch_observation` state for the coordinator to review and record through Docket's existing authenticated API. The tool never writes that observation, sends a wake, changes a claim, starts or edits an automation, dispatches a replacement, releases a resource, or stops a process. It emits no command lines, paths, titles, prompts, run IDs, process IDs, or private content.
+
+It requires the exact parked Docket run and paused lease from `/api/agents`, the same run and Dispatch in Docket's bounded `orca-audit` target list, and an item in the selected Epic. A project pause or active cited owner decision stays an intentional hold. A coordinator wait with no named wake or an overdue deadline becomes one problem. A failed or exited Orca worker becomes a custody problem only after `worker-show` matches the recorded Dispatch, Orca parent run, host and worktree path. Missing or mismatched worker evidence is unknown. The automation check uses the exact operator-supplied ID and workspace ID; disabled, missing target and overdue scheduled states are reported only from Orca's readback. A `supervisor_overdue` result means Orca's `nextRunAt` is more than five minutes past with no later recorded run. It is a configuration problem for the coordinator, not proof that a particular process died. An unavailable read or incomplete inventory is a hold. A configured automation is not proof that a supervisor is currently running.
+
+This inspection is a source lane for #187, not a supervisor restart. Before any selected Epic is restarted, the coordinator must verify the owner's active scope decision, the responsible automation's actual prompt and target, the project's freeze boundary, and absence of a competing producer. A restart would be a separate Orca action with an exact receipt and review. A protected HOST HOLD or unknown descendant stays held; a failed worker alone never authorizes a restart, claim release, terminal cleanup, or host action.
