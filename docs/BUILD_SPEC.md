@@ -209,6 +209,7 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 | `radar_findings` | `id` (`rdf_…`), `project_key`, `branch_a`, `branch_b`, `item_a`, `item_b` (null for the main branch), `source_a`, `source_b` (reported\|discovered; B40), `files` (JSON), `seen_at`, `cleared_at`, `merge_first` (B46) | §5.21. One open finding per branch pair. |
 | `usage_turns` | `key` (PK), `project_key`, `item_id`, `link` (ticket\|overhead\|unlinked), `client`, `session_id`, `at`, `workspace`, `model`, `fresh_input`, `cached_input`, `cache_write`, `cache_write_1h`, `output`, `received_at` | §5.34. One row per model response. Never message content. Deleted with the project. |
 | `artifacts` | `item_id`, `kind` (url\|pr\|ci\|deploy\|test), `label`, `url`, `state`, `provenance` | A08 evidence links. |
+
 | `documents` | `project_key`, `item_id` (nullable), `name`, `kind` (planning\|packet_attachment\|import_report\|brief\|other; `brief` is written only through `claim_lead`/`start_run`) | Unique `(item_id, name)`. |
 | `document_versions` | `document_id`, `version_no`, `mime`, `size`, `sha256`, `path`, `created_by` | Immutable. |
 | `events` | `seq` (autoincrement, the change cursor), `at`, `actor_kind` (owner\|agent\|system), `client`, `label`, `run_id`, `project_key`, `item_id`, `type`, `summary`, `data` (JSON), `inverse` (JSON, nullable), `mutation_id`, `idempotency_key` | Append-only (O03). `summary` is the one-line text shown in Activity. |
@@ -226,6 +227,8 @@ SQLite tables. Every row has `id`, `created_at` and `updated_at`; all timestamps
 - **displayed run state:** see §5.4.
 
 ---
+
+**Orca resource audit (#186, #187, #199).** Migration 0035 adds nullable `runs.resource_observation`. The host sync helper reads exact dispatches recorded on runs and posts only bounded state, resource counts, process candidates and artifact categories. Docket never derives a stop or claim release from silence. A fresh failed, lost or unverifiable dispatch on a parked claim raises `dispatch_custody`; a finished run with an active dispatch, terminal, possible child, retained agent after its two-minute window or in-progress worktree raises `dispatch_resources`. A verified live observation or a clean completed audit clears the corresponding problem. `get_digest.resource_inventory` is capped, distinguishes queued, active, parked and completed, and displays four global and two per-Epic coordinator admission limits. Orca remains the sole dispatch executor and owns terminal release; a possible child needs exact parentage proof before any stop. Ignored private artifacts are retained, and unknown process or worktree state prevents cleanup.
 
 ## 5. Domain rules
 

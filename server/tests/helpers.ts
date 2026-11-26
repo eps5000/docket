@@ -207,6 +207,7 @@ export function without0010<T>(rows: T): T {
     delete out.dispatch_observation;
     // Orca presence is likewise new and nullable on every historical run.
     delete out.orca_presence_at;
+    delete out.resource_observation;
     // commits.branch and runs have their own `branch`-free shapes; only drop 0010's on its tables.
     if ('shared_none_at' in out || 'main_branch' in out || 'held_undeclared' in out) {
       for (const c of COLUMNS_0010) delete out[c];

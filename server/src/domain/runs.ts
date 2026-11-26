@@ -24,6 +24,7 @@ import {
   COORDINATOR_PARK,
   jsonBytes,
   LIMITS,
+  ORCA_WORKER_LIMITS,
   type ItemSummary,
   type OrchestratorRef,
   type ResourceKind,
@@ -762,6 +763,26 @@ export function createRunsService(deps: ServiceDeps): RunsService {
           `${item.id} is ${status}; only Ready items, or In progress items with no lead, can be claimed. Pick one from search_items "ready_to_start" or "resumable".`,
           { details: { status, allowed: ['ready', 'progress'] } },
         );
+      }
+
+      if (input.orchestrator?.dispatch_id && item.type !== 'Epic') {
+        const occupied = w.db.sqlite
+          .prepare(
+            `SELECT i.epic_id FROM runs r JOIN items i ON i.id = r.item_id
+           WHERE r.state IN ('open', 'needs_input') AND i.type != 'Epic'
+             AND json_extract(r.orchestrator, '$.dispatch_id') IS NOT NULL`,
+          )
+          .all() as { epic_id: string | null }[];
+        if (
+          occupied.length >= ORCA_WORKER_LIMITS.global ||
+          (item.epic_id &&
+            occupied.filter((r) => r.epic_id === item.epic_id).length >= ORCA_WORKER_LIMITS.perEpic)
+        ) {
+          throw new ToolError(
+            'conflict',
+            `Orca worker admission is full (${occupied.length}/${ORCA_WORKER_LIMITS.global} globally, at most ${ORCA_WORKER_LIMITS.perEpic} per Epic). Keep this dispatch queued or parked; the coordinator must reconcile Orca resources before another claim.`,
+          );
+        }
       }
 
       const recovery = recoveryColumns(w, item, input);

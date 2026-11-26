@@ -139,6 +139,7 @@ export const PROBLEM_KINDS = [
   'wait_owner_unasked',
   'wait_missing_wake',
   'dispatch_custody',
+  'dispatch_resources',
   // An In progress ticket nobody has worked on for days (decision 62; B79)
   'idle_ticket',
 ] as const;

@@ -28,10 +28,13 @@ export const DIGEST_CAPS = {
   finished_partly: 4,
   needs_shaping: 5,
   untriaged_epics: 3,
+  resource_inventory: 6,
 } as const;
 
 /** The hard cap on the text block: 1,000 tokens at characters ÷ 4 (MCP_SPEC §3.2). */
 export const DIGEST_MAX_CHARS = 4_000;
+/** Coordinator admission limits for active Orca ticket workers; parked claims do not consume slots. */
+export const ORCA_WORKER_LIMITS = { global: 4, perEpic: 2 } as const;
 /** The longest free text (a title, a question, a fix) on one digest line. */
 export const DIGEST_TEXT_CHARS = 44;
 
@@ -125,6 +128,22 @@ export const digestLeaseSchema = z.object({
   until: z.string(),
 });
 
+export const digestResourceSchema = z.object({
+  item_id: z.string(),
+  run_id: z.string(),
+  dispatch_id: z.string(),
+  state: z.enum(['active', 'parked', 'completed']),
+  epic: z.string().nullable(),
+  heartbeat_age_s: z.number().int().nullable(),
+  terminal_state: z.string(),
+  protected_hold: z.boolean(),
+  live_terminals: z.number().int(),
+  suspected_processes: z.number().int(),
+  worktree_status: z.string(),
+  artifacts: z.string(),
+  stale: z.boolean(),
+});
+
 export const digestConflictSchema = z.object({
   items: z.array(z.string()),
   parts: z.array(z.string()),
@@ -209,6 +228,18 @@ export const getDigestOutput = readOutput({
   owner: section(digestOwnerSchema),
   problems: section(digestProblemSchema),
   leases: section(digestLeaseSchema),
+  resource_inventory: z
+    .object({
+      queued: z.number().int(),
+      active: z.number().int(),
+      parked: z.number().int(),
+      completed: z.number().int(),
+      global_limit: z.number().int(),
+      global_active: z.number().int(),
+      per_epic_limit: z.number().int(),
+      rows: section(digestResourceSchema),
+    })
+    .optional(),
   conflicts: section(digestConflictSchema),
   changed: section(digestChangeSchema),
   /** Decision 58: "Started with N unshaped tickets", on full snapshots only; absent when none. */

@@ -427,6 +427,7 @@ const OPTIONAL_OUTPUTS: Record<string, string[]> = {
     'release_bugs',
     'needs_shaping',
     'inferred_types',
+    'resource_inventory',
   ], // decisions 53, 56, 58, 61, 62, 64, 65: only while they apply
   submit_packet: ['held_undeclared', 'held_design'],
   declare_shared_changes: ['design_hold'],
