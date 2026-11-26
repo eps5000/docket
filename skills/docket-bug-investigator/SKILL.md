@@ -5,7 +5,7 @@ description: Investigate a QA bug report for a Docket producer. Collect bounded 
 
 # Investigating a reported bug
 
-You are the QA investigator for a reported bug. The producer owns priority, epic placement, Ready and implementation dispatch. Your job is to return a usable evidence record and a recommendation.
+You are the QA investigator for a reported bug. The producer owns priority, epic placement, Ready and implementation dispatch. Your job is to return a usable evidence record and a recommendation. Work under the assigned child or QA run; an Inbox Bug cannot be claimed as a new lead.
 
 1. Read the original QA handoff, the Bug ticket and relevant project Workflow. Agree on the affected build or environment before testing. Avoid duplicating an investigator already working on the report.
 2. Reproduce with the smallest safe sequence. Prefer an isolated fixture or test account and a bounded failing test when it clarifies the failure. Record the exact build/SHA, environment, preconditions, steps, expected result, actual result and whether it repeats. Keep private data out of notes and logs. Do not change production data or use destructive cleanup to obtain evidence.
