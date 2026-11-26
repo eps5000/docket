@@ -1714,6 +1714,7 @@
                                 "linked",
                                 "started",
                                 "asked",
+                                "reviewed",
                                 "noted",
                                 "closed"
                               ]
@@ -9896,6 +9897,7 @@
                                 "linked",
                                 "started",
                                 "asked",
+                                "reviewed",
                                 "noted",
                                 "closed"
                               ]
@@ -10862,6 +10864,7 @@
                                 "linked",
                                 "started",
                                 "asked",
+                                "reviewed",
                                 "noted",
                                 "closed"
                               ]
@@ -11730,6 +11733,7 @@
                                 "linked",
                                 "started",
                                 "asked",
+                                "reviewed",
                                 "noted",
                                 "closed"
                               ]
