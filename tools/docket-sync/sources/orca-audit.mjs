@@ -92,7 +92,7 @@ export function safeLocalPath(path) {
   }
 }
 
-async function artifacts(path, mainBranch, signal) {
+export async function artifacts(path, mainBranch, signal) {
   if (
     !safeLocalPath(path) ||
     typeof mainBranch !== 'string' ||
@@ -141,7 +141,7 @@ async function artifacts(path, mainBranch, signal) {
 }
 
 /** Matching a command line is suspicion only; this never proves parentage or stops a process. */
-async function suspectProcesses(path, signal) {
+export async function suspectProcesses(path, signal) {
   if (!safeLocalPath(path) || process.platform !== 'win32') return { count: 0, read: false };
   const script =
     '$a=$env:DOCKET_AUDIT_PATH.Replace("/", "\\"); $b=$a.Replace("\\", "/"); $n=@(Get-CimInstance Win32_Process | Where-Object { $c=$_.CommandLine; $c -and $_.ProcessId -ne $PID -and ($c.IndexOf($a, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or $c.IndexOf($b, [StringComparison]::OrdinalIgnoreCase) -ge 0) }).Count; [Console]::Write($n)';

@@ -167,6 +167,18 @@ describe('Docket dispatch resource reconciliation', () => {
     });
   const problems = () => d.services.views.needsYou(d.read(), { scope: 'GF' }).problems;
 
+  it('exposes the exact run state and update time for a single-dispatch reconciler', () => {
+    const settings = d.services.sync.source(d.read(), 'orca-audit').settings;
+    expect(settings.targets).toContainEqual(
+      expect.objectContaining({
+        run_id: run,
+        dispatch_id: dispatch,
+        state: 'open',
+        updated_at: expect.any(String),
+      }),
+    );
+  });
+
   it('surfaces a lost worker while the parked claim stays live, and clears after a verified live handoff', () => {
     d.write({ ...worker, run_id: run }, (w, s) =>
       s.runs.park(w, {
