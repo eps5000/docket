@@ -576,7 +576,15 @@ describe.skipIf(process.platform === 'win32')('end to end, with a fake gh on PAT
       }
       res.setHeader('content-type', 'application/json');
       if (req.method === 'GET') {
-        res.end(JSON.stringify({ name: 'github', settings: SETTINGS, status: {} }));
+        // This fixture exercises GitHub only; the installed Orca source has no CLI on CI runners.
+        const isGithub = req.url === '/api/sync/github';
+        res.end(
+          JSON.stringify({
+            name: isGithub ? 'github' : 'orca-presence',
+            settings: isGithub ? SETTINGS : { enabled: false },
+            status: {},
+          }),
+        );
         return;
       }
       let text = '';

@@ -52,6 +52,8 @@ export function Agents() {
   const query = useQuery({
     queryKey: queryKeys.agents({ scope }),
     queryFn: () => apiClient['agents.list']({ query: { scope } }),
+    refetchInterval: 30_000,
+    refetchOnMount: 'always',
   });
 
   // Overview's at-risk worktrees line links to `/agents#workspaces`.

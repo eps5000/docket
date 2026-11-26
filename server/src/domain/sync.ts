@@ -19,6 +19,7 @@ import {
   githubRecord,
   hostGitRecord,
   hostWorktreeRecord,
+  orcaPresenceRecord,
   type GithubPrRecord,
   type GithubRecord,
   type GithubRepoRecord,
@@ -26,6 +27,7 @@ import {
   type GithubState,
   type HostGitRecord,
   type HostWorktreeRecord,
+  type OrcaPresenceRecord,
   type ItemGithubResponse,
   type ItemPr,
   type PutGithubProjectBody,
@@ -79,7 +81,7 @@ interface SyncHandler<R> {
   settings(db: Db, config: Config, now: string): Record<string, unknown>;
   /** The valid records, with secret-looking text withheld. Invalid ones are counted as ignored. */
   clean(records: readonly unknown[], known: readonly string[]): { records: R[]; dropped: number };
-  ingest(w: WriteContext, records: readonly R[]): IngestCounts;
+  ingest(w: WriteContext, records: readonly R[], config: Config): IngestCounts;
   /** Facts to keep beside the status, merged over what's there. */
   detail?(
     db: Db,
@@ -644,11 +646,124 @@ const gitHandler: SyncHandler<HostGitRecord> = {
     applyHostGitRecords(previous, records, hostProjects(db), now),
 };
 
+const normalizedHostPath = (path: string) =>
+  path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+/** Host-observed work is presence, separate from the agent's own MCP report. */
+const orcaPresenceHandler: SyncHandler<OrcaPresenceRecord> = {
+  settings() {
+    return { enabled: true };
+  },
+
+  clean(raw, known) {
+    const records: OrcaPresenceRecord[] = [];
+    let dropped = 0;
+    for (const value of raw) {
+      const parsed = orcaPresenceRecord.safeParse(value);
+      if (
+        !parsed.success ||
+        parsed.data.key !== `orca:${parsed.data.session.toLowerCase()}` ||
+        findSecret(parsed.data.path, { known })
+      ) {
+        dropped += 1;
+        continue;
+      }
+      records.push(parsed.data);
+    }
+    return { records, dropped };
+  },
+
+  ingest(w, records, config) {
+    const current = w.db.sqlite
+      .prepare(
+        `SELECT r.id, r.item_id, r.client, r.workspace, r.orca_presence_at,
+              r.last_signal_at, r.last_signal_kind, r.lease_expires_at, i.project_key
+       FROM runs r JOIN items i ON i.id = r.item_id
+       WHERE r.state = 'open' AND r.is_lead = 1`,
+      )
+      .all() as {
+      id: string;
+      item_id: string;
+      client: string;
+      workspace: string | null;
+      orca_presence_at: string | null;
+      last_signal_at: string;
+      last_signal_kind: string;
+      lease_expires_at: string | null;
+      project_key: string;
+    }[];
+    const eligible = new Map<string, typeof current>();
+    for (const run of current) {
+      if (run.lease_expires_at && Date.parse(run.lease_expires_at) <= Date.parse(w.now)) continue;
+      let path: unknown;
+      try {
+        path = JSON.parse(run.workspace ?? 'null')?.path;
+      } catch {
+        continue;
+      }
+      if (typeof path !== 'string') continue;
+      const key = `${run.item_id.toUpperCase()}|${run.client}|${normalizedHostPath(path)}`;
+      eligible.set(key, [...(eligible.get(key) ?? []), run]);
+    }
+    const byRun = new Map<string, OrcaPresenceRecord[]>();
+    let ignored = 0;
+    for (const record of records) {
+      const observed = Date.parse(record.observed_at);
+      if (observed < Date.parse(w.now) - 90_000 || observed > Date.parse(w.now) + 5_000) {
+        ignored += 1;
+        continue;
+      }
+      const matches = eligible.get(
+        `${record.item}|${record.client}|${normalizedHostPath(record.path)}`,
+      );
+      if (matches?.length !== 1) {
+        ignored += 1;
+        continue;
+      }
+      const run = matches[0]!;
+      byRun.set(run.id, [...(byRun.get(run.id) ?? []), record]);
+    }
+    let changed = 0;
+    const update = w.db.sqlite.prepare(
+      `UPDATE runs SET orca_presence_at = ?,
+         lease_expires_at = CASE WHEN lease_expires_at < ? THEN ? ELSE lease_expires_at END
+       WHERE id = ? AND state = 'open'`,
+    );
+    for (const run of current) {
+      const matches = byRun.get(run.id);
+      if (matches?.length !== 1) {
+        ignored += matches?.length ?? 0;
+        continue;
+      }
+      const wasLive =
+        (run.orca_presence_at !== null &&
+          Date.parse(w.now) - Date.parse(run.orca_presence_at) <= config.liveWindowMs) ||
+        (run.last_signal_kind === 'session' &&
+          Date.parse(w.now) - Date.parse(run.last_signal_at) <= config.liveWindowMs);
+      const renewed = new Date(Date.parse(w.now) + config.leaseMs).toISOString();
+      update.run(w.now, renewed, renewed, run.id);
+      if (!wasLive) {
+        changed += 1;
+        w.event({
+          type: 'run.status_updated',
+          summary: `${run.item_id} agent is working in Orca`,
+          item_id: run.item_id,
+          project_key: run.project_key,
+          data: { run_id: run.id, source: 'orca-presence' },
+          objects: [{ kind: 'run', id: run.id }],
+        });
+      }
+    }
+    return { accepted: records.length, changed, ignored };
+  },
+};
+
 /** One entry per source in `tools/docket-sync/sources/`. */
 const HANDLERS: Record<string, SyncHandler<never>> = {
   github: githubHandler as unknown as SyncHandler<never>,
   worktrees: worktreesHandler as unknown as SyncHandler<never>,
   git: gitHandler as unknown as SyncHandler<never>,
+  'orca-presence': orcaPresenceHandler as unknown as SyncHandler<never>,
 };
 
 const handlerOf = (name: string) => {
@@ -743,7 +858,7 @@ export function createSyncService(deps: ServiceDeps): SyncService {
           operation: 'sync.ingest',
           args: { source: name, records },
         },
-        (w) => handler.ingest(w, records),
+        (w) => handler.ingest(w, records, deps.config),
       );
       const before = parseDetail(sourceRow(write.db, name));
       const now = write.now().toISOString();

@@ -109,6 +109,8 @@ export function ItemPage() {
   const query = useQuery({
     queryKey: queryKeys.item(id),
     queryFn: () => apiClient['items.get']({ params: { id } }),
+    refetchInterval: 30_000,
+    refetchOnMount: 'always',
   });
   const data = query.data;
   const item = data?.item;

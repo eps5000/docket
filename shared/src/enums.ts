@@ -124,10 +124,10 @@ export type RunState = (typeof RUN_STATES)[number];
 
 /** Run-state labels and one-line meanings (UI_SPEC §5). The meaning goes in `title`. */
 export const RUN_STATE_LABELS: Record<RunState, { label: string; meaning: string }> = {
-  live: { label: 'live', meaning: 'Working: the client session is responding' },
+  live: { label: 'live', meaning: 'Working: a client session or Orca chat is active' },
   reported: {
     label: 'reported',
-    meaning: "The agent says it's working, with no recent session signal",
+    meaning: "The agent says it's working, with no recent activity observed",
   },
   stale: { label: 'stale', meaning: 'No signal; state unknown, not assumed finished' },
   parked: {
