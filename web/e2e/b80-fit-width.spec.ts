@@ -125,6 +125,11 @@ const widthFit = (s: { mapW: number; avail: number }) =>
 
 /** Fit width, then wait until the zoom is the width fit (it settles after one re-measure). */
 async function fitWidth(page: Page) {
+  // An open epic tab now remembers Fit width across view switches and reloads.
+  // Turn it off first if it is already active so this helper still exercises the button.
+  if ((await fitButton(page).getAttribute('aria-pressed')) === 'true') {
+    await fitButton(page).click();
+  }
   await fitButton(page).click();
   await expect(fitButton(page)).toHaveAttribute('aria-pressed', 'true');
   await expect
@@ -218,6 +223,23 @@ test('a wide map scales down to fit its six waves', async ({ ownerPage: page }) 
   await expect(map(page).getByRole('button', { name: /scroll the map right/ })).toBeHidden();
   // Hide implied links stays where it was.
   await expect(map(page).getByRole('switch', { name: 'Hide implied links' })).toBeChecked();
+});
+
+test('an open epic tab keeps zoom and Fit width across view switches', async ({
+  ownerPage: page,
+}) => {
+  await openShape(page, 'wide');
+  await map(page).getByRole('button', { name: 'Zoom in' }).click();
+  await expect(zoomLabel(page)).toHaveText('125%');
+
+  await page.getByRole('tab', { name: /^Details/ }).click();
+  await page.getByRole('tab', { name: /^Map/ }).click();
+  await expect(zoomLabel(page)).toHaveText('125%');
+
+  await fitWidth(page);
+  await page.getByRole('tab', { name: /^Details/ }).click();
+  await page.getByRole('tab', { name: /^Map/ }).click();
+  await expect(fitButton(page)).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('a narrow map is never blown up past 100%', async ({ ownerPage: page }) => {
