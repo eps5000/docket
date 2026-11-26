@@ -501,6 +501,8 @@ export const runs = sqliteTable(
     wait_flags: text('wait_flags', { mode: 'json' }),
     /** Last bounded Orca observation from an authorized coordinator; external evidence. */
     dispatch_observation: text('dispatch_observation', { mode: 'json' }),
+    /** Last host-side Orca resource audit, matched to this run's exact dispatch. */
+    resource_observation: text('resource_observation', { mode: 'json' }),
     /**
      * Decision 61: `{outcome, left: [{text, why, needs, item}], via, at}`, how the run
      * finished, from park_run, release_lead, finish_run or closing as Done.

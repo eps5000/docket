@@ -58,6 +58,7 @@ import {
   type SettingsResponse,
   type Status,
   type WaitingOn,
+  type OrcaAuditRecord,
   type WorkCheck,
   type WorkItem,
   finishedPartlyText,
@@ -462,6 +463,21 @@ function waitingLine(w: WaitingOn): string {
   return parts.join(', ') || 'nothing named';
 }
 
+function runAudit(run: RunRow): OrcaAuditRecord | null {
+  const audit = parseJson<OrcaAuditRecord>(run.resource_observation);
+  const dispatch = parseJson<{ dispatch_id?: string }>(run.orchestrator)?.dispatch_id;
+  return audit && audit.key === dispatch ? audit : null;
+}
+
+function freshAudit(run: RunRow, now: string): OrcaAuditRecord | null {
+  const audit = runAudit(run);
+  return audit &&
+    ms(now) - ms(audit.observed_at) <= 5 * 60_000 &&
+    ms(audit.observed_at) <= ms(now) + 5_000
+    ? audit
+    : null;
+}
+
 /**
  * The recovery Problems (UI_SPEC §6.1; BUILD_SPEC §5.16): orphaned
  * resources, unpushed work that may be lost, runs parked past PARK_MAX, and
@@ -509,6 +525,66 @@ function recoveryProblems(
         after,
         n: left.length,
       }),
+    });
+  }
+
+  // A known residual resource stays visible after the audit ages out. Silence
+  // cannot clear it or grant cleanup authority.
+  const auditedEnded = db.sqlite
+    .prepare(
+      "SELECT * FROM runs WHERE state IN ('finished', 'failed', 'interrupted') AND resource_observation IS NOT NULL ORDER BY updated_at DESC LIMIT 80",
+    )
+    .all() as RunRow[];
+  for (const run of auditedEnded) {
+    if (!items.has(run.item_id)) continue;
+    const audit = runAudit(run);
+    if (!audit) continue;
+    const stale = !freshAudit(run, now);
+    const age = ms(now) - ms(run.updated_at);
+    const residue =
+      audit.live_terminals > 0 ||
+      audit.suspected_processes > 0 ||
+      (age >= 2 * 60_000 && !audit.process_read) ||
+      (age >= 2 * 60_000 && !audit.protected_hold && audit.terminal_state !== 'released') ||
+      (age >= 2 * 60_000 && !audit.protected_hold && audit.worktree_status !== 'completed') ||
+      (age >= 2 * 60_000 && audit.artifacts === 'unknown') ||
+      audit.outcome === 'in_progress';
+    if (!residue) continue;
+    const coordinator = coordinatorOf(run);
+    const facts = [
+      audit.outcome === 'in_progress' ? 'Orca dispatch still active' : null,
+      audit.live_terminals
+        ? `${audit.live_terminals} live terminal${audit.live_terminals === 1 ? '' : 's'}`
+        : null,
+      audit.suspected_processes
+        ? `${audit.suspected_processes} possible child process${audit.suspected_processes === 1 ? '' : 'es'}`
+        : null,
+      audit.terminal_state !== 'released' ? `agent resource ${audit.terminal_state}` : null,
+      audit.protected_hold ? 'agent retained by request' : null,
+      audit.worktree_status === 'in-progress' ? 'worktree in progress' : null,
+      audit.worktree_status === 'missing' ? 'worktree missing' : null,
+      audit.worktree_status === 'unknown' ? 'worktree status unknown' : null,
+      !audit.process_read ? 'process inventory unknown' : null,
+      audit.artifacts === 'private' ? 'private artifacts retained' : null,
+      audit.artifacts === 'dirty' ? 'worktree changes protected' : null,
+      audit.artifacts === 'unknown' ? 'artifact state unknown' : null,
+      stale ? 'audit stale; current custody unknown' : null,
+    ].filter((x): x is string => !!x);
+    push({
+      ...base,
+      kind: 'dispatch_resources',
+      id: `dispatch_resources:${run.id}`,
+      item_id: run.item_id,
+      title: title(run.item_id),
+      run_id: run.id,
+      reason: `${run.item_id} ended in Docket · ${facts.join(' · ')}`,
+      reached_you: 'A completed run still has Orca resources to reconcile',
+      explanation: {
+        what: `The exact Orca dispatch ${audit.key} was audited at ${audit.observed_at}: ${facts.join(', ')}.`,
+        fix: `${coordinator ?? 'Owner'}: inspect dispatch custody and process parentage. Orca may release its owned agent after retention. Stop only proven descendants, then close idle terminals and mark a clean worktree completed; retain private artifacts and uncertain resources.`,
+        who: coordinator ? 'agent' : 'owner',
+        who_text: coordinator ? `Coordinator: ${coordinator}` : 'You: no coordinator is named',
+      },
     });
   }
 
@@ -607,7 +683,19 @@ function recoveryProblems(
     const observation = parseJson<{ dispatch_id: string; state: string; by: string; at: string }>(
       run.dispatch_observation,
     );
-    const custody = observation && observation.state !== 'live';
+    const storedAudit = runAudit(run);
+    const audit = freshAudit(run, now);
+    const auditLost =
+      storedAudit &&
+      (!audit ||
+        audit.outcome === 'failed' ||
+        audit.liveness === 'lost' ||
+        (audit.outcome === 'unknown' && audit.liveness === 'unknown'));
+    const custody =
+      auditLost ||
+      (observation &&
+        observation.state !== 'live' &&
+        !(audit && audit.liveness === 'live' && audit.outcome === 'in_progress'));
     const cycle = waitReader.wakeCycle(run);
     const sourceMissing =
       !!waiting.wake?.source_item &&
@@ -619,7 +707,12 @@ function recoveryProblems(
     if (custody) {
       const coordinator = coordinatorOf(run);
       const actor = coordinator ?? 'the owner';
-      const state = observation.state.replaceAll('_', ' ');
+      const state = auditLost
+        ? audit
+          ? `dispatch ${audit.outcome}, liveness ${audit.liveness}`
+          : 'audit stale, custody unknown'
+        : observation!.state.replaceAll('_', ' ');
+      const dispatchId = auditLost ? storedAudit!.key : observation!.dispatch_id;
       push({
         ...base,
         kind: 'dispatch_custody',
@@ -627,10 +720,10 @@ function recoveryProblems(
         item_id: run.item_id,
         title: title(run.item_id),
         run_id: run.id,
-        reason: `${run.item_id} keeps its claim · Orca ${state} reported for ${observation.dispatch_id} · custody needs checking`,
+        reason: `${run.item_id} keeps its claim · Orca ${state} reported for ${dispatchId} · custody needs checking`,
         reached_you: `A parked claim has no verified live dispatch`,
         explanation: {
-          what: `${run.item_id} is parked and keeps its claim. ${observation.by} reported Orca ${state} for dispatch ${observation.dispatch_id} at ${observation.at}.`,
+          what: `${run.item_id} is parked and keeps its claim. ${auditLost ? 'The host helper' : observation!.by} reported Orca ${state} for dispatch ${dispatchId} at ${auditLost ? storedAudit!.observed_at : observation!.at}.`,
           fix: `${actor}: verify the current dispatch and worktree, name the next wake event, then record a live handoff or decide the safe next step. This report does not release the claim or authorize host work.`,
           who: coordinator ? 'agent' : 'owner',
           who_text: coordinator ? `Coordinator: ${coordinator}` : 'You: no coordinator is named',

@@ -43,6 +43,7 @@ export const PROBLEM_TITLES: Record<Problem['kind'], string> = {
   wait_owner_unasked: 'Waiting on a decision nobody asked for',
   wait_missing_wake: 'Waiting without a clear wake',
   dispatch_custody: 'Dispatch needs a custody check',
+  dispatch_resources: 'Completed dispatch has resources to reconcile',
   agent_files_drift: 'Agent files changed outside Docket',
   radar_conflict: 'Heading for a merge conflict',
   idle_ticket: 'In progress, but nobody is on it',

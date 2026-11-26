@@ -20,6 +20,7 @@ import {
   hostGitRecord,
   hostWorktreeRecord,
   orcaPresenceRecord,
+  orcaAuditRecord,
   type GithubPrRecord,
   type GithubRecord,
   type GithubRepoRecord,
@@ -28,6 +29,7 @@ import {
   type HostGitRecord,
   type HostWorktreeRecord,
   type OrcaPresenceRecord,
+  type OrcaAuditRecord,
   type ItemGithubResponse,
   type ItemPr,
   type PutGithubProjectBody,
@@ -758,12 +760,127 @@ const orcaPresenceHandler: SyncHandler<OrcaPresenceRecord> = {
   },
 };
 
+/** The local helper audits only exact dispatches recorded on Docket runs. */
+const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
+  settings(db) {
+    const rows = db.sqlite
+      .prepare(
+        `SELECT r.id, r.state, r.orchestrator, r.workspace, i.project_key, i.epic_id,
+              p.main_branch
+       FROM runs r JOIN items i ON i.id = r.item_id JOIN projects p ON p.key = i.project_key
+       WHERE r.orchestrator IS NOT NULL AND i.archived_at IS NULL
+         AND (r.state IN ('open', 'parked', 'needs_input')
+              OR r.id IN (SELECT id FROM runs WHERE state IN ('finished', 'failed', 'interrupted')
+                          ORDER BY updated_at DESC LIMIT 80))
+       ORDER BY CASE WHEN r.state IN ('open', 'parked', 'needs_input') THEN 0 ELSE 1 END,
+                r.updated_at DESC LIMIT 81`,
+      )
+      .all() as {
+      id: string;
+      state: string;
+      orchestrator: string;
+      workspace: string | null;
+      project_key: string;
+      epic_id: string | null;
+      main_branch: string;
+    }[];
+    const targets = rows.slice(0, 80).flatMap((row) => {
+      try {
+        const dispatch = (JSON.parse(row.orchestrator) as { dispatch_id?: unknown }).dispatch_id;
+        const path = row.workspace ? (JSON.parse(row.workspace) as { path?: unknown }).path : null;
+        return typeof dispatch === 'string' && /^ctx_[A-Za-z0-9_-]{1,96}$/.test(dispatch)
+          ? [
+              {
+                run_id: row.id,
+                dispatch_id: dispatch,
+                path: typeof path === 'string' ? path : null,
+                main_branch: row.main_branch,
+              },
+            ]
+          : [];
+      } catch {
+        return [];
+      }
+    });
+    return { enabled: targets.length > 0, targets, more: rows.length > 80 };
+  },
+
+  clean(raw) {
+    const records: OrcaAuditRecord[] = [];
+    let dropped = 0;
+    for (const value of raw) {
+      const parsed = orcaAuditRecord.safeParse(value);
+      if (parsed.success) records.push(parsed.data);
+      else dropped += 1;
+    }
+    return { records, dropped };
+  },
+
+  ingest(w, records) {
+    let changed = 0;
+    let ignored = 0;
+    for (const record of records) {
+      const at = Date.parse(record.observed_at);
+      if (at < Date.parse(w.now) - 90_000 || at > Date.parse(w.now) + 5_000) {
+        ignored += 1;
+        continue;
+      }
+      const row = w.db.sqlite
+        .prepare('SELECT id, item_id, orchestrator, resource_observation FROM runs WHERE id = ?')
+        .get(record.run_id) as
+        | {
+            id: string;
+            item_id: string;
+            orchestrator: string | null;
+            resource_observation: string | null;
+          }
+        | undefined;
+      if (!row?.orchestrator) {
+        ignored += 1;
+        continue;
+      }
+      let dispatch: string | undefined;
+      try {
+        dispatch = (JSON.parse(row.orchestrator) as { dispatch_id?: string }).dispatch_id;
+      } catch {
+        ignored += 1;
+        continue;
+      }
+      if (dispatch !== record.key) {
+        ignored += 1;
+        continue;
+      }
+      const previous = row.resource_observation
+        ? (JSON.parse(row.resource_observation) as OrcaAuditRecord)
+        : null;
+      if (previous && Date.parse(previous.observed_at) >= at) continue;
+      w.db.sqlite
+        .prepare('UPDATE runs SET resource_observation = ? WHERE id = ?')
+        .run(JSON.stringify(record), row.id);
+      const category = (r: OrcaAuditRecord) =>
+        `${r.outcome}|${r.liveness}|${r.terminal_state}|${r.protected_hold}|${r.agent_state}|${r.worktree_status}|${r.live_terminals}|${r.suspected_processes}|${r.process_read}|${r.artifacts}`;
+      if (!previous || category(previous) !== category(record)) {
+        changed += 1;
+        w.event({
+          type: 'run.status_updated',
+          summary: `Orca resource audit changed for ${row.item_id}`,
+          item_id: row.item_id,
+          data: { run_id: row.id, dispatch_id: record.key, source: 'orca-audit' },
+          objects: [{ kind: 'run', id: row.id }],
+        });
+      }
+    }
+    return { accepted: records.length - ignored, changed, ignored };
+  },
+};
+
 /** One entry per source in `tools/docket-sync/sources/`. */
 const HANDLERS: Record<string, SyncHandler<never>> = {
   github: githubHandler as unknown as SyncHandler<never>,
   worktrees: worktreesHandler as unknown as SyncHandler<never>,
   git: gitHandler as unknown as SyncHandler<never>,
   'orca-presence': orcaPresenceHandler as unknown as SyncHandler<never>,
+  'orca-audit': orcaAuditHandler as unknown as SyncHandler<never>,
 };
 
 const handlerOf = (name: string) => {

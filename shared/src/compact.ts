@@ -1138,6 +1138,24 @@ function renderDigest(d: Digest, now: Date): string {
       (x) => `${clip(x.part, 40)} ${x.item_id} until ${formatTime(x.until, now)}`,
     ),
   };
+  const resources = {
+    title: 'Orca resources',
+    total: d.resource_inventory?.rows.total ?? 0,
+    rows: (d.resource_inventory?.rows.rows ?? []).map((x) =>
+      join([
+        `${x.item_id} ${x.state} ${x.dispatch_id}`,
+        x.epic ? `epic ${x.epic}` : null,
+        x.heartbeat_age_s === null ? null : `heartbeat ${x.heartbeat_age_s}s ago`,
+        x.stale
+          ? 'audit stale or unknown'
+          : `${x.terminal_state}${x.protected_hold ? ' (retained by request)' : ''}, ${x.live_terminals} terminals, ${x.suspected_processes} possible processes, worktree ${x.worktree_status}, artifacts ${x.artifacts}`,
+      ]),
+    ),
+  };
+  if (d.resource_inventory)
+    top.push(
+      `Orca capacity: ${d.resource_inventory.global_active}/${d.resource_inventory.global_limit} active globally, at most ${d.resource_inventory.per_epic_limit} per Epic; this is an admission limit for coordinators`,
+    );
   const conflicts = {
     title: 'conflicts',
     total: d.conflicts.total,
@@ -1227,6 +1245,7 @@ function renderDigest(d: Digest, now: Date): string {
     owner,
     problems,
     leases,
+    resources,
     conflicts,
   ];
   const parts = d.since === null ? [...rest, changed] : [changed, ...rest];
