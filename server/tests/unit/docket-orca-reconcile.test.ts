@@ -31,6 +31,7 @@ function fixture(
     otherAgent?: boolean;
     terminalMismatch?: boolean;
     alreadyReleased?: boolean;
+    helperRemains?: boolean;
   } = {},
 ) {
   let target = {
@@ -38,8 +39,14 @@ function fixture(
     dispatch_id: 'ctx_exact',
     path,
     main_branch: 'main',
-    state: 'finished',
-    updated_at: '2026-11-26T19:00:00Z',
+  };
+  let runRow = {
+    row_kind: 'run',
+    run_id: 'run_docket',
+    run_state: 'finished',
+    at: '2026-11-26T19:00:00Z',
+    item_id: 'GF-346',
+    lease: 'released',
   };
   let worker = {
     dispatch: {
@@ -78,9 +85,14 @@ function fixture(
       ? [{ handle: 'term_idle', worktreeId: workspaceId, incarnationId: 'inc_1', ptyId: 'pty_1' }]
       : [];
   const writes: string[] = [];
+  let workerReads = 0;
   const ports = {
     docketSource: async () => ({ settings: { targets: [target] } }),
-    workerShow: async () => worker,
+    docketAgents: async () => ({ rows: [runRow] }),
+    workerShow: async () => {
+      workerReads += 1;
+      return worker;
+    },
     safePath: () => true,
     artifacts: async () => (options.privateArtifacts ? 'private' : 'clean'),
     processes: async () => ({ count: options.processCount ?? 0, read: true }),
@@ -96,6 +108,10 @@ function fixture(
       if (options.stopUnknown) return { processAction: 'stop_unknown' };
       worker = {
         ...worker,
+        worker: {
+          ...worker.worker,
+          residualResources: options.helperRemains ? worker.worker.residualResources : [],
+        },
         terminalResource: { ...worker.terminalResource, releaseState: 'released' },
       };
       return { processAction: 'closed_agent_terminal' };
@@ -141,8 +157,12 @@ function fixture(
     ports,
     run,
     writes,
+    workerReads: () => workerReads,
     changeTarget: (changes: Partial<typeof target>) => {
       target = { ...target, ...changes };
+    },
+    changeRun: (changes: Partial<typeof runRow>) => {
+      runRow = { ...runRow, ...changes };
     },
     changeWorker: (changes: Partial<typeof worker>) => {
       worker = { ...worker, ...changes };
@@ -181,11 +201,14 @@ describe('one-dispatch Orca-side cleanup', () => {
     });
     expect(protectedWorker.writes).toEqual([]);
     const f = fixture();
-    f.changeTarget({ state: 'parked' });
+    f.changeRun({ run_state: 'parked' });
     expect(await f.run({ execute: true })).toMatchObject({ reason: 'docket_not_ended' });
-    f.changeTarget({ state: 'finished', updated_at: '2026-11-26T19:09:00Z' });
+    f.changeRun({ run_state: 'finished', at: '2026-11-26T19:09:00Z' });
     expect(await f.run({ execute: true })).toMatchObject({ reason: 'retention_pending' });
-    f.changeTarget({ updated_at: '2026-11-26T19:00:00Z', path: 'C:/Users/test/private' });
+    f.changeRun({ at: '2026-11-26T19:00:00Z', lease: 'held' });
+    expect(await f.run({ execute: true })).toMatchObject({ reason: 'docket_lease_not_released' });
+    f.changeRun({ lease: 'released' });
+    f.changeTarget({ path: 'C:/Users/test/private' });
     expect(await f.run({ execute: true })).toMatchObject({ reason: 'custody_unknown' });
     expect(f.writes).toEqual([]);
   });
@@ -227,14 +250,62 @@ describe('one-dispatch Orca-side cleanup', () => {
   it('rechecks Docket immediately before action', async () => {
     const f = fixture();
     let reads = 0;
-    const original = f.ports.docketSource;
-    f.ports.docketSource = async () => {
+    const original = f.ports.docketAgents;
+    f.ports.docketAgents = async () => {
       reads += 1;
-      if (reads === 2) f.changeTarget({ state: 'parked' });
+      if (reads === 2) f.changeRun({ run_state: 'parked' });
       return original();
     };
     expect(await f.run({ execute: true })).toMatchObject({ reason: 'docket_target_changed' });
     expect(f.writes).toEqual([]);
+  });
+
+  it('joins the live identity-only audit target with one exact ended Docket run', async () => {
+    const f = fixture();
+    expect(await f.run()).toMatchObject({ status: 'ready', action: 'release' });
+    expect(f.workerReads()).toBe(1);
+    f.changeRun({ run_state: 'parked' });
+    expect(await f.run({ execute: true })).toMatchObject({ reason: 'docket_not_ended' });
+    expect(f.writes).toEqual([]);
+  });
+
+  it('holds absent, duplicate, and mismatched Docket run records before Orca reads', async () => {
+    const absent = fixture();
+    absent.ports.docketAgents = async () => ({ rows: [] });
+    expect(await absent.run({ execute: true })).toMatchObject({
+      reason: 'docket_target_unavailable',
+    });
+    expect(absent.workerReads()).toBe(0);
+
+    const duplicate = fixture();
+    const original = duplicate.ports.docketAgents;
+    duplicate.ports.docketAgents = async () => {
+      const result = await original();
+      return { rows: [...result.rows, ...result.rows] };
+    };
+    expect(await duplicate.run({ execute: true })).toMatchObject({
+      reason: 'docket_target_unavailable',
+    });
+    expect(duplicate.workerReads()).toBe(0);
+
+    const mismatch = fixture();
+    mismatch.changeRun({ run_id: 'run_other' });
+    expect(await mismatch.run({ execute: true })).toMatchObject({
+      reason: 'docket_target_unavailable',
+    });
+    expect(mismatch.workerReads()).toBe(0);
+  });
+
+  it('holds an owned helper still present after worker-stop', async () => {
+    const f = fixture({ helpers: true, helperRemains: true });
+    expect(await f.run({ execute: true })).toMatchObject({ reason: 'owned_helper_retained' });
+    expect(f.writes).toEqual(['stop']);
+
+    const released = fixture({ helpers: true, alreadyReleased: true });
+    expect(await released.run({ execute: true })).toMatchObject({
+      reason: 'released_helper_inventory_conflict',
+    });
+    expect(released.writes).toEqual([]);
   });
 
   it('holds an unknown Orca stop receipt, an active peer, and terminal incarnation drift', async () => {

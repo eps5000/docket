@@ -28,6 +28,7 @@ const hold = (reason, details = {}) => ({ status: 'hold', reason, ...details });
 /** This is an admission decision, never authority to infer an OS process from its path. */
 export function decide(target, worker, now = Date.now()) {
   if (!target || !['finished', 'failed'].includes(target.state)) return hold('docket_not_ended');
+  if (!['released', 'none'].includes(target.lease)) return hold('docket_lease_not_released');
   if (!RUN.test(target.run_id ?? '') || !DISPATCH.test(target.dispatch_id ?? ''))
     return hold('invalid_identity');
   const path = verifiedCustody(target, worker);
@@ -52,7 +53,7 @@ export function decide(target, worker, now = Date.now()) {
     return hold('resource_ownership_unknown');
   if (!['released', 'reclaimable', 'retained'].includes(resource.releaseState))
     return hold('resource_state_unknown');
-  if (resource.retainedReason === 'user_requested') return hold('protected_hold');
+  if (resource.retainedReason) return hold('protected_hold');
   if (resource.worktreeId && resource.worktreeId !== worker.projection.workspace.id)
     return hold('resource_worktree_mismatch');
   const residual = worker.worker?.residualResources;
@@ -60,6 +61,8 @@ export function decide(target, worker, now = Date.now()) {
   const helpers = residual.some(
     (r) => r.kind === 'helper' || (r.kind === 'terminal' && r.role === 'helper'),
   );
+  if (resource.releaseState === 'released' && helpers)
+    return hold('released_helper_inventory_conflict');
   return {
     status: 'ready',
     path,
@@ -68,11 +71,37 @@ export function decide(target, worker, now = Date.now()) {
   };
 }
 
-function targetFrom(source, runId, dispatchId) {
-  const matches = (source?.settings?.targets ?? []).filter(
+function targetFrom(source, agents, runId, dispatchId) {
+  const configured = source?.settings?.targets;
+  if (
+    !Array.isArray(configured) ||
+    configured.length > 80 ||
+    source?.settings?.more === true ||
+    !Array.isArray(agents?.rows) ||
+    agents.rows.length > 500
+  )
+    return null;
+  const matches = configured.filter(
     (row) => row.run_id === runId && row.dispatch_id === dispatchId,
   );
-  return matches.length === 1 ? matches[0] : null;
+  const runs = agents.rows.filter((row) => row.row_kind === 'run' && row.run_id === runId);
+  if (matches.length !== 1 || runs.length !== 1) return null;
+  const run = runs[0];
+  if (
+    typeof run.item_id !== 'string' ||
+    !run.item_id ||
+    !Number.isFinite(time(run.at)) ||
+    typeof run.lease !== 'string' ||
+    !run.lease
+  )
+    return null;
+  return {
+    ...matches[0],
+    state: run.run_state,
+    updated_at: run.at,
+    item_id: run.item_id,
+    lease: run.lease,
+  };
 }
 
 const sameTarget = (a, b) =>
@@ -80,8 +109,16 @@ const sameTarget = (a, b) =>
   a?.dispatch_id === b?.dispatch_id &&
   a?.state === b?.state &&
   a?.updated_at === b?.updated_at &&
+  a?.item_id === b?.item_id &&
+  a?.lease === b?.lease &&
   a?.path === b?.path &&
   a?.main_branch === b?.main_branch;
+
+async function readTarget(ports, runId, dispatchId) {
+  const source = await ports.docketSource();
+  const agents = await ports.docketAgents();
+  return targetFrom(source, agents, runId, dispatchId);
+}
 
 /** Ports make the exact custody and no-action-on-hold rules testable. */
 export async function reconcile({
@@ -93,7 +130,7 @@ export async function reconcile({
   ports,
 }) {
   if (!RUN.test(runId ?? '') || !DISPATCH.test(dispatchId ?? '')) return hold('invalid_identity');
-  let target = targetFrom(await ports.docketSource(), runId, dispatchId);
+  let target = await readTarget(ports, runId, dispatchId);
   if (!target) return hold('docket_target_unavailable');
   let worker = await ports.workerShow(dispatchId);
   let plan = decide(target, worker, now);
@@ -111,7 +148,7 @@ export async function reconcile({
     };
 
   // Fresh Docket and Orca reads immediately before the first action; a changed target fails closed.
-  const fresh = targetFrom(await ports.docketSource(), runId, dispatchId);
+  const fresh = await readTarget(ports, runId, dispatchId);
   if (!sameTarget(target, fresh)) return hold('docket_target_changed');
   target = fresh;
   worker = await ports.workerShow(dispatchId);
@@ -145,6 +182,13 @@ export async function reconcile({
   if (!verifiedCustody(target, worker)) return hold('custody_after_action_unknown');
   if (worker.terminalResource?.releaseState !== 'released')
     return hold('agent_release_unverified', { action: plan.action });
+  if (!Array.isArray(worker.worker?.residualResources)) return hold('helper_inventory_unknown');
+  if (
+    worker.worker.residualResources.some(
+      (r) => r.kind === 'helper' || (r.kind === 'terminal' && r.role === 'helper'),
+    )
+  )
+    return hold('owned_helper_retained');
 
   let terminals = await ports.terminalList(plan.path);
   if (
@@ -203,7 +247,7 @@ export async function reconcile({
     return hold('agent_inventory_unknown');
   if (agents.agents.some((agent) => agent.worktreeId === plan.workspaceId))
     return hold('other_agent_active');
-  const finalTarget = targetFrom(await ports.docketSource(), runId, dispatchId);
+  const finalTarget = await readTarget(ports, runId, dispatchId);
   if (!sameTarget(target, finalTarget)) return hold('docket_target_changed');
   worker = await ports.workerShow(dispatchId);
   if (!verifiedCustody(target, worker) || worker.terminalResource?.releaseState !== 'released')
@@ -307,6 +351,7 @@ async function main() {
     preservePrivate: args.includes('--preserve-private'),
     ports: {
       docketSource: () => docket.readSource('orca-audit'),
+      docketAgents: () => docket.reader().get('/api/agents'),
       ...cliOrca(exe),
       safePath: safeLocalPath,
       artifacts: (path, branch) => artifacts(path, branch),
