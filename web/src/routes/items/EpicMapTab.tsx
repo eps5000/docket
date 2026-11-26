@@ -19,7 +19,10 @@ export function EpicMapTab({ data }: { data: ItemDetailResponse }) {
   const { id, title, project } = data.item;
   const { tabs, updateTab } = useShell();
   const mapZoom = tabs.tabs.find((tab) => tab.id === id)?.mapZoom;
-  const onZoomChange = useCallback((zoom: MapZoom) => updateTab(id, { mapZoom: zoom }), [id, updateTab]);
+  const onZoomChange = useCallback(
+    (zoom: MapZoom) => updateTab(id, { mapZoom: zoom }),
+    [id, updateTab],
+  );
   // Stable, so the map doesn't re-measure on every render.
   const home = useMemo(() => ({ project }), [project]);
   const goals = useMemo(() => [{ id, title }], [id, title]);

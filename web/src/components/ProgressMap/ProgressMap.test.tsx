@@ -336,7 +336,9 @@ describe('<ProgressMap>', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch view' }));
     fireEvent.click(screen.getByRole('button', { name: 'Switch view' }));
     zoom = within(screen.getByRole('group', { name: 'Zoom' }));
-    expect(zoom.getByRole('button', { name: 'Fit width' }).getAttribute('aria-pressed')).toBe('true');
+    expect(zoom.getByRole('button', { name: 'Fit width' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
   });
 
   it('hover and focus trace a card’s links and dim the rest', () => {
