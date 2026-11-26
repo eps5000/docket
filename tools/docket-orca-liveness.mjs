@@ -81,6 +81,55 @@ export function assess({
   workspaceId,
   now,
 }) {
+  const early = earlyAssessment({ target, agent, item, project, worker, epicId, now });
+  if (early) return early;
+  const wake = wakeState(agent.lead_parked.waiting_on, now);
+  const dispatch = dispatchState(target, worker);
+  const options = { dispatch, wake };
+  const supervisorOptions = { ...options, automation_scope: 'operator_selected' };
+  const supervisorHold = (reason) => ({ ...hold(reason), automation_scope: 'operator_selected' });
+  if (automation === null)
+    return {
+      ...problem('supervisor_unavailable', 'supervisor_unavailable'),
+      ...supervisorOptions,
+    };
+  if (!automation || automation.id !== automation.expectedId)
+    return supervisorHold('supervisor_identity_unknown');
+  if (
+    automation.executionTargetType !== 'local' ||
+    automation.workspaceMode !== 'existing' ||
+    automation.workspaceId !== workspaceId
+  )
+    return supervisorHold('supervisor_scope_unknown');
+  if (!automation.enabled)
+    return { ...problem('supervisor_disabled', 'supervisor_disabled'), ...supervisorOptions };
+  if (supervisorTree === false)
+    return {
+      ...problem('supervisor_missing_target', 'supervisor_missing_target'),
+      ...supervisorOptions,
+    };
+  if (supervisorTree !== true) return supervisorHold('supervisor_target_unknown');
+  if (
+    !Number.isSafeInteger(automation.nextRunAt) ||
+    automation.nextRunAt <= 0 ||
+    (automation.lastRunAt !== null && !Number.isSafeInteger(automation.lastRunAt))
+  )
+    return supervisorHold('supervisor_schedule_unknown');
+  if (automation.nextRunAt < now - 5 * 60_000) {
+    if (automation.lastRunAt === null || automation.lastRunAt < automation.nextRunAt)
+      return { ...problem('supervisor_overdue'), ...supervisorOptions };
+    return supervisorHold('supervisor_schedule_unknown');
+  }
+  return {
+    status: 'parked',
+    reason: wake === 'named_wake' ? 'legitimate_wait' : 'parked_without_coordinator_wake',
+    dispatch,
+    supervisor: 'configured',
+    automation_scope: 'operator_selected',
+  };
+}
+
+function docketScope(target, agent, item, project, epicId) {
   if (!target || target.state !== 'parked' || !agent || agent.run_id !== target.run_id)
     return hold('claimed_park_unknown');
   if (
@@ -88,51 +137,31 @@ export function assess({
     agent.lease !== 'paused' ||
     !agent.lead_parked ||
     item?.item?.id !== agent.item_id ||
+    item.item.project !== agent.project ||
     item.item.runs?.filter((run) => run.run_id === target.run_id).length !== 1 ||
     project?.key !== agent.project ||
-    (item.item.id !== epicId && item.item.epic_id !== epicId)
+    !((item.item.type === 'Epic' && item.item.id === epicId) || item.item.epic === epicId)
   )
     return hold('docket_scope_unknown');
+  return null;
+}
+
+function earlyAssessment({ target, agent, item, project, worker, epicId, now }) {
+  const scope = docketScope(target, agent, item, project, epicId);
+  if (scope) return scope;
   if (project.paused || ownerHold(item, target.run_id)) return hold('intentional_owner_hold');
+  if (
+    agent.lead_parked.waiting_on?.person === true ||
+    (item.item.open_question && !item.item.open_question.answered_at)
+  )
+    return hold('person_or_owner_question_hold');
   const wake = wakeState(agent.lead_parked.waiting_on, now);
   const dispatch = dispatchState(target, worker);
-  const options = { dispatch, wake };
   if (dispatch === 'failed' || dispatch === 'exited')
-    return { ...problem('dispatch_custody', dispatch), ...options };
+    return { ...problem('dispatch_custody', dispatch), dispatch, wake };
   if (wake === 'missing_wake' || wake === 'overdue_wake') return problem(wake);
-  if (automation === null)
-    return { ...problem('supervisor_unavailable', 'supervisor_unavailable'), ...options };
-  if (!automation || automation.id !== automation.expectedId)
-    return hold('supervisor_identity_unknown');
-  if (
-    automation.executionTargetType !== 'local' ||
-    automation.workspaceMode !== 'existing' ||
-    automation.workspaceId !== workspaceId
-  )
-    return hold('supervisor_scope_unknown');
-  if (!automation.enabled)
-    return { ...problem('supervisor_disabled', 'supervisor_disabled'), ...options };
-  if (supervisorTree === false)
-    return { ...problem('supervisor_missing_target', 'supervisor_missing_target'), ...options };
-  if (supervisorTree !== true) return hold('supervisor_target_unknown');
-  if (
-    !Number.isSafeInteger(automation.nextRunAt) ||
-    automation.nextRunAt <= 0 ||
-    (automation.lastRunAt !== null && !Number.isSafeInteger(automation.lastRunAt))
-  )
-    return hold('supervisor_schedule_unknown');
-  if (automation.nextRunAt < now - 5 * 60_000) {
-    if (automation.lastRunAt === null || automation.lastRunAt < automation.nextRunAt)
-      return { ...problem('supervisor_overdue'), ...options };
-    return hold('supervisor_schedule_unknown');
-  }
   if (dispatch !== 'live') return hold('dispatch_custody_unknown');
-  return {
-    status: 'parked',
-    reason: wake === 'named_wake' ? 'legitimate_wait' : 'parked_without_coordinator_wake',
-    dispatch,
-    supervisor: 'configured',
-  };
+  return null;
 }
 
 /** No changes to Docket claims, Orca agents, automations, terminals or worktrees. */
@@ -172,13 +201,12 @@ export async function inspect({
   const agent = matching[0];
   if (target.state !== 'parked' || agent.run_state !== 'parked' || agent.lease !== 'paused')
     return hold('claimed_park_unknown');
-  let item, bootstrap, worker, automations;
+  let item, bootstrap, worker;
   try {
-    [item, bootstrap, worker, automations] = await Promise.all([
+    [item, bootstrap, worker] = await Promise.all([
       ports.item(agent.item_id),
       ports.bootstrap(),
       ports.workerShow(dispatchId).catch(() => null),
-      ports.automations(),
     ]);
   } catch {
     return hold('external_read_unknown');
@@ -186,6 +214,14 @@ export async function inspect({
   const projects = bootstrap?.projects;
   if (!Array.isArray(projects) || projects.length > 100) return hold('docket_inventory_unknown');
   const project = projects.find((p) => p.key === agent.project);
+  const preflight = earlyAssessment({ target, agent, item, project, worker, epicId, now });
+  if (preflight) return preflight;
+  let automations;
+  try {
+    automations = await ports.automations();
+  } catch {
+    return hold('supervisor_inventory_unknown');
+  }
   const entries = automations?.automations;
   if (!Array.isArray(entries) || entries.length > 200) return hold('supervisor_inventory_unknown');
   const found = entries.filter((entry) => entry.id === automationId);

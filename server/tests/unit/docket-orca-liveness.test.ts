@@ -47,7 +47,10 @@ function fixture() {
   let item = {
     item: {
       id: 'GF-457',
-      epic_id: 'GF-231',
+      project: 'GAMEFLOW',
+      type: 'Story',
+      epic: 'GF-231',
+      open_question: null,
       runs: [{ run_id: 'run_claimed', parked: { reason: 'Waiting for review' } }],
     },
     decisions: [],
@@ -83,13 +86,17 @@ function fixture() {
   };
   let tree = { worktree: { id: workspaceId } };
   let treeReads = 0;
+  let automationReads = 0;
   const ports = {
     docketSource: async () => ({ settings: { targets: [target], more: false } }),
     agents: async () => ({ rows: [agent] }),
     item: async () => item,
     bootstrap: async () => ({ projects: [project] }),
     workerShow: async () => worker,
-    automations: async () => ({ automations: automation ? [automation] : [] }),
+    automations: async () => {
+      automationReads += 1;
+      return { automations: automation ? [automation] : [] };
+    },
     worktreeShow: async () => {
       treeReads += 1;
       return tree;
@@ -109,6 +116,7 @@ function fixture() {
     run,
     ports,
     treeReads: () => treeReads,
+    automationReads: () => automationReads,
     target: (change: Partial<typeof target>) => {
       target = { ...target, ...change };
     },
@@ -131,14 +139,62 @@ function fixture() {
       tree = change;
     },
     getWorker: () => worker,
+    getItem: () => item,
   };
 }
 
 describe('scoped Orca supervisor liveness inspection', () => {
   it('keeps a legitimate named, future parked wait as a park', async () => {
     const f = fixture();
+    expect(f.getItem().item).toHaveProperty('epic', 'GF-231');
+    expect(f.getItem().item).not.toHaveProperty('epic_id');
     expect(await f.run()).toMatchObject({ status: 'parked', reason: 'legitimate_wait' });
     expect(f.treeReads()).toBe(1);
+  });
+
+  it('holds a child item in another Epic before any automation or worktree scope read', async () => {
+    const f = fixture();
+    f.item({ item: { ...f.getItem().item, epic: 'GF-235' } });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_scope_unknown' });
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
+  });
+
+  it('preserves a person wait and an unanswered owner question before supervisor reads', async () => {
+    const f = fixture();
+    f.agent({
+      lead_parked: {
+        waiting_on: {
+          orchestrator: true,
+          person: true,
+          wake: { actor: 'coordinator', event: 'review', due_at: '2026-11-26T21:00:00Z' },
+        },
+      },
+    } as never);
+    expect(await f.run()).toMatchObject({
+      status: 'hold',
+      reason: 'person_or_owner_question_hold',
+    });
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
+    const original = f.getItem();
+    f.agent({
+      lead_parked: {
+        waiting_on: {
+          orchestrator: true,
+          wake: { actor: 'coordinator', event: 'review', due_at: '2026-11-26T21:00:00Z' },
+        },
+      },
+    });
+    f.item({
+      item: { ...original.item, open_question: { id: 'q_one', answered_at: null } },
+    } as never);
+    expect(await f.run()).toMatchObject({
+      status: 'hold',
+      reason: 'person_or_owner_question_hold',
+    });
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
   });
 
   it('reports exact failed dispatch custody while a Docket claim remains parked', async () => {
@@ -169,6 +225,8 @@ describe('scoped Orca supervisor liveness inspection', () => {
     });
     f.worker({ ...worker, dispatch: { ...worker.dispatch, id: 'ctx_other', status: 'failed' } });
     expect(await f.run()).toMatchObject({ status: 'hold', reason: 'dispatch_custody_unknown' });
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
     f.worker(null);
     expect(await f.run()).toMatchObject({ status: 'hold', reason: 'dispatch_custody_unknown' });
   });
@@ -196,7 +254,10 @@ describe('scoped Orca supervisor liveness inspection', () => {
     f.item({
       item: {
         id: 'GF-457',
-        epic_id: 'GF-231',
+        project: 'GAMEFLOW',
+        type: 'Story',
+        epic: 'GF-231',
+        open_question: null,
         runs: [{ run_id: 'run_claimed', parked: { reason: 'HOST HOLD dec_approved' } }],
       },
       decisions: [{ id: 'dec_approved', authority: 'owner', status: 'active' }],
