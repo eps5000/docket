@@ -4856,6 +4856,134 @@
         ],
         "additionalProperties": false
       },
+      "resource_inventory": {
+        "type": "object",
+        "properties": {
+          "queued": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "integer"
+          },
+          "parked": {
+            "type": "integer"
+          },
+          "completed": {
+            "type": "integer"
+          },
+          "global_limit": {
+            "type": "integer"
+          },
+          "global_active": {
+            "type": "integer"
+          },
+          "per_epic_limit": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "item_id": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "dispatch_id": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "parked",
+                        "completed"
+                      ]
+                    },
+                    "epic": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "heartbeat_age_s": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "terminal_state": {
+                      "type": "string"
+                    },
+                    "protected_hold": {
+                      "type": "boolean"
+                    },
+                    "live_terminals": {
+                      "type": "integer"
+                    },
+                    "suspected_processes": {
+                      "type": "integer"
+                    },
+                    "worktree_status": {
+                      "type": "string"
+                    },
+                    "artifacts": {
+                      "type": "string"
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "item_id",
+                    "run_id",
+                    "dispatch_id",
+                    "state",
+                    "epic",
+                    "heartbeat_age_s",
+                    "terminal_state",
+                    "protected_hold",
+                    "live_terminals",
+                    "suspected_processes",
+                    "worktree_status",
+                    "artifacts",
+                    "stale"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "total",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "queued",
+          "active",
+          "parked",
+          "completed",
+          "global_limit",
+          "global_active",
+          "per_epic_limit",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
       "conflicts": {
         "type": "object",
         "properties": {

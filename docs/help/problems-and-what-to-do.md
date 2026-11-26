@@ -15,6 +15,7 @@ anchors:
   - problems.parked_too_long
   - problems.wait_missing_wake
   - problems.dispatch_custody
+  - problems.dispatch_resources
   - problems.resume_unattended
   - problems.wait_no_next_step
   - problems.wait_owner_unasked
@@ -50,6 +51,7 @@ Agents read the same words in `get_context`, so you and they agree on what to do
 - a run **parked** too long, which goes to its coordinator;
 - a **wait with no next step**, or on a decision nobody has asked you for, which goes to the run's coordinator;
 - **work left in a worktree** after a run ended, which goes to the item's lead or the run's coordinator.
+- a **completed Docket run with Orca resources still present**: inspect the exact dispatch, terminals, process parentage and worktree. Orca releases its own settled agent after retention. A possible child or unknown process is for review, not an automatic stop; keep private artifacts and changes.
 
 An agent problem reaches your **Problems** only when:
 

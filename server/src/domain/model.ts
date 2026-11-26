@@ -166,6 +166,7 @@ export interface RunRow {
   /** Decision 45: `{flags, resume_key?}`, the wait flags raised and the last resume told (wait.ts). */
   wait_flags: string | null;
   dispatch_observation: string | null;
+  resource_observation: string | null;
   /** Decision 61: how the run finished, as JSON (exit-reports.ts). */
   exit_report: string | null;
   version: number;

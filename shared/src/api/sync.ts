@@ -202,6 +202,32 @@ export const orcaPresenceRecord = z.strictObject({
 });
 export type OrcaPresenceRecord = z.infer<typeof orcaPresenceRecord>;
 
+/** Bounded host observation, never terminal output, process command lines or artifact names. */
+export const orcaAuditRecord = z.strictObject({
+  key: z.string().regex(/^ctx_[A-Za-z0-9_-]{1,96}$/),
+  run_id: z.string().regex(/^run_[A-Za-z0-9_-]{1,96}$/),
+  observed_at: isoTime,
+  outcome: z.enum(['in_progress', 'succeeded', 'failed', 'unknown']),
+  liveness: z.enum(['live', 'lost', 'unknown']),
+  terminal_state: z.enum([
+    'active',
+    'reclaimable',
+    'retained',
+    'release_pending',
+    'release_unknown',
+    'released',
+    'unknown',
+  ]),
+  protected_hold: z.boolean(),
+  agent_state: z.enum(['working', 'done', 'unknown']),
+  worktree_status: z.enum(['in-progress', 'completed', 'missing', 'unknown']),
+  live_terminals: z.number().int().min(0).max(50),
+  suspected_processes: z.number().int().min(0).max(50),
+  process_read: z.boolean(),
+  artifacts: z.enum(['clean', 'private', 'dirty', 'unknown']),
+});
+export type OrcaAuditRecord = z.infer<typeof orcaAuditRecord>;
+
 // ---- The git source (B76) ----
 
 /**

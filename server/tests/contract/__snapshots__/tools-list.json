@@ -693,6 +693,9 @@
             "leases": {
               "type": "object"
             },
+            "resource_inventory": {
+              "type": "object"
+            },
             "conflicts": {
               "type": "object"
             },

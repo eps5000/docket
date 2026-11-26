@@ -5,7 +5,7 @@ description: Coordinate several agents against Docket. Covers choosing and dispa
 
 # Coordinating agents with Docket
 
-**Docket records; you act.** It never launches agents, checks folders or stops processes. It tells you:
+**Docket records; you act.** It never launches agents or stops processes. Its host helper can audit Orca dispatches and worktrees without changing them. It tells you:
 
 - what's ready;
 - who holds what;
@@ -32,6 +32,7 @@ Every model call resends your whole context, so the cheapest turn is the one you
 1. Call `whoami`, then `list_projects` if you don't know the project key.
 2. Call `recovery_report`. It's read-only and cheap. If anything is interrupted, stale, parked and ready to resume, or orphaned, handle it first (§6).
 3. Call `get_digest { project }`: what to start next, bottlenecks, ready work, runs, blockers, what waits on the owner, problems, leases and conflicts in one short read. Save its `cursor`: that's your watch position (§4).
+   When Orca resources appear, read their audit age and the global and per-Epic admission limits. An unknown or stale audit is a reason to inspect Orca before starting another worker.
 4. **Take a Docket update before dispatching,** so new worktrees get current skills. The digest or a worker's claim has an `update:` line? Read the agent-files reference.
 
 ## 2. Choosing work
@@ -43,6 +44,8 @@ Every model call resends your whole context, so the cheapest turn is the one you
 - **Don't dispatch** items in Inbox or Planning, or items claimed by someone else.
 
 ## 3. Dispatching a worker
+
+For Orca-managed work, keep at most four active workers globally and two in one Epic. Parked workers keep their Docket claim but do not consume an active slot; completed workers may still own Orca resources. Use the digest inventory and a fresh Orca worker census before every start. Docket records the limit; Orca remains the only dispatch executor.
 
 1. **Create the worktree:** a new branch from an up-to-date base. Record the path, branch, base ref and base SHA.
 2. **Write the brief.** It's stored unchanged and re-sent after a crash, so make it self-contained about the _environment_, and leave the _item content_ to Docket:
@@ -100,7 +103,7 @@ For a detailed look at one worker, use `get_item { id, view: "summary" }`. Don't
 
 1. Call `recovery_report`.
 2. **Prune only workspaces in `safe_to_prune`.** Never prune `in_use`, `parked` or `at_risk`, and treat `unknown` as not safe. **Idle is not finished.**
-3. Stop every entry in `orphaned_resources`, using its locator.
+3. Inspect every entry in `orphaned_resources` and `dispatch_resources`. Stop a process only after proving its exact identity and parentage under that dispatch; a locator or command-line path match alone is insufficient. Keep ignored private artifacts, unique commits and uncertain worktrees. Orca releases only its own settled agent resource after retention.
 
 **A Docket restart alone needs no re-dispatch.** Open runs keep their claim, and each worker's next call with its `run_id` continues.
 

@@ -132,7 +132,7 @@ describe('0010_shared_changes', () => {
     const migrated = openDb(copy);
     try {
       migrateDb(migrated);
-      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 35, expected: 35 });
+      expect(migrationStatus(migrated)).toEqual({ current: true, applied: 36, expected: 36 });
 
       // Every existing row is unchanged, plus the new columns at their defaults (0032, decision
       // 67, made the Tasks Implementation, inferred: before0032 undoes that).
@@ -334,7 +334,7 @@ describe('0010_shared_changes', () => {
 
       // Migrating again is a no-op.
       migrateDb(migrated);
-      expect(migrationStatus(migrated).applied).toBe(35);
+      expect(migrationStatus(migrated).applied).toBe(36);
     } finally {
       migrated.sqlite.close();
     }

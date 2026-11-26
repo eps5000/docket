@@ -12,6 +12,7 @@
 import {
   DIGEST_CAPS,
   LIMITS,
+  ORCA_WORKER_LIMITS,
   ToolError,
   type Digest,
   type ItemSummary,
@@ -33,6 +34,7 @@ import { releaseDetails } from './release.js';
 import { openPartialExits } from './exit-reports.js';
 import { projectNeedsShaping } from './shaping.js';
 import { midflightByEpic } from './midflight.js';
+import { parseJson } from './recovery-model.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -344,6 +346,97 @@ export function createDigestService(deps: ServiceDeps): DigestService {
           .all(input.project, r.now) as Digest['leases']['rows']
       ).filter((x) => keep(x.item_id));
 
+      // Host observations are read-only. Counts include every matching run; rows
+      // carry no process IDs, paths, terminal output or artifact names.
+      const resourceRuns = sql
+        .prepare(
+          `SELECT r.id, r.item_id, r.state, r.last_signal_at, r.orchestrator,
+                r.resource_observation, i.epic_id
+         FROM runs r JOIN items i ON i.id = r.item_id
+         WHERE i.project_key = ? AND r.orchestrator IS NOT NULL
+           AND (r.state IN ('open', 'parked', 'needs_input')
+             OR r.updated_at >= ?)
+         ORDER BY CASE WHEN r.state IN ('open', 'parked', 'needs_input') THEN 0 ELSE 1 END,
+                  r.updated_at DESC LIMIT 80`,
+        )
+        .all(input.project, new Date(Date.parse(r.now) - 7 * 86_400_000).toISOString()) as {
+        id: string;
+        item_id: string;
+        state: string;
+        last_signal_at: string;
+        orchestrator: string;
+        resource_observation: string | null;
+        epic_id: string | null;
+      }[];
+      const resourceRows: NonNullable<Digest['resource_inventory']>['rows']['rows'] = [];
+      for (const run of resourceRuns) {
+        if (!keep(run.item_id)) continue;
+        const dispatch = parseJson<{ dispatch_id?: string }>(run.orchestrator)?.dispatch_id;
+        if (!dispatch) continue;
+        const audit = parseJson<{
+          key: string;
+          observed_at: string;
+          terminal_state: string;
+          protected_hold: boolean;
+          live_terminals: number;
+          suspected_processes: number;
+          worktree_status: string;
+          artifacts: string;
+        }>(run.resource_observation);
+        const stale =
+          !audit ||
+          audit.key !== dispatch ||
+          Date.parse(r.now) - Date.parse(audit.observed_at) > 5 * 60_000;
+        resourceRows.push({
+          item_id: run.item_id,
+          run_id: run.id,
+          dispatch_id: dispatch,
+          state:
+            run.state === 'parked'
+              ? 'parked'
+              : ['open', 'needs_input'].includes(run.state)
+                ? 'active'
+                : 'completed',
+          epic: run.epic_id,
+          heartbeat_age_s:
+            run.state === 'parked'
+              ? null
+              : Math.max(
+                  0,
+                  Math.floor((Date.parse(r.now) - Date.parse(run.last_signal_at)) / 1000),
+                ),
+          terminal_state: stale ? 'unknown' : audit.terminal_state,
+          protected_hold: stale ? false : audit.protected_hold,
+          live_terminals: stale ? 0 : audit.live_terminals,
+          suspected_processes: stale ? 0 : audit.suspected_processes,
+          worktree_status: stale ? 'unknown' : audit.worktree_status,
+          artifacts: stale ? 'unknown' : audit.artifacts,
+          stale,
+        });
+      }
+      const globalActive = (
+        sql
+          .prepare(
+            `SELECT count(*) AS n FROM runs r JOIN items i ON i.id = r.item_id
+             WHERE r.state IN ('open', 'needs_input') AND i.type != 'Epic'
+               AND json_extract(r.orchestrator, '$.dispatch_id') IS NOT NULL`,
+          )
+          .get() as { n: number }
+      ).n;
+      const resourceInventory = resourceRows.length
+        ? {
+            queued: ready.length,
+            active: resourceRows.filter((x) => x.state === 'active').length,
+            parked: resourceRows.filter((x) => x.state === 'parked').length,
+            completed: resourceRows.filter((x) => x.state === 'completed').length,
+            global_limit: ORCA_WORKER_LIMITS.global,
+            global_active: globalActive,
+            per_epic_limit: ORCA_WORKER_LIMITS.perEpic,
+            // A full-project count can differ from the six displayed rows.
+            rows: section(resourceRows, DIGEST_CAPS.resource_inventory),
+          }
+        : null;
+
       const overlaps = (
         sql
           .prepare(
@@ -473,6 +566,7 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         owner: section(owner, DIGEST_CAPS.owner),
         problems: section(problems, DIGEST_CAPS.problems),
         leases: section(leases, DIGEST_CAPS.leases),
+        ...(resourceInventory ? { resource_inventory: resourceInventory } : {}),
         conflicts: section([...overlaps, ...radar], DIGEST_CAPS.conflicts),
         changed: section(
           events.map((e) => ({ cursor: String(e.seq), item_id: e.item_id, type: e.type })),

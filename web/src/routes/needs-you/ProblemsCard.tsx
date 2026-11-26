@@ -80,6 +80,12 @@ export const PROBLEM_ROWS: Record<
     tone: 'bad',
     actions: [{ label: 'Inspect', kind: 'link', to: onBanner('activity'), banner: true }],
   },
+  dispatch_resources: {
+    help: 'problems.dispatch_resources',
+    icon: 'server',
+    tone: 'warn',
+    actions: [{ label: 'Inspect', kind: 'link', to: onBanner('activity'), banner: true }],
+  },
   cycle: {
     help: 'problems.cycle',
     icon: 'cycle',
