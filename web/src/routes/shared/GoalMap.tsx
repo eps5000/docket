@@ -14,6 +14,7 @@ import {
   type CriticalOverlay,
   type MapItem,
   type MapRelease,
+  type MapZoom,
 } from '../../components/ProgressMap';
 import { apiClient } from '../../app/queryClient';
 import { QueryState } from '../../app/QueryState';
@@ -128,6 +129,8 @@ export function GoalMap({
   home,
   goals,
   release = null,
+  mapZoom,
+  onZoomChange,
 }: {
   items: readonly MapItem[];
   outside: readonly MapItem[];
@@ -138,6 +141,8 @@ export function GoalMap({
   goals?: readonly { id: string; title: string }[];
   /** Decision 64, on an epic's map: the Bugs column and the finish line's badge. Keep it stable. */
   release?: MapRelease | null;
+  mapZoom?: MapZoom;
+  onZoomChange?: (zoom: MapZoom) => void;
 }) {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -198,6 +203,8 @@ export function GoalMap({
       </div>
       <ProgressMap
         items={items}
+        mapZoom={mapZoom}
+        onZoomChange={onZoomChange}
         outside={outside}
         links={overlay?.links ?? links}
         outsideTitle={outsideTitle}
