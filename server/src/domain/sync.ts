@@ -765,7 +765,7 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
   settings(db) {
     const rows = db.sqlite
       .prepare(
-        `SELECT r.id, r.state, r.orchestrator, r.workspace, i.project_key, i.epic_id,
+        `SELECT r.id, r.state, r.updated_at, r.orchestrator, r.workspace, i.project_key, i.epic_id,
               p.main_branch
        FROM runs r JOIN items i ON i.id = r.item_id JOIN projects p ON p.key = i.project_key
        WHERE r.orchestrator IS NOT NULL AND i.archived_at IS NULL
@@ -778,6 +778,7 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
       .all() as {
       id: string;
       state: string;
+      updated_at: string;
       orchestrator: string;
       workspace: string | null;
       project_key: string;
@@ -792,6 +793,8 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
           ? [
               {
                 run_id: row.id,
+                state: row.state,
+                updated_at: row.updated_at,
                 dispatch_id: dispatch,
                 path: typeof path === 'string' ? path : null,
                 main_branch: row.main_branch,
