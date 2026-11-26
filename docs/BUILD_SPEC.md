@@ -277,7 +277,7 @@ A15.
 - `claim_lead` is atomic, a conditional update on "no active lead run". It works on Ready items that aren't blocked (moving them to `progress`) and on `progress` items with no lead (resuming them).
 - A failed lead run (`finish_run` with `failed`) or a send-back from the owner leaves the item in `progress` with no lead. It shows under Problems (failed) or as `resumable`.
 - If someone else holds the claim, it returns `conflict` with the current claimant, lease expiry and last signal, and records the rejected claim as an event. The Activity view shows those rejections.
-- A claim creates an open lead run with `lease_expires_at = now + LEASE`. Any signal (§5.4) extends the lease. **A parked run's lease is suspended** (§5.16): it neither expires nor goes stale.
+- A claim creates an open lead run with `lease_expires_at = now + LEASE`. Any signal (§5.4), or a unique working Orca observation matched to that open lead, extends the lease. **A parked run's lease is suspended** (§5.16): it neither expires nor goes stale.
 - **When the lease expires,** the sweeper ends the run as `interrupted` ("lease expired"), releases the claim, and moves the item from `progress` back to `ready`. The checklist, logs and partial work stay on the ticket, and an event records why.
 - **Owner *Release lead claim* on a ticket:** same effect, earlier. It needs a confirmation dialog whose focus starts on Cancel.
 - **Owner handoff of an In progress Epic:** `POST /api/items/:id/handoff-epic` ends its current lead as `interrupted` (`owner_released`), preserves the plan and partial work, and keeps the Epic In progress with no producer hold. Another provider can claim it immediately with its own producer name. It works even while the current lead is live; the confirmation names the current agent and explains that its old run cannot continue. This action cannot be undone because an ended run cannot be revived. It avoids the Epic start gate on tickets added mid-epic. A missing lead, stale item version, non-Epic or other status is refused without changing the item.
@@ -290,11 +290,13 @@ A06, H05. **The rule: never show more certainty than the data supports.** A sign
 - **report:** a tool call that names the run but arrives from a different session.
 - **relayed:** a parent run reporting on a child's behalf.
 
+The optional host collector reads Orca's working-chat list every 30 seconds. It sends no chat text. Only one current chat whose ticket key, client and worktree path uniquely match an open lead counts as presence; its observation expires after `LIVE_WINDOW`. A normal report does not erase that observation. Incomplete or failed reads add no presence.
+
 | Displayed | Condition |
 |---|---|
-| live | open, and the last *session* signal is within `LIVE_WINDOW` |
-| reported | open, no session signal within `LIVE_WINDOW`, and the last signal of any kind is within `STALE_AFTER` |
-| stale | open, and no signal for `STALE_AFTER` |
+| live | open, and either a same-session MCP signal or a uniquely matched local Orca working observation is within `LIVE_WINDOW` |
+| reported | open, no recent MCP session or Orca working observation, and the last agent signal of any kind is within `STALE_AFTER` |
+| stale | open, and no agent signal for `STALE_AFTER` or fresh Orca presence |
 | parked | `state = parked` (§5.16). Never stale while parked. Shown with what it's waiting on. |
 | needs input | `state = needs_input` (an open question) |
 | failed / finished / interrupted | terminal `state` |
