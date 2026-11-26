@@ -141,14 +141,13 @@ describe('agent files over the owner API (T153)', () => {
     const added = syncBundledFiles(runtime).added;
     // Decision 66: each skill's references are agent files of their own.
     const refs = added.filter((k) => k.includes('--'));
-    expect(added).toHaveLength(10 + refs.length);
+    expect(added).toHaveLength(9 + refs.length);
     expect(refs).toContain('skill:docket-worker--exit-reports');
 
     const list = await owner('GET', '/api/agent-files');
     expect(list.status).toBe(200);
     const files = list.body.files as S[];
     expect(files.map((f) => f.key).filter((k) => !(k as string).includes('--'))).toEqual([
-      'skill:docket-bug-investigator',
       'skill:docket-coordinator',
       'skill:docket-delivery',
       'skill:docket-lead-subagents',

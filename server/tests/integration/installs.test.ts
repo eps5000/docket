@@ -44,7 +44,6 @@ afterEach(async () => {
 });
 
 const SKILLS = [
-  'docket-bug-investigator',
   'docket-coordinator',
   'docket-delivery',
   'docket-lead-subagents',

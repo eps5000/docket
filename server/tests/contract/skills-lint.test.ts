@@ -336,9 +336,8 @@ afterAll(async () => {
 const skills = skillFiles();
 
 describe('skills lint (T148)', () => {
-  it('finds the eight shipped skills', () => {
+  it('finds the seven shipped skills', () => {
     expect(skills.map((s) => s.folder).sort()).toEqual([
-      'docket-bug-investigator',
       'docket-coordinator',
       'docket-delivery',
       'docket-lead-subagents',
@@ -399,10 +398,6 @@ describe('skills lint (T148)', () => {
   // Decision 66: a gate may hide detail, never a safety rule. Each core keeps these.
   describe('each core keeps its safety rules (decision 66)', () => {
     const SAFETY: Record<string, string[]> = {
-      'docket-bug-investigator': [
-        'Do not change production data or use destructive cleanup to obtain evidence.',
-        'Do not implement a fix, change priority or epic, move the Bug to Ready, merge, deploy or close it.',
-      ],
       'docket-worker': [
         '**Never retry in a loop.**',
         '**Never wait in a loop.**',
