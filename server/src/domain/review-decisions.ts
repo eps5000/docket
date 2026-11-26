@@ -53,6 +53,7 @@ import {
 } from './model.js';
 import { openPacketOf } from './packets.js';
 import { designHold } from './design-review.js';
+import { openPartialExit } from './exit-reports.js';
 import { onItemClosed } from './shared-changes.js';
 import { closeEpicWithRelease, releaseGates } from './release.js';
 import type { EventInput, InverseOp, WriteContext } from './write.js';
@@ -407,8 +408,22 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
                 .all(item.id) as { id: string }[]
             ).map((r) => r.id)
           : [];
+      // A single partial exit assigned back to this Release can be waiting solely for this
+      // owner packet. A fully approved packet is the resolving action; bind the settlement
+      // to that exact run so a different ticket's unfinished work remains a gate.
+      const partial =
+        item.type === 'Release' &&
+        ready.length > 0 &&
+        counts.approve === ready.length &&
+        stillDeclared.length === 0
+          ? openPartialExit(w.db, item.id)
+          : null;
+      const settlingPartialRunId =
+        partial?.exit.left.length === 1 && partial.exit.left[0]?.item === item.id
+          ? partial.run.id
+          : undefined;
       // Decision 67: a Release isn't closed while one of its gates fails (64's open bugs among them).
-      const gates = releaseGates(w.db, item);
+      const gates = releaseGates(w.db, item, settlingPartialRunId);
       const releaseHold = gates.length > 0 ? gates : null;
       const outcome: 'progress' | 'done' =
         anyChanges || stillDeclared.length > 0 || openChildren.length > 0 || releaseHold
@@ -435,6 +450,7 @@ export function createReviewDecisionsService(deps: ServiceDeps): ReviewDecisions
           verdicts: input.verdicts.map((v) => ({ hr_item_id: v.hr_item_id, kind: v.kind })),
           created,
           outcome,
+          ...(settlingPartialRunId ? { settles_partial_exit: settlingPartialRunId } : {}),
           ...(kept.length
             ? {
                 kept: kept.map((n) => ({

@@ -193,7 +193,11 @@ export interface FailedGate {
 }
 
 /** Each gate the Release fails, in order; empty when it may finish. */
-export function releaseGates(db: Db, item: Pick<ItemRow, 'id' | 'epic_id' | 'type'>): FailedGate[] {
+export function releaseGates(
+  db: Db,
+  item: Pick<ItemRow, 'id' | 'epic_id' | 'type'>,
+  settlingPartialRunId?: string,
+): FailedGate[] {
   if (item.type !== 'Release' || !item.epic_id) return [];
   const failed: FailedGate[] = [];
   const tickets = ticketsOf(db, [item.epic_id]).get(item.epic_id) ?? [];
@@ -215,7 +219,10 @@ export function releaseGates(db: Db, item: Pick<ItemRow, 'id' | 'epic_id' | 'typ
     .all(inJson(live)) as { id: string; known_gaps: string }[]) {
     if (hasOpenGap(g.known_gaps)) unsettled.add(g.id);
   }
-  for (const id of live) if (openPartialExit(db, id)) unsettled.add(id);
+  for (const id of live) {
+    const partial = openPartialExit(db, id);
+    if (partial && partial.run.id !== settlingPartialRunId) unsettled.add(id);
+  }
   if (unsettled.size > 0) {
     failed.push({ gate: 'unsettled', items: [...unsettled].sort(compareKeys) });
   }

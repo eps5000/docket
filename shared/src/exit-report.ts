@@ -32,7 +32,8 @@ export type ExitVia = (typeof EXIT_VIAS)[number];
  * What settled a partial exit, from the ticket's own record after it:
  * `moved` (its acceptance criteria were edited, or it was split), `linked` (a
  * link to the ticket that will finish them), `started` (a new lead claimed
- * it), `asked` (a question to the owner on the ticket or its epic), `noted`
+ * it), `asked` (a question to the owner on the ticket or its epic), `reviewed`
+ * (the owner approved the one remaining review item), `noted`
  * (a note closing them), `closed` (the owner closed or canceled the ticket).
  */
 export const EXIT_SETTLE_KINDS = [
@@ -40,6 +41,7 @@ export const EXIT_SETTLE_KINDS = [
   'linked',
   'started',
   'asked',
+  'reviewed',
   'noted',
   'closed',
 ] as const;
@@ -51,6 +53,7 @@ export const EXIT_SETTLE_TEXT: Record<ExitSettleKind, string> = {
   linked: 'linked to the ticket that will finish them',
   started: 'new work started',
   asked: 'the owner was asked',
+  reviewed: 'the owner approved the remaining review',
   noted: 'closed with a note',
   closed: 'the ticket was closed',
 };

@@ -437,6 +437,69 @@ describe('the epic closes when its Release is done', () => {
     expect(status(epic)).toBe('done');
   });
 
+  it('approval settles a single owner-review partial exit and closes the Release and epic', () => {
+    const { epic, release } = epicWithRelease();
+    const lead = claim(release);
+    d.write(lead, (w, s) =>
+      s.humanReview.declare(w, { id: release, items: ['Accept the synthetic walkthrough'] }),
+    );
+    d.write(lead, (w, s) => s.packets.submit(w, packetArgs(release)));
+    d.write(lead, (w, s) =>
+      s.runs.finish(w, {
+        run_id: lead.run_id!,
+        result: 'finished',
+        summary: 'Waiting for owner review',
+        exit: {
+          outcome: 'partial',
+          left: [
+            {
+              text: 'Owner acceptance of the walkthrough',
+              why: 'The owner must decide the packet',
+              needs: 'Owner approval',
+              item: release,
+            },
+          ],
+        },
+      }),
+    );
+    expect(
+      releaseGates(d.server.runtime.db, { id: release, epic_id: epic, type: 'Release' }),
+    ).toEqual([{ gate: 'unsettled', items: [release] }]);
+
+    const hr = d.row<{ id: string }>('SELECT id FROM hr_items WHERE item_id = ?', release);
+    decide(d, release, 1, [{ hr_item_id: hr.id, kind: 'approve' }]);
+    expect(status(release)).toBe('done');
+    expect(status(epic)).toBe('done');
+    const exit = d.services.views
+      .itemDetail(d.read(), { id: release })
+      .item.runs.find((r) => r.run_id === lead.run_id)?.exit;
+    expect(exit?.settled).toMatchObject({ how: 'reviewed', by: 'owner' });
+  });
+
+  it('approval does not settle a partial exit assigned to another ticket', () => {
+    const { epic, release, a } = epicWithRelease();
+    const lead = claim(release);
+    d.write(lead, (w, s) =>
+      s.humanReview.declare(w, { id: release, items: ['Accept the synthetic walkthrough'] }),
+    );
+    d.write(lead, (w, s) => s.packets.submit(w, packetArgs(release)));
+    d.write(lead, (w, s) =>
+      s.runs.finish(w, {
+        run_id: lead.run_id!,
+        result: 'finished',
+        summary: 'Another ticket has work left',
+        exit: {
+          outcome: 'partial',
+          left: [{ text: 'A separate repair', why: 'Still open', needs: a, item: a }],
+        },
+      }),
+    );
+    const hr = d.row<{ id: string }>('SELECT id FROM hr_items WHERE item_id = ?', release);
+    decide(d, release, 1, [{ hr_item_id: hr.id, kind: 'approve' }]);
+    expect(status(release)).toBe('progress');
+    expect(status(epic)).toBe('progress');
+  });
+
   it('closing the epic by hand points at its Release', () => {
     const { epic, release } = epicWithRelease();
     const err = d.fails(

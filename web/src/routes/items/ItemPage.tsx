@@ -49,6 +49,8 @@ export function itemTabs(
   const epicTotal = item
     ? item.checklist.work.length + item.checklist.checks.length + item.checklist.human_review.length
     : 0;
+  // The map leaves canceled tickets visible as context but excludes them from progress.
+  const mapChildren = data?.children.filter((c) => c.status !== 'canceled') ?? [];
   const links = item ? item.links.blocks.length + item.links.blocked_by.length : 0;
   const runTrouble = item?.runs.find((r) => r.is_lead && ['stale', 'failed'].includes(r.run_state));
   const conflict = data ? claimConflict(data) : null;
@@ -71,7 +73,7 @@ export function itemTabs(
           key: 'map',
           label: 'Map',
           count: data
-            ? `${data.children.filter((c) => c.status === 'done').length}/${data.children.length}`
+            ? `${mapChildren.filter((c) => c.status === 'done').length}/${mapChildren.length}`
             : undefined,
           hint: 'Where it is: progress and dependencies across its tickets',
         }

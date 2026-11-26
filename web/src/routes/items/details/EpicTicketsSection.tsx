@@ -26,7 +26,8 @@ import { paths } from '../../../lib/paths';
  */
 export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
   const kids = data.children;
-  const done = kids.filter((k) => k.status === 'done').length;
+  const counted = kids.filter((k) => k.status !== 'canceled');
+  const done = counted.filter((k) => k.status === 'done').length;
   const open = kids.filter((k) => !k.archived && k.status !== 'done' && k.status !== 'canceled');
   const queued = open.filter((k) => k.wait?.kind === 'queued').length;
   const blocked = open.filter((k) => k.wait?.kind === 'blocked').length;
@@ -41,7 +42,7 @@ export function EpicTicketsSection({ data }: { data: ItemDetailResponse }) {
       summary={
         kids.length === 0
           ? epicEmptyText(data.item.status)
-          : `${done}/${kids.length} done · ${waitCountsText({ queued, blocked })} · ${forYou} for you`
+          : `${done}/${counted.length} done · ${waitCountsText({ queued, blocked })} · ${forYou} for you`
       }
     >
       {kids.length === 0 ? (
