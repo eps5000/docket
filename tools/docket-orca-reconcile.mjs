@@ -71,28 +71,23 @@ export function decide(target, worker, now = Date.now()) {
   };
 }
 
-function targetFrom(source, agents, runId, dispatchId) {
+function targetFrom(source, run, runId, dispatchId) {
   const configured = source?.settings?.targets;
+  if (!Array.isArray(configured) || configured.length > 80 || source?.settings?.more === true)
+    return null;
+  const matches = configured.filter((row) => row.run_id === runId);
   if (
-    !Array.isArray(configured) ||
-    configured.length > 80 ||
-    source?.settings?.more === true ||
-    !Array.isArray(agents?.rows) ||
-    agents.rows.length > 500
+    matches.length !== 1 ||
+    matches[0].dispatch_id !== dispatchId ||
+    run?.run_id !== runId ||
+    run?.dispatch_id !== dispatchId
   )
     return null;
-  const matches = configured.filter(
-    (row) => row.run_id === runId && row.dispatch_id === dispatchId,
-  );
-  const runs = agents.rows.filter((row) => row.row_kind === 'run' && row.run_id === runId);
-  if (matches.length !== 1 || runs.length !== 1) return null;
-  const run = runs[0];
   if (
     typeof run.item_id !== 'string' ||
     !run.item_id ||
     !Number.isFinite(time(run.at)) ||
-    typeof run.lease !== 'string' ||
-    !run.lease
+    !['held', 'expired', 'paused', 'released', 'none'].includes(run.lease)
   )
     return null;
   return {
@@ -115,9 +110,27 @@ const sameTarget = (a, b) =>
   a?.main_branch === b?.main_branch;
 
 async function readTarget(ports, runId, dispatchId) {
-  const source = await ports.docketSource();
-  const agents = await ports.docketAgents();
-  return targetFrom(source, agents, runId, dispatchId);
+  let source;
+  try {
+    source = await ports.docketSource();
+  } catch {
+    return null;
+  }
+  if (
+    !Array.isArray(source?.settings?.targets) ||
+    source.settings.targets.length > 80 ||
+    source.settings.more === true ||
+    source.settings.targets.filter((row) => row.run_id === runId).length !== 1 ||
+    source.settings.targets.find((row) => row.run_id === runId)?.dispatch_id !== dispatchId
+  )
+    return null;
+  let run;
+  try {
+    run = await ports.docketRun(runId);
+  } catch {
+    return null;
+  }
+  return targetFrom(source, run, runId, dispatchId);
 }
 
 /** Ports make the exact custody and no-action-on-hold rules testable. */
@@ -351,7 +364,7 @@ async function main() {
     preservePrivate: args.includes('--preserve-private'),
     ports: {
       docketSource: () => docket.readSource('orca-audit'),
-      docketAgents: () => docket.reader().get('/api/agents'),
+      docketRun: (id) => docket.reader().get(`/api/runs/${encodeURIComponent(id)}/custody`),
       ...cliOrca(exe),
       safePath: safeLocalPath,
       artifacts: (path, branch) => artifacts(path, branch),

@@ -55,6 +55,10 @@ export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
     services.views.agents(read, query),
   );
 
+  defineRoute(api, 'runs.custody', deps, ({ services, read, params }) =>
+    services.views.runCustody(read, params),
+  );
+
   defineRoute(api, 'search.get', deps, ({ services, read, query }) =>
     services.search.palette(read, query),
   );

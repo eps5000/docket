@@ -169,6 +169,7 @@ describe('the service stubs', () => {
       'work',
       'itemDetail',
       'agents',
+      'runCustody',
       'settings',
       'labelPage',
       'findProblem',

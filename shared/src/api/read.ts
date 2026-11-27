@@ -558,6 +558,19 @@ export const agentsQuery = input({ scope: scopeSchema });
 export const agentsResponse = jsonResponse({ rows: z.array(agentRowSchema) });
 export type AgentsResponse = z.infer<typeof agentsResponse>;
 
+// Exact, owner-only custody read for a historical run. The Agents view intentionally
+// keeps only a recent ended slice; cleanup must never infer absence from that slice.
+export const runCustodyParams = input({ id: z.string().regex(/^run_[A-Za-z0-9_-]{1,96}$/) });
+export const runCustodyResponse = jsonResponse({
+  run_id: z.string(),
+  item_id: z.string(),
+  dispatch_id: z.string().nullable(),
+  run_state: runStateSchema,
+  lease: z.enum(['held', 'expired', 'paused', 'released', 'none']),
+  at: z.string(),
+});
+export type RunCustodyResponse = z.infer<typeof runCustodyResponse>;
+
 // ---- GET /api/search ----
 
 export const searchQuery = input({ q: longText(200) });
@@ -632,6 +645,15 @@ export const readRoutes = {
     query: agentsQuery,
     body: null,
     response: json(agentsResponse),
+  }),
+  'runs.custody': route({
+    method: 'GET',
+    path: '/api/runs/:id/custody',
+    group: 'read',
+    params: runCustodyParams,
+    query: noInput,
+    body: null,
+    response: json(runCustodyResponse),
   }),
   'search.get': route({
     method: 'GET',
