@@ -2,6 +2,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/domain/write.js';
+import {
+  auditFreshAt,
+  ENDED_RESOURCE_AUDIT_FRESH_MS,
+  PARKED_AUDIT_FRESH_MS,
+  resourceRotationBoundMs,
+} from '../../src/domain/orca-audit-freshness.js';
 import { addProject, forceStatus, startDomain, type Domain } from '../us1-helpers.js';
 
 const source = await import(
@@ -19,6 +25,47 @@ const source = await import(
   ).href
 );
 const now = new Date('2026-11-26T19:30:00.000Z');
+
+describe('Orca audit freshness policy', () => {
+  it('covers the measured 66-target rotation and the bounded 80-target inventory', () => {
+    // 66 targets took 6m51 in the installed helper; both 66 and 80 need five passes.
+    expect(source.batchSize).toBe(16);
+    expect(source.intervalMs).toBe(60_000);
+    expect(resourceRotationBoundMs(64)).toBe(10 * 60_000);
+    expect(resourceRotationBoundMs(65)).toBe(12 * 60_000 + 30_000);
+    expect(resourceRotationBoundMs(66)).toBe(12 * 60_000 + 30_000);
+    expect(resourceRotationBoundMs(80)).toBe(12 * 60_000 + 30_000);
+    expect(ENDED_RESOURCE_AUDIT_FRESH_MS - resourceRotationBoundMs(80)!).toBe(2 * 60_000 + 30_000);
+    expect(resourceRotationBoundMs(81)).toBeNull(); // The helper refuses overflow.
+    expect(PARKED_AUDIT_FRESH_MS).toBe(5 * 60_000);
+  });
+
+  it('rejects expired, future and invalid observations', () => {
+    const at = now.toISOString();
+    expect(
+      auditFreshAt(
+        at,
+        new Date(now.getTime() + 6 * 60_000).toISOString(),
+        ENDED_RESOURCE_AUDIT_FRESH_MS,
+      ),
+    ).toBe(true);
+    expect(
+      auditFreshAt(
+        at,
+        new Date(now.getTime() + ENDED_RESOURCE_AUDIT_FRESH_MS + 1).toISOString(),
+        ENDED_RESOURCE_AUDIT_FRESH_MS,
+      ),
+    ).toBe(false);
+    expect(
+      auditFreshAt(
+        new Date(now.getTime() + 5_001).toISOString(),
+        at,
+        ENDED_RESOURCE_AUDIT_FRESH_MS,
+      ),
+    ).toBe(false);
+    expect(auditFreshAt('invalid', at, ENDED_RESOURCE_AUDIT_FRESH_MS)).toBe(false);
+  });
+});
 
 describe('bounded Orca resource projection', () => {
   it('reads a workspace only after exact Orca dispatch, run and path custody agree', async () => {
@@ -353,9 +400,22 @@ describe('Docket dispatch resource reconciliation', () => {
     expect(problems()).toContainEqual(
       expect.objectContaining({
         kind: 'dispatch_resources',
+        reason: expect.not.stringContaining('audit stale'),
+      }),
+    );
+    expect(
+      d.services.digest.get(d.read(), { project: 'GF' }).resource_inventory?.rows.rows,
+    ).toContainEqual(expect.objectContaining({ run_id: run, stale: false, artifacts: 'private' }));
+    d.clock.advance(9 * 60_000 + 1);
+    expect(problems()).toContainEqual(
+      expect.objectContaining({
+        kind: 'dispatch_resources',
         reason: expect.stringContaining('audit stale'),
       }),
     );
+    expect(
+      d.services.digest.get(d.read(), { project: 'GF' }).resource_inventory?.rows.rows,
+    ).toContainEqual(expect.objectContaining({ run_id: run, stale: true, artifacts: 'unknown' }));
     d.clock.advance(1_000);
     post([
       record({

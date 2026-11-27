@@ -35,6 +35,11 @@ import { openPartialExits } from './exit-reports.js';
 import { projectNeedsShaping } from './shaping.js';
 import { midflightByEpic } from './midflight.js';
 import { parseJson } from './recovery-model.js';
+import {
+  auditFreshAt,
+  ENDED_RESOURCE_AUDIT_FRESH_MS,
+  PARKED_AUDIT_FRESH_MS,
+} from './orca-audit-freshness.js';
 
 export interface DigestService {
   get(r: ReadContext, input: ToolInput<'get_digest'>): Digest;
@@ -386,7 +391,13 @@ export function createDigestService(deps: ServiceDeps): DigestService {
         const stale =
           !audit ||
           audit.key !== dispatch ||
-          Date.parse(r.now) - Date.parse(audit.observed_at) > 5 * 60_000;
+          !auditFreshAt(
+            audit.observed_at,
+            r.now,
+            ['open', 'parked', 'needs_input'].includes(run.state)
+              ? PARKED_AUDIT_FRESH_MS
+              : ENDED_RESOURCE_AUDIT_FRESH_MS,
+          );
         resourceRows.push({
           item_id: run.item_id,
           run_id: run.id,
