@@ -1,27 +1,40 @@
-# Smoke checklist: An Orca worker running Claude
+# Smoke checklist: Orca Claude worker
 
-Follow [README.md](README.md) "Before you start" first. Commands run from the repository root.
+Follow the [safe disposable route](README.md#safe-disposable-route). This fourth surface
+is **Not verified** by the DKT-10 pilot.
 
-## Set up
+## Separate supervised Dispatch gate
 
-1. [ ] The Claude Code setup in [claude-code.md](claude-code.md) works on the host first.
-2. [ ] Start an Orca worker running Claude, in any worktree, from the same user account.
-3. [ ] Give the worker the prompt from `prepare`. Its label starts with `orca` so Settings counts it as an Orca worker.
+1. [ ] The DKT-1 producer starts a separate supervised Claude Dispatch, after proving a
+       task-only Claude process startup route. A standard Orca worker launch has no
+       per-worker environment flag; it does not automatically isolate Claude or supply
+       `CLAUDE_CONFIG_DIR`.
+2. [ ] Record presence and SHA-256 hashes, without copies or contents, of default
+       `~/.claude.json`, relevant user Claude auth/config, and project `.mcp.json`.
+3. [ ] A task-only `CLAUDE_CONFIG_DIR` plus strict task-only MCP config pointing only to
+       `http://127.0.0.2:7421/mcp` is a **candidate** that must be injected at process
+       startup and verified on that Dispatch. **Stop if isolated auth is absent** or if
+       invocation-scoped startup cannot be proven. Do not copy credentials or edit user or
+       project MCP config.
+4. [ ] Verify the explicit worker-process route and disposable preflight. Prove `whoami`
+       and sample item readback after `prepare` below; a configured endpoint or inherited
+       host setting is insufficient.
 
-## Run
+## Run and record, only after the gate
 
-1. [ ] `node docker/smoke/smoke.mjs prepare orca-claude`, which prints a ticket ID and a prompt.
-2. [ ] Paste the prompt into the client. It should call `whoami`, `claim_lead`, `set_plan`,
-       `update_step` and `get_item`, and report the plan with the first step done.
-3. [ ] `node docker/smoke/smoke.mjs check orca-claude <ID>`: every line says PASS.
-4. [ ] In the browser (unlock with `docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key`):
-   - [ ] **Agents** shows the client name and label on the ticket, with its run state.
-   - [ ] **Settings → Connections** shows this surface last seen just now.
-5. [ ] Tell the client to call `release_lead` on the ticket.
+1. [ ] Run `node docker/smoke/smoke.mjs prepare orca-claude` with task-only
+       `DOCKET_URL=http://127.0.0.2:7421` and retain the new item ID and prompt.
+2. [ ] Give the prompt to that separately supervised worker. Capture the actual connection
+       and `whoami`, `claim_lead`, a two-step plan, first step done, and `get_item` with
+       client identity, label, Orca Dispatch, and Docket run ID. **Keep this sample lead
+       open.**
+3. [ ] While the sample lead is still open and its run is live or reported, run
+       `node docker/smoke/smoke.mjs check orca-claude <item-id>` against the disposable URL.
+       Record each PASS/FAIL line honestly, including any FAIL.
+4. [ ] After `check`, call `release_lead` only for this exact sample lead if it is still
+       yours; retain the release receipt. Do not release another lead after a FAIL.
+5. [ ] Compare default hashes/presence with step 2, then follow the README's post-resource
+       identity checks. **Stop if `.claude.json` changes**; preserve both states for owner
+       recovery instead of overwriting them.
 
-## Record
-
-- [ ] PASS or FAIL for each `check` line, and the run state you saw (live or reported).
-- [ ] Anything you had to change from the README to make it connect.
-- [ ] V2: did the worker inherit the user MCP config and `DOCKET_TOKEN`? If not, note what it needed. If it can't connect at all, it stays "Not verified" with that note.
-- [ ] V7: does the worker see user-wide skills?
+Keep V1–V3/V6/V7 and Settings verification **Not verified** unless separately observed.
