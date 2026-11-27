@@ -27,8 +27,6 @@ function fixture() {
     dispatch_id: 'ctx_exact',
     path,
     main_branch: 'main',
-    state: 'parked',
-    updated_at: '2026-11-26T19:00:00Z',
   };
   let agent = {
     row_kind: 'run',
@@ -144,12 +142,48 @@ function fixture() {
 }
 
 describe('scoped Orca supervisor liveness inspection', () => {
-  it('keeps a legitimate named, future parked wait as a park', async () => {
+  it('joins an identity-only installed audit target to a legitimate parked run', async () => {
     const f = fixture();
+    expect((await f.ports.docketSource()).settings.targets[0]).not.toHaveProperty('state');
     expect(f.getItem().item).toHaveProperty('epic', 'GF-231');
     expect(f.getItem().item).not.toHaveProperty('epic_id');
     expect(await f.run()).toMatchObject({ status: 'parked', reason: 'legitimate_wait' });
     expect(f.treeReads()).toBe(1);
+  });
+
+  it('holds a live or unpaused exact run before supervisor reads', async () => {
+    const f = fixture();
+    f.agent({ run_state: 'live' });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'claimed_park_unknown' });
+    f.agent({ run_state: 'parked', lease: 'active' });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'claimed_park_unknown' });
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
+  });
+
+  it('holds missing or duplicate run custody before item and Orca scope reads', async () => {
+    const f = fixture();
+    let itemReads = 0;
+    let workerReads = 0;
+    const originalItem = f.ports.item;
+    const originalWorker = f.ports.workerShow;
+    const row = (await f.ports.agents()).rows[0]!;
+    f.ports.item = async () => {
+      itemReads += 1;
+      return originalItem();
+    };
+    f.ports.workerShow = async () => {
+      workerReads += 1;
+      return originalWorker();
+    };
+    f.ports.agents = async () => ({ rows: [] });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_custody_unknown' });
+    f.ports.agents = async () => ({ rows: [row, { ...row }] });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_custody_unknown' });
+    expect(itemReads).toBe(0);
+    expect(workerReads).toBe(0);
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
   });
 
   it('holds a child item in another Epic before any automation or worktree scope read', async () => {

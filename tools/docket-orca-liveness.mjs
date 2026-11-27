@@ -130,8 +130,9 @@ export function assess({
 }
 
 function docketScope(target, agent, item, project, epicId) {
-  if (!target || target.state !== 'parked' || !agent || agent.run_id !== target.run_id)
-    return hold('claimed_park_unknown');
+  // The sync target is an identity cursor. Only the exact /api/agents run row
+  // carries current parked state and lease custody.
+  if (!target || !agent || agent.run_id !== target.run_id) return hold('claimed_park_unknown');
   if (
     agent.run_state !== 'parked' ||
     agent.lease !== 'paused' ||
@@ -199,8 +200,7 @@ export async function inspect({
   if (selected.length !== 1 || matching.length !== 1) return hold('docket_custody_unknown');
   const target = selected[0];
   const agent = matching[0];
-  if (target.state !== 'parked' || agent.run_state !== 'parked' || agent.lease !== 'paused')
-    return hold('claimed_park_unknown');
+  if (agent.run_state !== 'parked' || agent.lease !== 'paused') return hold('claimed_park_unknown');
   let item, bootstrap, worker;
   try {
     [item, bootstrap, worker] = await Promise.all([
