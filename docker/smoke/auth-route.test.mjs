@@ -7,12 +7,14 @@ import test from 'node:test';
 import {
   PILOT_MCP_URL,
   assessDisposable,
+  assertNoDrift,
   authCandidates,
   changedLabels,
   fixtureEnvironment,
   hashOnlySnapshot,
   preflight,
   runFakeClient,
+  runGuardedFakeClient,
   validateRoute,
 } from './auth-route.mjs';
 
@@ -87,6 +89,38 @@ test('snapshot emits hashes and metadata only, and detects default/project drift
     await writeFile(auth, `changed-${secretLikeFixture}`);
     const after = await hashOnlySnapshot({ userHome, projectRoot });
     assert.deepEqual(changedLabels(before, after), ['codex_auth']);
+    assert.throws(
+      () => assertNoDrift(before, after),
+      (error) => {
+        assert.equal(error.message, 'STOP_DEFAULT_OR_PROJECT_DRIFT');
+        assert.deepEqual(error.changedLabels, ['codex_auth']);
+        return true;
+      },
+    );
+  });
+});
+
+test('fake child hash guard stops on default auth drift without exposing content', async () => {
+  await fixture(async ({ root, userHome, projectRoot, profile }) => {
+    const codex = path.join(userHome, '.codex');
+    await mkdir(codex);
+    const auth = path.join(codex, 'auth.json');
+    await writeFile(auth, 'FAKE_BEFORE');
+    const script = path.join(root, 'fake-drift.mjs');
+    await writeFile(
+      script,
+      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(auth)}, 'FAKE_AFTER');`,
+    );
+    const env = fixtureEnvironment({
+      surface: 'codex',
+      profile,
+      mcpUrl: PILOT_MCP_URL,
+      parentEnv: process.env,
+    });
+    await assert.rejects(
+      runGuardedFakeClient({ script, env, userHome, projectRoot }),
+      /STOP_DEFAULT_OR_PROJECT_DRIFT/,
+    );
   });
 });
 
@@ -177,6 +211,17 @@ test('all surfaces remain STOP without an independently reviewed auth/startup so
     assert.deepEqual(authCandidates('codex', { OPENAI_API_KEY: 'FAKE_TEST_ONLY' }), [
       'OPENAI_API_KEY',
     ]);
+    assert.deepEqual(
+      authCandidates('codex', {
+        OPENAI_FEDERATION_RULE_ID: 'FAKE',
+        OPENAI_IDENTITY_TOKEN_FILE: 'FAKE',
+      }),
+      ['OPENAI_IDENTITY_TOKEN_FILE', 'OPENAI_FEDERATION_RULE_ID'],
+    );
+    assert.deepEqual(
+      authCandidates('claude', { ANTHROPIC_AUTH_TOKEN: 'FAKE', ANTHROPIC_PROFILE: 'FAKE' }),
+      ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_PROFILE'],
+    );
     const unreadable = {};
     Object.defineProperty(unreadable, 'ANTHROPIC_API_KEY', {
       enumerable: true,

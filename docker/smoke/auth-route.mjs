@@ -105,6 +105,15 @@ export function changedLabels(before, after) {
   );
 }
 
+export function assertNoDrift(before, after) {
+  const changed = changedLabels(before, after);
+  if (changed.length > 0) {
+    const error = new Error('STOP_DEFAULT_OR_PROJECT_DRIFT');
+    error.changedLabels = changed;
+    throw error;
+  }
+}
+
 /** Pure validation of action-time Docker inspect data; it never runs Docker or removes a resource. */
 export function assessDisposable({ pilot, live, dev, volumeUsers }) {
   if (!pilot || !live || !dev || !Array.isArray(volumeUsers))
@@ -144,11 +153,23 @@ export function authCandidates(surface, env) {
     surface.endsWith('codex') || surface === 'codex'
       ? [
           'OPENAI_API_KEY',
+          'CODEX_API_KEY',
           'CODEX_ACCESS_TOKEN',
           'OPENAI_IDENTITY_TOKEN_FILE',
-          'OPENAI_WORKLOAD_IDENTITY_PROVIDER_ID',
+          'OPENAI_FEDERATION_RULE_ID',
         ]
-      : ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_PROFILE'];
+      : [
+          'ANTHROPIC_API_KEY',
+          'ANTHROPIC_AUTH_TOKEN',
+          'CLAUDE_CODE_OAUTH_TOKEN',
+          'ANTHROPIC_PROFILE',
+          'ANTHROPIC_FEDERATION_RULE_ID',
+          'ANTHROPIC_ORGANIZATION_ID',
+          'ANTHROPIC_IDENTITY_TOKEN_FILE',
+          'CLAUDE_CODE_USE_BEDROCK',
+          'CLAUDE_CODE_USE_VERTEX',
+          'CLAUDE_CODE_USE_FOUNDRY',
+        ];
   return names.filter((name) => Object.hasOwn(env, name));
 }
 
@@ -193,6 +214,19 @@ export async function runFakeClient({ script, env, timeoutMs = 3000 }) {
     child.on('error', reject);
     child.on('close', (code) => resolve(code));
   });
+}
+
+/** Fake Node child only; compare hashes even when the child exits nonzero. */
+export async function runGuardedFakeClient({ script, env, userHome, projectRoot }) {
+  const before = await hashOnlySnapshot({ userHome, projectRoot });
+  let exitCode;
+  try {
+    exitCode = await runFakeClient({ script, env });
+  } finally {
+    const after = await hashOnlySnapshot({ userHome, projectRoot });
+    assertNoDrift(before, after);
+  }
+  return exitCode;
 }
 
 function argumentsOf(argv) {
