@@ -27,9 +27,95 @@ const source = await import(
 const now = new Date('2026-11-26T19:30:00.000Z');
 
 describe('Orca audit freshness policy', () => {
+  it('rotates 7 parked and 68 ended targets within strict worst-case windows', () => {
+    const targets = Array.from({ length: 75 }, (_, index) => ({
+      run_id: `run_${index}`,
+      dispatch_id: `ctx_${index}`,
+      state: index % 11 === 0 ? 'parked' : 'finished',
+      path: `C:/audit/${index}`,
+      main_branch: 'main',
+    }));
+    const parked = targets.filter((target) => target.state === 'parked');
+    expect(parked).toHaveLength(7);
+    let state: { ended?: string[] } = {};
+    const lastObserved = new Map<string, number>();
+    const visits = new Map<string, number>();
+    // Runner starts the next pass after a single POST (30 s timeout) and its interval.
+    const passMs = 90_000 + 30_000 + source.intervalMs;
+    for (let pass = 0; pass < 12; pass += 1) {
+      const selected = source.selectTargets(pass % 2 ? [...targets].reverse() : targets, state);
+      state = selected.state;
+      expect(selected.batch).toHaveLength(24);
+      expect(
+        new Set(selected.batch.map((target: { dispatch_id: string }) => target.dispatch_id)).size,
+      ).toBe(24);
+      expect(
+        selected.batch.filter((target: { state: string }) => target.state === 'parked'),
+      ).toHaveLength(7);
+      for (const target of selected.batch) {
+        const previous = lastObserved.get(target.dispatch_id);
+        if (previous !== undefined) {
+          // Previous observation at pass start, next one at the 90-second deadline.
+          const worstGap = pass * passMs + 90_000 - previous;
+          expect(worstGap).toBeLessThan(
+            target.state === 'parked' ? PARKED_AUDIT_FRESH_MS : ENDED_RESOURCE_AUDIT_FRESH_MS,
+          );
+        }
+        lastObserved.set(target.dispatch_id, pass * passMs);
+        visits.set(target.dispatch_id, (visits.get(target.dispatch_id) ?? 0) + 1);
+      }
+      if (pass === 3) expect(lastObserved.size).toBe(75);
+    }
+    expect([...visits.values()].every((count) => count >= 2)).toBe(true);
+    expect(Math.ceil(24 / source.auditConcurrency) * (source.targetLimitMs + 1_000)).toBeLessThan(
+      90_000,
+    );
+    expect(
+      Math.ceil(24 / source.auditConcurrency) * (source.targetLimitMs + 1_000) + 30_000,
+    ).toBeLessThan(90_000);
+  });
+
+  it('prioritizes all states with the 5-minute server window and fails closed above capacity', () => {
+    const targets = Array.from({ length: 69 }, (_, index) => ({
+      run_id: `run_${index}`,
+      dispatch_id: `ctx_${index}`,
+      state: index < 7 ? 'parked' : index === 7 ? 'open' : index === 8 ? 'needs_input' : 'finished',
+    }));
+    const selected = source.selectTargets(targets, {});
+    expect(selected.batch).toHaveLength(24);
+    expect(
+      selected.batch
+        .slice(0, 9)
+        .every((target: { state: string }) =>
+          ['parked', 'open', 'needs_input'].includes(target.state),
+        ),
+    ).toBe(true);
+    expect(() => source.selectTargets(targets, {}, true)).toThrow('Audit inventory incomplete');
+    expect(() => source.selectTargets([targets[0], targets[0]], {})).toThrow(
+      'Audit inventory invalid',
+    );
+    expect(() => source.selectTargets([{ ...targets[0], state: 'unknown' }], {})).toThrow(
+      'Audit inventory invalid',
+    );
+    expect(() =>
+      source.selectTargets(
+        [
+          ...targets,
+          ...targets.slice(0, 6).map((target, index) => ({
+            ...target,
+            run_id: `run_extra_${index}`,
+            dispatch_id: `ctx_extra_${index}`,
+            state: 'finished',
+          })),
+        ],
+        {},
+      ),
+    ).toThrow('Audit capacity exceeded');
+  });
+
   it('covers the measured 66-target rotation and the bounded 80-target inventory', () => {
-    // 66 targets took 6m51 in the installed helper; both 66 and 80 need five passes.
-    expect(source.batchSize).toBe(16);
+    // The server's historical rotation bound stays unchanged by this source-only fix.
+    expect(source.batchSize).toBe(24);
     expect(source.intervalMs).toBe(60_000);
     expect(resourceRotationBoundMs(64)).toBe(10 * 60_000);
     expect(resourceRotationBoundMs(65)).toBe(12 * 60_000 + 30_000);
