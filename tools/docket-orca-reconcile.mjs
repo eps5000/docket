@@ -73,7 +73,7 @@ export function decide(target, worker, now = Date.now()) {
 
 function targetFrom(source, run, runId, dispatchId) {
   const configured = source?.settings?.targets;
-  if (!Array.isArray(configured) || configured.length > 80 || source?.settings?.more === true)
+  if (!Array.isArray(configured) || configured.length > 80 || source?.settings?.more !== false)
     return null;
   const matches = configured.filter((row) => row.run_id === runId);
   if (
@@ -119,7 +119,7 @@ async function readTarget(ports, runId, dispatchId) {
   if (
     !Array.isArray(source?.settings?.targets) ||
     source.settings.targets.length > 80 ||
-    source.settings.more === true ||
+    source.settings.more !== false ||
     source.settings.targets.filter((row) => row.run_id === runId).length !== 1 ||
     source.settings.targets.find((row) => row.run_id === runId)?.dispatch_id !== dispatchId
   )

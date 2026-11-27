@@ -87,7 +87,7 @@ function fixture(
   const writes: string[] = [];
   let workerReads = 0;
   const ports = {
-    docketSource: async () => ({ settings: { targets: [target] } }),
+    docketSource: async () => ({ settings: { targets: [target], more: false } }),
     docketRun: async () => runRow,
     workerShow: async () => {
       workerReads += 1;
@@ -281,7 +281,12 @@ describe('one-dispatch Orca-side cleanup', () => {
     const original = duplicate.ports.docketSource;
     duplicate.ports.docketSource = async () => {
       const result = await original();
-      return { settings: { targets: [...result.settings.targets, ...result.settings.targets] } };
+      return {
+        settings: {
+          targets: [...result.settings.targets, ...result.settings.targets],
+          more: false,
+        },
+      };
     };
     expect(await duplicate.run({ execute: true })).toMatchObject({
       reason: 'docket_target_unavailable',
@@ -310,6 +315,22 @@ describe('one-dispatch Orca-side cleanup', () => {
       reason: 'docket_target_unavailable',
     });
     expect(invalidTime.workerReads()).toBe(0);
+  });
+
+  it('holds missing or malformed inventory completeness before Orca reads or writes', async () => {
+    for (const more of [undefined, null, true, 'false', 0]) {
+      const f = fixture();
+      f.ports.docketSource = async () =>
+        ({
+          settings: { targets: [{ run_id: 'run_docket', dispatch_id: 'ctx_exact', path }], more },
+        }) as never;
+      expect(await f.run({ execute: true })).toMatchObject({
+        status: 'hold',
+        reason: 'docket_target_unavailable',
+      });
+      expect(f.workerReads()).toBe(0);
+      expect(f.writes).toEqual([]);
+    }
   });
 
   it('holds an owned helper still present after worker-stop', async () => {
