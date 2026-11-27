@@ -177,5 +177,13 @@ test('all surfaces remain STOP without an independently reviewed auth/startup so
     assert.deepEqual(authCandidates('codex', { OPENAI_API_KEY: 'FAKE_TEST_ONLY' }), [
       'OPENAI_API_KEY',
     ]);
+    const unreadable = {};
+    Object.defineProperty(unreadable, 'ANTHROPIC_API_KEY', {
+      enumerable: true,
+      get() {
+        throw new Error('credential value was read');
+      },
+    });
+    assert.deepEqual(authCandidates('claude', unreadable), ['ANTHROPIC_API_KEY']);
   });
 });

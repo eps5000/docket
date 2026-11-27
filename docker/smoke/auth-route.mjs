@@ -71,6 +71,15 @@ async function fileDigest(filename) {
   if (!stat.isFile() || stat.isSymbolicLink()) return { presence: 'unsafe' };
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(filename)) hash.update(chunk);
+  const after = await lstat(filename);
+  if (
+    !after.isFile() ||
+    after.isSymbolicLink() ||
+    after.size !== stat.size ||
+    after.mtimeMs !== stat.mtimeMs
+  ) {
+    throw new Error('STOP_HASH_TARGET_CHANGED');
+  }
   return {
     presence: 'file',
     sha256: hash.digest('hex'),
@@ -140,9 +149,7 @@ export function authCandidates(surface, env) {
           'OPENAI_WORKLOAD_IDENTITY_PROVIDER_ID',
         ]
       : ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_PROFILE'];
-  return names.filter(
-    (name) => Object.hasOwn(env, name) && typeof env[name] === 'string' && env[name].length > 0,
-  );
+  return names.filter((name) => Object.hasOwn(env, name));
 }
 
 /** No credential environment variable crosses this boundary. Only a reviewed provider may add one later. */
