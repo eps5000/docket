@@ -6,7 +6,13 @@ import { createGit } from '../lib/git.mjs';
 
 export const name = 'orca-audit';
 export const intervalMs = 60_000;
-export const batchSize = 16;
+export const independent = true;
+// One POST per pass; the runner's 30-second POST timeout is part of the cadence bound.
+export const batchSize = 25;
+export const auditConcurrency = 9;
+export const targetLimitMs = 17_000;
+export const collectionLimitMs = 80_000;
+let drainingBatch = null;
 export const enabled = (settings) => settings?.enabled === true;
 
 const DISPATCH = /^ctx_[A-Za-z0-9_-]{1,96}$/;
@@ -18,6 +24,60 @@ const pathKey = (path) =>
   typeof path === 'string' && LOCAL_PATH.test(path) && !/[\x00-\x1f\x7f]/.test(path)
     ? path.replaceAll('/', '\\').replace(/\\+$/, '').toLowerCase()
     : null;
+
+const promptCustody = (target) => ['open', 'parked', 'needs_input'].includes(target.state);
+const RUN_STATES = new Set(['open', 'parked', 'needs_input', 'finished', 'failed', 'interrupted']);
+
+/** Keep prompt-custody targets on every pass; rotate all other exact dispatches by ID. */
+export function selectTargets(targets, state = {}, more = false) {
+  if (!Array.isArray(targets) || targets.length > 80 || more)
+    throw Object.assign(new Error('Audit inventory incomplete'), { code: 'audit_overflow' });
+  if (
+    targets.some(
+      (target) =>
+        !RUN.test(target?.run_id ?? '') ||
+        !DISPATCH.test(target?.dispatch_id ?? '') ||
+        !RUN_STATES.has(target?.state),
+    ) ||
+    new Set(targets.map((target) => target.run_id)).size !== targets.length
+  )
+    throw Object.assign(new Error('Audit inventory invalid'), { code: 'audit_inventory_invalid' });
+
+  const priority = targets.filter(promptCustody);
+  const ended = targets.filter((target) => !promptCustody(target));
+  const endedById = new Map(ended.map((target) => [target.run_id, target]));
+  const queued = [];
+  const seen = new Set();
+  for (const id of [...(Array.isArray(state?.ended) ? state.ended : []), ...endedById.keys()]) {
+    if (endedById.has(id) && !seen.has(id)) {
+      queued.push(id);
+      seen.add(id);
+    }
+  }
+  const endedSlots = batchSize - priority.length;
+  // Four independent passes at (15 s settings + 80 s collection + 30 s POST
+  // + 60 s interval), plus 95 s within a pass, are 835 s (< 15 minutes).
+  if (endedSlots < 0 || ended.length > 4 * endedSlots)
+    throw Object.assign(new Error('Audit capacity exceeded'), { code: 'audit_overflow' });
+  const chosen = queued.slice(0, endedSlots);
+  return {
+    batch: [...priority, ...chosen.map((id) => endedById.get(id))],
+    state: { ended: [...queued.slice(chosen.length), ...chosen] },
+  };
+}
+
+export const worktreeFailure = (error, aborted = false) =>
+  !aborted && error?.code === 'selector_not_found' ? 'missing' : 'unknown';
+
+export function terminalCount(list) {
+  return list?.truncated === false &&
+    Array.isArray(list.hostScope?.omittedHostIds) &&
+    list.hostScope.omittedHostIds.length === 0 &&
+    Number.isInteger(list.totalCount) &&
+    list.totalCount >= 0
+    ? Math.min(50, list.totalCount)
+    : null;
+}
 
 /** Docket's run/dispatch association is checked again at ingest; Orca's runId is a different ID. */
 export function verifiedCustody(target, worker) {
@@ -44,6 +104,15 @@ export function verifiedCustody(target, worker) {
 const orcaEnv = () =>
   Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^ORCA_/i.test(key)));
 
+export function completedOrcaFailure(error, stdout, signal) {
+  if (error?.code !== 1 || error.killed || error.signal != null || signal?.aborted) return false;
+  try {
+    return JSON.parse(stdout)?.ok === false;
+  } catch {
+    return false;
+  }
+}
+
 function call(exe, args, signal, timeout = 15_000, extraEnv = {}) {
   return new Promise((resolve, reject) =>
     execFile(
@@ -57,14 +126,23 @@ function call(exe, args, signal, timeout = 15_000, extraEnv = {}) {
         env: { ...orcaEnv(), ...extraEnv },
         signal,
       },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      (error, stdout) => {
+        if (!error) return resolve(stdout);
+        // Orca uses exit 1 for typed JSON errors; transport and cancellation remain unknown.
+        if (completedOrcaFailure(error, stdout, signal)) return resolve(stdout);
+        reject(error);
+      },
     ),
   );
 }
 
 async function orca(exe, args, signal) {
   const response = JSON.parse(await call(exe, [...args, '--json'], signal));
-  if (response?.ok !== true) throw new Error('Orca read unavailable');
+  if (response?.ok !== true) {
+    const error = new Error('Orca read unavailable');
+    if (/^[a-z_]{1,40}$/.test(response?.error?.code ?? '')) error.code = response.error.code;
+    throw error;
+  }
   return response.result;
 }
 
@@ -206,10 +284,39 @@ export function projectAudit(target, worker, worktree, terminals, processes, art
 
 /** Missing or inconsistent Orca identity is unknown, with no host path or process reads. */
 export async function collectTarget(target, worker, scan, at) {
+  const observedAt = () => (typeof at === 'function' ? at() : at);
   const path = verifiedCustody(target, worker);
   if (!path)
-    return projectAudit(target, null, 'unknown', 0, { count: 0, read: false }, 'unknown', at);
+    return projectAudit(
+      target,
+      null,
+      'unknown',
+      0,
+      { count: 0, read: false },
+      'unknown',
+      observedAt(),
+    );
   const result = await scan(path, target.main_branch);
+  if (
+    !Number.isInteger(result?.terminals) ||
+    result.terminals < 0 ||
+    result.terminals > 50 ||
+    !Number.isInteger(result?.processes?.count) ||
+    result.processes.count < 0 ||
+    result.processes.count > 50 ||
+    typeof result.processes.read !== 'boolean' ||
+    !['in-progress', 'completed', 'missing', 'unknown'].includes(result.worktree) ||
+    !['dirty', 'private', 'clean', 'unknown'].includes(result.artifacts)
+  )
+    return projectAudit(
+      target,
+      null,
+      'unknown',
+      0,
+      { count: 0, read: false },
+      'unknown',
+      observedAt(),
+    );
   return projectAudit(
     target,
     worker,
@@ -217,82 +324,146 @@ export async function collectTarget(target, worker, scan, at) {
     result.terminals,
     result.processes,
     result.artifacts,
-    at,
+    observedAt(),
   );
+}
+
+/** A deadline fails the pass immediately; unfinished reads must drain before another pass. */
+export async function collectBounded(batch, audit, signal, limitMs = collectionLimitMs) {
+  if (drainingBatch)
+    throw Object.assign(new Error('Previous audit still draining'), { code: 'audit_busy' });
+  const controller = new AbortController();
+  const passSignal = AbortSignal.any([signal, controller.signal].filter(Boolean));
+  const records = new Array(batch.length);
+  let next = 0;
+  let failed = false;
+  let rejectFailure;
+  const failure = new Promise((_, reject) => {
+    rejectFailure = reject;
+  });
+  const workers = Array.from({ length: Math.min(auditConcurrency, records.length) }, async () => {
+    while (!passSignal.aborted && next < records.length) {
+      const index = next++;
+      try {
+        records[index] = await audit(batch[index], passSignal);
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          controller.abort();
+          rejectFailure(error);
+        }
+        throw error;
+      }
+    }
+  });
+  const work = Promise.allSettled(workers);
+  drainingBatch = work;
+  void work.finally(() => {
+    if (drainingBatch === work) drainingBatch = null;
+  });
+  let deadline;
+  try {
+    await Promise.race([
+      work,
+      failure,
+      new Promise((_, reject) => {
+        deadline = setTimeout(() => {
+          controller.abort();
+          reject(Object.assign(new Error('Audit deadline exceeded'), { code: 'audit_timeout' }));
+        }, limitMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+  if (signal?.aborted) throw new Error('Audit aborted');
+  return records;
 }
 
 export async function collect({ signal, settings, state }) {
   const exe = orcaExecutable();
   if (!exe) throw Object.assign(new Error('Orca unavailable'), { code: 'orca_unavailable' });
-  const targets = settings.targets;
-  if (!Array.isArray(targets) || targets.length > 80 || settings.more === true)
-    throw Object.assign(new Error('Audit inventory incomplete'), { code: 'audit_overflow' });
-  const valid = targets.filter(
-    (t) => RUN.test(t?.run_id ?? '') && DISPATCH.test(t?.dispatch_id ?? ''),
-  );
-  const start = (state?.cursor ?? 0) % Math.max(1, valid.length);
-  const batch = [...valid.slice(start), ...valid.slice(0, start)].slice(0, 16);
-  const records = [];
-  const deadline = Date.now() + 90_000;
-  for (const target of batch) {
-    if (Date.now() >= deadline) break;
+  const selected = selectTargets(settings.targets, state, settings.more === true);
+  const unknown = (target) =>
+    projectAudit(
+      target,
+      null,
+      'unknown',
+      0,
+      { count: 0, read: false },
+      'unknown',
+      new Date().toISOString(),
+    );
+  const audit = async (target, passSignal) => {
+    if (passSignal.aborted) return unknown(target);
+    const targetSignal = AbortSignal.any([passSignal, AbortSignal.timeout(targetLimitMs)]);
     let worker = null;
     try {
       worker = await orca(
         exe,
         ['orchestration', 'worker-show', '--dispatch', target.dispatch_id, '--full'],
-        signal,
+        targetSignal,
       );
     } catch {
       /* Unknown custody stays unknown. */
     }
-    const record = await collectTarget(
-      target,
-      worker,
-      async (path, mainBranch) => {
-        let worktree = 'unknown';
-        let terminals = 0;
-        if (safeLocalPath(path)) {
-          try {
-            const tree = await orca(
-              exe,
-              ['worktree', 'show', '--worktree', `path:${path}`],
-              signal,
-            );
-            const status = tree.worktree?.workspaceStatus;
-            worktree =
-              status === 'completed'
-                ? 'completed'
-                : status === 'in-progress'
-                  ? 'in-progress'
-                  : 'unknown';
-          } catch {
-            worktree = 'missing';
+    if (targetSignal.aborted) return unknown(target);
+    try {
+      const record = await collectTarget(
+        target,
+        worker,
+        async (path, mainBranch) => {
+          let worktree = 'unknown';
+          let terminals = 0;
+          if (safeLocalPath(path)) {
+            try {
+              const tree = await orca(
+                exe,
+                ['worktree', 'show', '--worktree', `path:${path}`],
+                targetSignal,
+              );
+              const status = tree.worktree?.workspaceStatus;
+              worktree =
+                status === 'completed'
+                  ? 'completed'
+                  : status === 'in-progress'
+                    ? 'in-progress'
+                    : 'unknown';
+            } catch (error) {
+              worktree = worktreeFailure(error, targetSignal.aborted);
+            }
+            try {
+              const list = await orca(
+                exe,
+                ['terminal', 'list', '--worktree', `path:${path}`, '--limit', '50'],
+                targetSignal,
+              );
+              terminals = terminalCount(list);
+              if (terminals === null) throw new Error('Terminal inventory unknown');
+            } catch {
+              throw new Error('Terminal inventory unknown');
+            }
           }
-          try {
-            const list = await orca(
-              exe,
-              ['terminal', 'list', '--worktree', `path:${path}`, '--limit', '50'],
-              signal,
-            );
-            terminals =
-              list.truncated === false && list.hostScope?.omittedHostIds?.length === 0
-                ? Math.min(50, list.totalCount)
-                : 50;
-          } catch {
-            terminals = 50;
-          }
-        }
-        return {
-          worktree,
-          terminals,
-          artifacts: await artifacts(path, mainBranch, signal),
-          processes: await suspectProcesses(path, signal),
-        };
-      },
-      new Date().toISOString(),
-    );
-    records.push(record);
-  }
-  return { records, state: { cursor: valid.length ? (start + records.length) % valid.length : 0 } };
+          return {
+            worktree,
+            terminals,
+            artifacts: await artifacts(path, mainBranch, targetSignal),
+            processes: await suspectProcesses(path, targetSignal),
+          };
+        },
+        () => new Date().toISOString(),
+      );
+      return targetSignal.aborted ? unknown(target) : record;
+    } catch {
+      return unknown(target);
+    }
+  };
+  const records = await collectBounded(selected.batch, audit, signal);
+  // Leave room for the runner's single 30-second POST and the 90-second ingest limit.
+  if (
+    records.length &&
+    Date.now() - Math.min(...records.map((r) => Date.parse(r.observed_at))) >= 55_000
+  )
+    throw Object.assign(new Error('Audit observations too old to post'), { code: 'audit_timeout' });
+  return { records, state: selected.state };
 }

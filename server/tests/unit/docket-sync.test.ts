@@ -278,6 +278,106 @@ describe('the runner', () => {
     return { t, now: () => t.now };
   };
 
+  it('runs the Orca audit on its own cadence while another source is awaiting I/O', async () => {
+    let releaseOther = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      releaseOther = resolve;
+    });
+    let notifyOtherStarted = () => {};
+    const otherStarted = new Promise<void>((resolve) => {
+      notifyOtherStarted = resolve;
+    });
+    let otherFinished = false;
+    let notifyAuditsTwice = () => {};
+    const auditsTwice = new Promise<void>((resolve) => {
+      notifyAuditsTwice = resolve;
+    });
+    let audits = 0;
+    const other = makeSource(
+      async () => {
+        notifyOtherStarted();
+        await blocked;
+        otherFinished = true;
+        return { records: [], state: {} };
+      },
+      { name: 'other' },
+    );
+    const audit = makeSource(
+      () => {
+        audits += 1;
+        if (audits === 2) notifyAuditsTwice();
+        return { records: [], state: {} };
+      },
+      { name: 'orca-audit', intervalMs: 5, independent: true },
+    );
+    const controller = new AbortController();
+    const runner = createRunner({
+      docket: makeDocket(),
+      sources: [other, audit],
+      store: openStore(home),
+      log: logs().log,
+    });
+    const running = runner.run(controller.signal);
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all([otherStarted, auditsTwice]),
+        new Promise<never>((_resolve, reject) => {
+          deadline = setTimeout(() => reject(new Error('audit did not run twice')), 10_000);
+        }),
+      ]);
+      expect(audits).toBeGreaterThanOrEqual(2);
+      expect(otherFinished).toBe(false);
+    } finally {
+      clearTimeout(deadline);
+      controller.abort();
+      releaseOther();
+      await running;
+    }
+  });
+
+  it.each(['orca-audit', 'other'])(
+    'aborts and settles the sibling lane when %s persistence fails',
+    async (failing) => {
+      const controller = new AbortController();
+      let siblingStarted = false;
+      let siblingAborted = false;
+      let siblingSettled = false;
+      const docket = makeDocket({
+        readSource: (name: string, { signal }: { signal: AbortSignal }) => {
+          if (name === failing) return Promise.reject(new Error('read failed'));
+          siblingStarted = true;
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => {
+              siblingAborted = true;
+              reject(new Error('aborted'));
+            });
+          }).finally(() => {
+            siblingSettled = true;
+          });
+        },
+      });
+      const store = openStore(home);
+      store.save = () => {
+        throw new Error('persistence failed');
+      };
+      const runner = createRunner({
+        docket,
+        sources: [
+          makeSource(() => ({ records: [] }), { name: 'orca-audit', independent: true }),
+          makeSource(() => ({ records: [] }), { name: 'other' }),
+        ],
+        store,
+        log: logs().log,
+      });
+      await expect(runner.run(controller.signal)).rejects.toThrow('persistence failed');
+      expect(siblingStarted).toBe(true);
+      expect(siblingAborted).toBe(true);
+      expect(siblingSettled).toBe(true);
+      expect(controller.signal.aborted).toBe(false);
+    },
+  );
+
   it('saves state only after every batch is accepted', async () => {
     const store = openStore(home);
     const records = Array.from({ length: BATCH_SIZE + 1 }, (_, k) => ({ key: `k${k}` }));
