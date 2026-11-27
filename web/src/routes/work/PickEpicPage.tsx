@@ -36,6 +36,7 @@ const GROUPS: { fit: EpicPickFit; title: string }[] = [
 ];
 
 const COLUMNS = 7;
+const SHAPING_LINK_LIMIT = 3;
 
 /**
  * Pick next epic (`/projects/:key/next-epic`; owner decision 54; UI_SPEC
@@ -108,6 +109,18 @@ function PickTable({ data }: { data: PickEpicResponse }) {
       </Card>
     );
   }
+  const counts = {
+    being_worked: data.epics.filter((epic) => epic.fit === 'being_worked').length,
+    likely_parks: data.epics.filter((epic) => epic.fit === 'likely_parks').length,
+    not_ready: data.epics.filter((epic) => epic.fit === 'not_ready').length,
+  };
+  const shapingTickets = Array.from(
+    new Map(
+      data.epics.flatMap(
+        (epic) => epic.readiness?.unshaped.map((ticket) => [ticket.id, ticket] as const) ?? [],
+      ),
+    ).values(),
+  ).slice(0, SHAPING_LINK_LIMIT);
   const startHead = data.paused ? 'Can start once resumed' : 'Can start now';
   const head = (k: PickSortKey, label: string) => (
     <SortHead sortKey={k} label={label} sort={sort} onSort={(x) => setSort(nextSort(sort, x))} />
@@ -121,8 +134,27 @@ function PickTable({ data }: { data: PickEpicResponse }) {
       )}
       {!data.best && (
         <Callout tone="warn" className="mb pick-none">
-          No epic is free to hand off right now. Each one is already being worked, would likely
-          park, or isn’t ready to start.
+          <p>No epic is free to hand off right now.</p>
+          <ul>
+            <li>Already being worked: {counts.being_worked}</li>
+            <li>Likely to park: {counts.likely_parks}</li>
+            <li>Not ready to start: {counts.not_ready}</li>
+          </ul>
+          {shapingTickets.length > 0 && (
+            <p>
+              Next planning action: review and shape these tickets:{' '}
+              {shapingTickets.map((ticket, index) => (
+                <Fragment key={ticket.id}>
+                  {index > 0 && ', '}
+                  <Link to={paths.item(ticket.id)} title={ticket.title}>
+                    {ticket.id}
+                  </Link>
+                </Fragment>
+              ))}
+              . Shaping them does not make an epic available until its other start conditions are
+              met.
+            </p>
+          )}
         </Callout>
       )}
       <Card>
