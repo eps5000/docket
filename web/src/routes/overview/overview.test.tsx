@@ -536,6 +536,38 @@ describe('the badge', () => {
     expect(document.querySelector('[data-needs-you-total="1"]')).toBeTruthy();
     expect(document.querySelector('[data-group="owner-problems"]')).toBeTruthy();
   });
+  it('returns keyboard focus to the Needs you heading after a successful explicit retry', async () => {
+    const user = userEvent.setup();
+    needs = quiet({ problems: [problem('owner-warning')] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    needsError = true;
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    retry.focus();
+    expect(document.activeElement).toBe(retry);
+    needsError = false;
+    await user.keyboard('{Enter}');
+    const heading = screen.getByRole('heading', { level: 2, name: 'Needs you · 1' });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+  it('does not move keyboard focus during an ordinary background refresh', async () => {
+    needs = quiet({ problems: [problem('owner-warning')] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    const navigation = nav();
+    navigation.focus();
+    expect(document.activeElement).toBe(navigation);
+    needs = quiet({ problems: [problem('owner-warning'), problem('second-warning')] });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    expect(document.activeElement).toBe(navigation);
+  });
   it('announces a changed full count without raising the owner badge for a coordinator hold', async () => {
     const owner = problem('owner-warning');
     needs = quiet({ problems: [owner] });
@@ -588,7 +620,12 @@ describe('the badge', () => {
           ),
         ),
         ...Array.from({ length: 3 }, (_, i) =>
-          row('dispatch_resources', `retained-${i}`, 'agent', 'agent retained · changes protected'),
+          row(
+            'dispatch_resources',
+            `retained-${i}`,
+            'agent',
+            'agent retained by request · changes protected',
+          ),
         ),
         ...Array.from({ length: 2 }, (_, i) =>
           row('dispatch_custody', `custody-${i}`, 'agent', 'dispatch custody unknown'),
@@ -627,6 +664,42 @@ describe('the badge', () => {
     expect(retained.textContent).toContain('Retained dispatch');
     expect(retained.textContent).toContain('Protected changes');
     expect(dispatchGroup.querySelector('summary button')).toBeNull();
+  });
+  it('keeps artifact-only and active-only dispatch reasons in unknown custody', async () => {
+    const make = (id: string, reason: string): Problem => ({
+      ...problem(id, 'agent'),
+      kind: 'dispatch_resources',
+      reason,
+      title: id,
+      explanation: { ...explanation, who: 'agent', who_text: 'Coordinator', what: reason },
+    });
+    needs = quiet({
+      problems: [
+        make('artifact-only', 'RCP-12 ended in Docket · private artifacts retained'),
+        make('active-only', 'RCP-12 ended in Docket · Orca dispatch still active'),
+        make('requested', 'RCP-12 ended in Docket · agent retained by request'),
+      ],
+    });
+    const groups = needsYouProblemGroups(needs);
+    expect(groups.dispatchParts.unknown.map((p) => p.id)).toEqual(['artifact-only', 'active-only']);
+    expect(groups.dispatchParts.protected).toHaveLength(0);
+    expect(groups.dispatchParts.retained.map((p) => p.id)).toEqual(['requested']);
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 3' });
+    const user = userEvent.setup();
+    const dispatch = document.querySelector(
+      '[data-group="dispatch-resources"]',
+    ) as HTMLDetailsElement;
+    await user.click(dispatch.querySelector(':scope > summary') as HTMLElement);
+    const unknown = dispatch.querySelector('[data-group="dispatch-unknown"]') as HTMLDetailsElement;
+    await user.click(unknown.querySelector(':scope > summary') as HTMLElement);
+    expect(unknown.textContent).toContain('artifact-only');
+    expect(unknown.textContent).toContain('active-only');
+    expect(unknown.textContent).toContain('Unknown custody');
+    await user.click(unknown.querySelectorAll('.ny-record > summary')[0] as HTMLElement);
+    await user.click(unknown.querySelectorAll('.ny-record > summary')[1] as HTMLElement);
+    expect(unknown.textContent).toContain('private artifacts retained');
+    expect(unknown.textContent).toContain('Orca dispatch still active');
   });
   it('equals the owner actions shown, and the parts add up to it', async () => {
     renderAt();

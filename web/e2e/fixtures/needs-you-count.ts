@@ -76,7 +76,7 @@ export function needsYouSnapshot83(): NeedsYouResponse {
           'dispatch_resources',
           `retained-${i}`,
           'agent',
-          'agent retained · changes protected',
+          'agent retained by request · changes protected',
         ),
       ),
       ...Array.from({ length: 2 }, (_, i) =>

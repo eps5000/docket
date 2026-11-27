@@ -5,7 +5,7 @@ import {
   ownerNeedsYouCount,
   type NeedsYouResponse,
   type Problem,
-} from './read.js';
+} from '../src/api/read.js';
 
 const problem = (
   kind: Problem['kind'],
@@ -33,7 +33,7 @@ describe('Needs you actor counts', () => {
         problem('dispatch_resources', 'agent', 'Custody unknown · changes protected'),
       ),
       ...Array.from({ length: 3 }, () =>
-        problem('dispatch_resources', 'agent', 'Dispatch retained · changes protected'),
+        problem('dispatch_resources', 'agent', 'agent retained by request · changes protected'),
       ),
     ];
     const view = {

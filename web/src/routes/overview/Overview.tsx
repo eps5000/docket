@@ -147,7 +147,17 @@ export function Overview() {
       {needs.isError && needs.data && (
         <p className="src ov-metrics-error" role="alert">
           Couldn’t refresh Needs you. Showing the last loaded counts.{' '}
-          <Button size="sm" onClick={() => void needs.refetch()}>
+          <Button
+            size="sm"
+            onClick={() => {
+              void needs.refetch().then((result) => {
+                // Only a successful, user-triggered retry moves focus. The
+                // heading survives when this alert and its button unmount.
+                if (result.isSuccess)
+                  document.getElementById('needs-you-title')?.focus({ preventScroll: true });
+              });
+            }}
+          >
             Try again
           </Button>
         </p>
@@ -228,7 +238,7 @@ function NeedsYouSection({
   }, [count, owner]);
   return (
     <section id="needs-you" className="needs-you" tabIndex={-1} aria-labelledby="needs-you-title">
-      <h2 id="needs-you-title" className="ov-h2">
+      <h2 id="needs-you-title" className="ov-h2" tabIndex={-1}>
         Needs you{count > 0 ? ` · ${count}` : ''}
       </h2>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">

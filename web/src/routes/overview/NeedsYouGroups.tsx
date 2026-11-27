@@ -5,6 +5,23 @@ import { ownerActionParts } from './overviewWindow';
 
 type Group = { key: string; label: string; rows: Problem[] };
 
+/** These are the server's existing ` · `-separated reason facts, not a new API field. */
+function hasReasonFact(problem: Problem, fact: string): boolean {
+  return problem.reason.split(' · ').some((part) => part.trim() === fact);
+}
+
+function agentRetainedByRequest(problem: Problem): boolean {
+  return hasReasonFact(problem, 'agent retained by request');
+}
+
+function custodyUnknown(problem: Problem): boolean {
+  return (
+    problem.kind === 'dispatch_custody' ||
+    /\bunknown\b/i.test(problem.reason) ||
+    (problem.kind === 'dispatch_resources' && !agentRetainedByRequest(problem))
+  );
+}
+
 /** The API already says who acts. Group only those rows that reached Needs you. */
 export function needsYouProblemGroups(view: NeedsYouResponse) {
   const owner = view.problems.filter((p) => needsYouProblemActor(p) === 'owner');
@@ -18,11 +35,11 @@ export function needsYouProblemGroups(view: NeedsYouResponse) {
     (p) => !['dispatch_resources', 'dispatch_custody', 'wait_missing_wake'].includes(p.kind),
   );
   const dispatchParts = {
-    retained: dispatch.filter((p) => /\bretained\b/i.test(p.reason)),
+    retained: dispatch.filter(agentRetainedByRequest),
     protected: dispatch.filter(
-      (p) => !/\bretained\b/i.test(p.reason) && /\bprotected\b/i.test(p.reason),
+      (p) => !agentRetainedByRequest(p) && /\bprotected\b/i.test(p.reason),
     ),
-    unknown: dispatch.filter((p) => !/\bretained\b|\bprotected\b/i.test(p.reason)),
+    unknown: dispatch.filter((p) => !agentRetainedByRequest(p) && !/\bprotected\b/i.test(p.reason)),
   };
   return {
     owner,
@@ -39,9 +56,9 @@ export function needsYouProblemGroups(view: NeedsYouResponse) {
 
 function CustodyLabels({ problem }: { problem: Problem }) {
   if (problem.kind !== 'dispatch_resources' && problem.kind !== 'dispatch_custody') return null;
-  const unknown = problem.kind === 'dispatch_custody' || /\bunknown\b/i.test(problem.reason);
+  const unknown = custodyUnknown(problem);
   const protectedChanges = /\bprotected\b/i.test(problem.reason);
-  const retained = /\bretained\b/i.test(problem.reason);
+  const retained = agentRetainedByRequest(problem);
   return (
     <span className="ny-labels">
       {unknown && <span className="ny-custody-label">Unknown custody</span>}
@@ -159,7 +176,7 @@ export function NeedsYouGroups({
                   Completed dispatches with resources to reconcile · {groups.dispatch.length}{' '}
                   <span className="ny-labels">
                     <span className="ny-custody-label">
-                      Unknown {groups.dispatch.filter((p) => /\bunknown\b/i.test(p.reason)).length}
+                      Unknown {groups.dispatch.filter(custodyUnknown).length}
                     </span>
                     <span className="ny-custody-label">
                       Protected{' '}
