@@ -1,4 +1,4 @@
-import type { BriefDecision, NeedsYouResponse } from '@docket/shared';
+import { needsYouProblemActor, type BriefDecision, type NeedsYouResponse } from '@docket/shared';
 import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 
@@ -12,8 +12,7 @@ export interface BriefLine {
 }
 
 /**
- * One line per owner action, from the response the badge reads. The test holds
- * the number of lines to `needsYouCount`, so the brief and the badge can't differ.
+ * One line per owner action, from the response the badge reads.
  */
 export function needsYouLines(v: NeedsYouResponse): BriefLine[] {
   const lines: BriefLine[] = [];
@@ -90,17 +89,19 @@ export function needsYouLines(v: NeedsYouResponse): BriefLine[] {
       meta: 'By agents, to review',
     });
   }
-  v.problems.forEach((p, index) => {
-    lines.push({
-      key: p.id ?? `problem:${index}`,
-      to: p.item_id
-        ? paths.item(p.item_id, undefined, undefined, p.id)
-        : `${paths.overview()}#problems`,
-      id: p.item_id,
-      title: p.title ?? p.reason,
-      meta: p.explanation?.what ?? p.reason,
+  v.problems
+    .filter((p) => needsYouProblemActor(p) === 'owner')
+    .forEach((p, index) => {
+      lines.push({
+        key: p.id ?? `problem:${index}`,
+        to: p.item_id
+          ? paths.item(p.item_id, undefined, undefined, p.id)
+          : `${paths.overview()}#problems`,
+        id: p.item_id,
+        title: p.title ?? p.reason,
+        meta: p.explanation?.what ?? p.reason,
+      });
     });
-  });
   return lines;
 }
 

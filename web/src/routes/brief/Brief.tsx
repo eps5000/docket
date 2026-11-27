@@ -5,6 +5,7 @@ import {
   inferredTypesText,
   isCalendarDay,
   needsYouCount,
+  ownerNeedsYouCount,
   STATUS_LABELS,
   type BriefResponse,
   type ItemType,
@@ -239,7 +240,8 @@ const NEEDS_ROWS = 8;
 
 function NeedsYou({ view, past }: { view: NeedsYouResponse; past: boolean }) {
   const lines: BriefLine[] = needsYouLines(view);
-  const count = needsYouCount(view);
+  const count = ownerNeedsYouCount(view);
+  const coordinatorCount = needsYouCount(view) - count;
   return (
     <Section
       id="needs-you"
@@ -260,6 +262,12 @@ function NeedsYou({ view, past }: { view: NeedsYouResponse; past: boolean }) {
         shown={Math.min(count, NEEDS_ROWS)}
         to={`${paths.overview()}#needs-you`}
       />
+      {coordinatorCount > 0 && (
+        <p className="brief-none">
+          {coordinatorCount} coordinator holds are tracked in the{' '}
+          <Link to={`${paths.overview()}#needs-you`}>Overview</Link>.
+        </p>
+      )}
     </Section>
   );
 }

@@ -329,6 +329,29 @@ describe('the lines', () => {
   it('gives one line per owner action', () => {
     expect(needsYouLines(asking)).toHaveLength(needsYouCount(asking));
     expect(needsYouLines(quiet)).toHaveLength(0);
+    expect(
+      needsYouLines({
+        ...asking,
+        problems: [
+          {
+            kind: 'dispatch_custody',
+            item_id: 'RCP-8',
+            title: 'Custody',
+            reason: 'Unknown',
+            related: [],
+            link_id: null,
+            run_id: null,
+            resource_ids: [],
+            explanation: {
+              what: 'Custody',
+              fix: 'Coordinator verifies',
+              who: 'agent',
+              who_text: 'Coordinator',
+            },
+          },
+        ],
+      }),
+    ).toHaveLength(1);
   });
 
   it('words a decision change for who made it', () => {

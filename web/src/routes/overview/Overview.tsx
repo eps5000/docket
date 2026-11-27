@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
   needsYouCount,
+  ownerNeedsYouCount,
   OVERVIEW_WINDOWS,
   type DecisionRecord,
   type DesignReviewRow,
@@ -29,7 +30,6 @@ import { ForYouNow } from '../needs-you/ForYouNow';
 import { NotificationsCallout } from '../needs-you/NotificationsCallout';
 import { OnboardingReviews } from '../needs-you/OnboardingReviews';
 import { PlanningQueueCard } from '../needs-you/PlanningQueueCard';
-import { ProblemsCard } from '../needs-you/ProblemsCard';
 import { ProjectDecisionCards } from '../needs-you/ProjectDecisionCards';
 import { ResolutionCards } from '../needs-you/ResolutionCards';
 import { SharedQuestions } from '../needs-you/SharedQuestions';
@@ -37,6 +37,7 @@ import { Welcome } from '../needs-you/Welcome';
 import { CompletedChart } from './CompletedChart';
 import { FlowChart } from './FlowChart';
 import { HealthCard } from './HealthCard';
+import { NeedsYouGroups } from './NeedsYouGroups';
 import { OverviewStats } from './OverviewStats';
 import { useOverviewWindow, WINDOW_LABELS, WINDOW_WORDS } from './overviewWindow';
 import { UsageCard } from './UsageCard';
@@ -93,14 +94,14 @@ export function Overview() {
   }, [loaded, location.hash, location.key]);
 
   if (noProjects) return <Welcome />;
-  const count = needs.data ? needsYouCount(needs.data) : 0;
+  const count = needs.data ? ownerNeedsYouCount(needs.data) : 0;
   return (
     <div className="overview">
       <div className="ov-head">
         <div className="withhelp wh-h1">
           <h1>Overview</h1>
           <HelpLink anchor="needs-you.page" />
-          {/* Decision 41: the same number as the sidebar badge, from the same response. */}
+          {/* Only actions Eric owes drive the badge and tab title. */}
           {count > 0 && (
             <span className="src" data-needs-you-count={count}>
               {plural(count, 'thing')} to act on
@@ -143,19 +144,29 @@ export function Overview() {
           </Button>
         </p>
       )}
-      <QueryState query={needs} skeleton={<OwnerSkeleton />}>
-        {(data) => (
-          <div className="ov-main">
-            <NeedsYouSection data={data} workspaces={workspaces} />
-            <HealthCard
-              data={data}
-              lastBackupAt={metrics.data?.last_backup_at}
-              metricsLoaded={metrics.data !== undefined}
-              workspaces={workspaces}
-            />
-          </div>
-        )}
-      </QueryState>
+      {needs.isError && needs.data && (
+        <p className="src ov-metrics-error" role="alert">
+          Couldn’t refresh Needs you. Showing the last loaded counts.{' '}
+          <Button size="sm" onClick={() => void needs.refetch()}>
+            Try again
+          </Button>
+        </p>
+      )}
+      {needs.data ? (
+        <div className="ov-main">
+          <NeedsYouSection data={needs.data} workspaces={workspaces} />
+          <HealthCard
+            data={needs.data}
+            lastBackupAt={metrics.data?.last_backup_at}
+            metricsLoaded={metrics.data !== undefined}
+            workspaces={workspaces}
+          />
+        </div>
+      ) : (
+        <QueryState query={needs} skeleton={<OwnerSkeleton />}>
+          {(data) => <NeedsYouSection data={data} workspaces={workspaces} />}
+        </QueryState>
+      )}
       {metrics.data && <OverviewCharts metrics={metrics.data} />}
       <UsageCard scope={scope} window={metrics.data?.window ?? window} />
       {/* Radar insights go here (design: "Later: Radar insights"). */}
@@ -180,8 +191,8 @@ function OverviewCharts({ metrics }: { metrics: OverviewResponse }) {
 }
 
 /**
- * Every owner action, in the order they were on Needs you. "Nothing needs you"
- * only when `needsYouCount` is 0, which is also when the badge disappears.
+ * Every row stays reachable; the heading is the full count, while the badge
+ * counts only actions Eric owes.
  */
 function NeedsYouSection({
   data,
@@ -191,11 +202,39 @@ function NeedsYouSection({
   workspaces: readonly WorkspaceRow[];
 }) {
   const count = needsYouCount(data);
+  const owner = ownerNeedsYouCount(data);
+  const prior = useRef<{ total: number; owner: number } | null>(null);
+  const [announcement, setAnnouncement] = useState('');
+  const [change, setChange] = useState('');
+  useEffect(() => {
+    const before = prior.current;
+    if (!before)
+      setAnnouncement(
+        `Needs you: ${count} total, ${owner} yours, ${count - owner} coordinators hold.`,
+      );
+    else if (before.total !== count || before.owner !== owner) {
+      const difference = count - before.total;
+      const ownerDifference = owner - before.owner;
+      const coordinatorDifference = difference - ownerDifference;
+      const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+      setChange(
+        `Since last update: ${signed(ownerDifference)} yours, ${signed(coordinatorDifference)} coordinator holds; ${signed(difference)} total.`,
+      );
+      setAnnouncement(
+        `Needs you changed: ${count} total, ${owner} yours, ${count - owner} coordinators hold. ${difference === 0 ? 'Who owes the next action changed.' : difference > 0 ? `${difference} more overall.` : `${-difference} fewer overall.`}`,
+      );
+    }
+    prior.current = { total: count, owner };
+  }, [count, owner]);
   return (
     <section id="needs-you" className="needs-you" tabIndex={-1} aria-labelledby="needs-you-title">
       <h2 id="needs-you-title" className="ov-h2">
         Needs you{count > 0 ? ` · ${count}` : ''}
       </h2>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
+      {change && <p className="src ny-change">{change}</p>}
       {count === 0 ? (
         <Card padded data-card="nothing-needs-you">
           <p className="ov-nothing">
@@ -204,6 +243,12 @@ function NeedsYouSection({
         </Card>
       ) : (
         <>
+          {owner === 0 && (
+            <p className="ov-nothing">
+              Nothing for you to decide; coordinator holds are listed below.
+            </p>
+          )}
+          {data.for_you_now.length > 0 && <ForYouNow rows={data.for_you_now} />}
           <OnboardingReviews sessions={data.onboarding_reviews ?? []} />
           <SharedQuestions
             overlaps={data.overlaps ?? NO_OVERLAPS}
@@ -215,10 +260,7 @@ function NeedsYouSection({
             cards={data.project_decisions ?? NO_DECISIONS}
             groups={data.project_decision_groups ?? NO_GROUPS}
           />
-          {data.for_you_now.length > 0 && <ForYouNow rows={data.for_you_now} />}
-          {data.problems.length > 0 && (
-            <ProblemsCard problems={data.problems} workspaces={workspaces} />
-          )}
+          <NeedsYouGroups data={data} workspaces={workspaces} />
         </>
       )}
     </section>

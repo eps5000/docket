@@ -265,13 +265,8 @@ export const needsYouResponse = jsonResponse({
 });
 export type NeedsYouResponse = z.infer<typeof needsYouResponse>;
 
-/**
- * What the owner can act on in a Needs you response (owner decision 41; B49):
- * every card, plus the Problems that reached them. Problems agents are still
- * handling, acknowledged ones, and the Deferred and Planning lists aren't
- * counted. The sidebar badge, the tab title and the page all use this, on the
- * same response, so they can't disagree.
- */
+/** Every visible row, including coordinator holds. Keep this for the existing
+ * server/bootstrap contract and for the Overview reconciliation. */
 export function needsYouCount(view: NeedsYouResponse): number {
   return (
     view.for_you_now.length +
@@ -283,6 +278,22 @@ export function needsYouCount(view: NeedsYouResponse): number {
     (view.resolutions?.length ?? 0) +
     (view.project_decisions?.length ?? 0) +
     (view.project_decision_groups?.length ?? 0)
+  );
+}
+
+/** The explanation is authoritative when present. Older rows without one use
+ * their existing kind; an unclassified problem stays visible as an owner item. */
+export function needsYouProblemActor(problem: Problem): 'owner' | 'agent' {
+  if (problem.explanation) return problem.explanation.who;
+  return ['dispatch_resources', 'dispatch_custody', 'wait_missing_wake'].includes(problem.kind)
+    ? 'agent'
+    : 'owner';
+}
+
+/** The sidebar, tab title and owner metric count only decisions Eric owes. */
+export function ownerNeedsYouCount(view: NeedsYouResponse): number {
+  return (
+    needsYouCount(view) - view.problems.filter((p) => needsYouProblemActor(p) === 'agent').length
   );
 }
 

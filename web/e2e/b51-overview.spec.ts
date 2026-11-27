@@ -12,7 +12,8 @@ import type {
   OverviewResponse,
   WorkResponse,
 } from '@docket/shared';
-import { emptyNeedsYou, mockGet } from './fixtures/api-mocks';
+import { bootstrap, emptyNeedsYou, mockGet } from './fixtures/api-mocks';
+import { needsYouSnapshot83 } from './fixtures/needs-you-count';
 import {
   connectAgent,
   expect,
@@ -107,11 +108,61 @@ test('the badge is the owner actions on the page, and old links land on them', a
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   await expect(page.locator('#needs-you')).toBeInViewport();
   const n = await page.locator('[data-needs-you-count]').getAttribute('data-needs-you-count');
-  await expect(page.getByRole('heading', { level: 2, name: `Needs you · ${n}` })).toBeVisible();
+  const view = await needsYou(page, 'all');
+  const total =
+    view.for_you_now.length +
+    view.problems.length +
+    (view.onboarding_reviews?.length ?? 0) +
+    (view.overlaps?.length ?? 0) +
+    (view.undeclared_holds?.length ?? 0) +
+    (view.design_reviews?.length ?? 0) +
+    (view.resolutions?.length ?? 0) +
+    (view.project_decisions?.length ?? 0) +
+    (view.project_decision_groups?.length ?? 0);
+  await expect(page.getByRole('heading', { level: 2, name: `Needs you · ${total}` })).toBeVisible();
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Overview/ }),
   ).toContainText(n!);
   await expect(page).toHaveTitle(`(${n}) Docket`);
+});
+
+test('DKT-19: owner badge, full ledger, and keyboard custody drilldown at narrow width', async ({
+  page,
+}) => {
+  await mockGet(page, '/api/bootstrap', bootstrap);
+  await mockGet(page, '/api/needs-you', needsYouSnapshot83());
+  await mockGet(page, '/api/workspaces', { rows: [] });
+  await page.route('**/api/overview?**', (route) =>
+    route.fulfill({
+      status: 501,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'unavailable', message: 'Fixture metrics' } }),
+    }),
+  );
+  await page.goto('/');
+  await expect(page).toHaveTitle('(17) Docket');
+  await expect(page.getByRole('heading', { level: 2, name: 'Needs you · 83' })).toBeVisible();
+  await expect(stat(page, 'needs-you')).toContainText('17 to act on');
+  await expect(page.locator('[data-needs-you-total="83"]')).toContainText(
+    '17 yours to decide + 66 coordinators hold = 83 total',
+  );
+  const group = page.locator('[data-group="dispatch-resources"]');
+  await expect(group).not.toHaveAttribute('open', '');
+  const summary = group.locator(':scope > summary');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(group).toHaveAttribute('open', '');
+  await expect(group).toContainText('57 + 2 + 3 = 62');
+  const retained = group.locator('[data-group="dispatch-retained"]');
+  await retained.locator(':scope > summary').click();
+  await retained.locator('.ny-record > summary').first().click();
+  await expect(retained.locator('.ny-record').first()).toContainText('Retained dispatch');
+  await expect(retained.locator('.ny-record').first()).toContainText('Protected changes');
+  await expect(group.locator('summary button')).toHaveCount(0);
+  await expectAxeClean(page, 'DKT-19 grouped Needs you at 1440px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoSidewaysScroll(page);
+  await expectAxeClean(page, 'DKT-19 grouped Needs you at 390px');
 });
 
 test('STR: the numbers, the Queued and Blocked links, and the read API stays fast', async ({
