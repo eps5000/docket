@@ -290,7 +290,7 @@ export function needsYouProblemActor(problem: Problem): 'owner' | 'agent' {
     : 'owner';
 }
 
-/** The sidebar, tab title and owner metric count only decisions Eric owes. */
+/** The sidebar, tab title and owner metric count only decisions the owner owes. */
 export function ownerNeedsYouCount(view: NeedsYouResponse): number {
   return (
     needsYouCount(view) - view.problems.filter((p) => needsYouProblemActor(p) === 'agent').length

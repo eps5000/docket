@@ -101,7 +101,7 @@ export function Overview() {
         <div className="withhelp wh-h1">
           <h1>Overview</h1>
           <HelpLink anchor="needs-you.page" />
-          {/* Only actions Eric owes drive the badge and tab title. */}
+          {/* Only actions the owner owes drive the badge and tab title. */}
           {count > 0 && (
             <span className="src" data-needs-you-count={count}>
               {plural(count, 'thing')} to act on
@@ -202,7 +202,7 @@ function OverviewCharts({ metrics }: { metrics: OverviewResponse }) {
 
 /**
  * Every row stays reachable; the heading is the full count, while the badge
- * counts only actions Eric owes.
+ * counts only actions the owner owes.
  */
 function NeedsYouSection({
   data,

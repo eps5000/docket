@@ -93,7 +93,7 @@ export function needsYouSnapshot83(): NeedsYouResponse {
 }
 
 /**
- * The tab title counts only actions owed by Eric, from this response.
+ * The tab title counts only actions owed by the owner, from this response.
  */
 export async function needsYouTitle(page: Page, scope = 'all'): Promise<string> {
   const view = await page.evaluate(async (s) => {
