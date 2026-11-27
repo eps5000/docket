@@ -134,6 +134,7 @@ describe('the table', () => {
     expect(screen.getByText('Likely to park · 1')).toBeTruthy();
     expect(screen.getByText(/2 of 4 tickets wait on work outside/)).toBeTruthy();
     expect(screen.getAllByText('Based on dependencies recorded in Docket.')).toHaveLength(1);
+    expect(container.querySelector('.pick-none')).toBeNull();
   });
 
   it('links each row to its epic, its critical path and what it waits on', async () => {
@@ -168,23 +169,79 @@ describe('the table', () => {
     ).toHaveLength(1);
   });
 
-  it('says "once resumed" in a paused project, and doesn’t show zero', async () => {
-    show({ ...FULL, paused: true });
+  it('says "once resumed" in a paused project with no recommendation', async () => {
+    show({ ...FULL, best: null, paused: true, epics: [FULL.epics[3]!] });
     expect(await screen.findByRole('button', { name: 'Can start once resumed' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Can start now' })).toBeNull();
     expect(screen.getByText(/could start once you resume it/)).toBeTruthy();
+    expect(screen.getByText('Likely to park: 1')).toBeTruthy();
+    expect(screen.queryByText(/can start now/i)).toBeNull();
   });
 
-  it('says so when no epic qualifies', async () => {
-    show({ ...FULL, best: null, epics: [FULL.epics[3]!] });
-    expect(await screen.findByText(/No epic is free to hand off/)).toBeTruthy();
+  it('explains the mixed reasons when no epic qualifies, without changing row order', async () => {
+    const { container } = show({
+      ...FULL,
+      best: null,
+      epics: [
+        pick('E-5', { fit: 'not_ready', can_start: { count: 0, first: [] } }),
+        FULL.epics[2]!,
+        FULL.epics[3]!,
+        pick('E-6', { fit: 'not_ready', can_start: { count: 0, first: [] } }),
+      ],
+    });
+    const callout = (await screen.findByText(/No epic is free to hand off/)).closest(
+      '.pick-none',
+    ) as HTMLElement;
+    expect(within(callout).getByText('Already being worked: 1')).toBeTruthy();
+    expect(within(callout).getByText('Likely to park: 1')).toBeTruthy();
+    expect(within(callout).getByText('Not ready to start: 2')).toBeTruthy();
+    expect(ids(container.querySelector('[data-pick-group="not_ready"]')!)).toEqual(['E-5', 'E-6']);
     expect(screen.queryByText('Best next')).toBeNull();
   });
 
+  it('links only three exact unshaped tickets as a planning action', async () => {
+    const unshaped = ['TST-11', 'TST-12', 'TST-13', 'TST-14'].map((id) => ({
+      id,
+      title: `Shape ${id}`,
+      status: 'planning' as const,
+    }));
+    const { container } = show({
+      ...FULL,
+      best: null,
+      epics: [
+        pick('E-7', {
+          fit: 'not_ready',
+          not_shaped: 4,
+          readiness: { state: 'not_ready', unshaped },
+        }),
+      ],
+    });
+    const callout = (await screen.findByText(/Next planning action/)).closest(
+      '.pick-none',
+    ) as HTMLElement;
+    expect(
+      [...within(callout).getAllByRole('link')].map((link) => [
+        link.textContent,
+        link.getAttribute('href'),
+      ]),
+    ).toEqual([
+      ['TST-11', '/items/TST-11'],
+      ['TST-12', '/items/TST-12'],
+      ['TST-13', '/items/TST-13'],
+    ]);
+    expect(within(callout).getByText(/does not make an epic available/)).toBeTruthy();
+    expect(
+      within(container.querySelector('[data-pick-row="E-7"]') as HTMLElement).getByRole('link', {
+        name: 'TST-14',
+      }),
+    ).toBeTruthy();
+  });
+
   it('has an empty state', async () => {
-    show({ ...FULL, best: null, epics: [] });
+    const { container } = show({ ...FULL, best: null, epics: [] });
     expect(await screen.findByText(/No open epic has open tickets yet/)).toBeTruthy();
     expect(screen.queryByRole('table')).toBeNull();
+    expect(container.querySelector('.pick-none')).toBeNull();
   });
 });
 
