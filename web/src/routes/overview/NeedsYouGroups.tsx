@@ -40,6 +40,7 @@ export function needsYouProblemGroups(view: NeedsYouResponse) {
   // Problems row and its per-record actions.
   const reached = coordinatorOther.filter((p) => p.reached_you);
   const otherHolds = coordinatorOther.filter((p) => !p.reached_you);
+  const heldCount = dispatch.length + custody.length + wake.length + otherHolds.length;
   const dispatchParts = {
     retained: dispatch.filter(agentRetainedByRequest),
     protected: dispatch.filter(
@@ -58,6 +59,7 @@ export function needsYouProblemGroups(view: NeedsYouResponse) {
     coordinatorOther,
     reached,
     otherHolds,
+    heldCount,
     dispatchParts,
   };
 }
@@ -168,15 +170,27 @@ export function NeedsYouGroups({
       <div className="card pad ny-ledger" data-needs-you-total={total}>
         <h3>All attention · {total}</h3>
         <p>
-          <b>{owner} yours to decide</b> + <b>{groups.coordinator.length} coordinators hold</b> ={' '}
-          <b>{total} total</b>
+          <b>{owner} yours to decide</b> +{' '}
+          {groups.reached.length > 0 && (
+            <>
+              <b>
+                {groups.reached.length} agent-owned{' '}
+                {groups.reached.length === 1 ? 'problem' : 'problems'} reached you
+              </b>{' '}
+              +{' '}
+            </>
+          )}
+          <b>{groups.heldCount} coordinators hold</b> = <b>{total} total</b>
         </p>
         <p className="src ny-equation">
           Yours: {parts.reviews} reviews + {parts.questions} questions + {parts.decisions} decisions
           + {groups.drift.length} agent-file alerts + {groups.ownerOther.length} other problems ={' '}
           {owner}. Coordinators: {groups.dispatch.length} dispatch resources +{' '}
           {groups.custody.length} unknown parked custody + {groups.wake.length} missing wake routes
-          + {groups.coordinatorOther.length} other holds = {groups.coordinator.length}.
+          + {groups.otherHolds.length} other holds = {groups.heldCount}.
+          {groups.reached.length > 0 && (
+            <> Agent-owned problems that reached you: {groups.reached.length}.</>
+          )}
         </p>
       </div>
       <div id="problems" className="ny-problems" tabIndex={-1}>
@@ -209,9 +223,9 @@ export function NeedsYouGroups({
             )}
           </section>
         )}
-        {groups.coordinator.length > 0 && (
+        {groups.heldCount > 0 && (
           <section className="card ny-coordinator" aria-labelledby="ny-coordinator-title">
-            <h3 id="ny-coordinator-title">Coordinators hold · {groups.coordinator.length}</h3>
+            <h3 id="ny-coordinator-title">Coordinators hold · {groups.heldCount}</h3>
             <p className="src">
               Nothing here is asked of you. A completed Docket run does not prove its resources are
               safe to stop, release or delete.

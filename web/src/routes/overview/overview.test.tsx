@@ -561,6 +561,43 @@ describe('the badge', () => {
     expect(within(card).getByRole('link', { name: 'Open the item' })).toBeTruthy();
     expect(nav().querySelector('.badge')).toBeNull();
     expect(document.title).toBe('Docket');
+    expect(screen.getByText('0 yours to decide')).toBeTruthy();
+    expect(screen.getByText('1 agent-owned problem reached you')).toBeTruthy();
+    expect(screen.getByText('0 coordinators hold')).toBeTruthy();
+    expect(card.querySelectorAll('[data-problem="radar_conflict"]')).toHaveLength(1);
+    expect(document.querySelector('.ny-coordinator')).toBeNull();
+    expect(document.querySelector('[data-needs-you-total="1"]')).toBeTruthy();
+  });
+  it('partitions owner, reached-agent and coordinator rows exactly once', async () => {
+    needs = quiet({
+      problems: [
+        problem('owner-warning'),
+        {
+          ...problem('radar-warning', 'agent'),
+          kind: 'radar_conflict',
+          reached_you: 'Nobody is working on RCP-9',
+        },
+        { ...problem('custody-warning', 'agent'), kind: 'dispatch_custody' },
+      ],
+    });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 3' });
+    expect(nav().querySelector('.badge')?.textContent).toContain('1');
+    const card = document.querySelector('[data-card="problems"]') as HTMLElement;
+    expect(within(card).getByRole('heading', { name: 'Problems · 2' })).toBeTruthy();
+    expect(card.querySelectorAll('[data-problem]')).toHaveLength(2);
+    const coordinator = document.querySelector('.ny-coordinator') as HTMLElement;
+    expect(
+      within(coordinator).getByRole('heading', { name: 'Coordinators hold · 1' }),
+    ).toBeTruthy();
+    const custody = coordinator.querySelector(
+      '[data-group="dispatch-custody"]',
+    ) as HTMLDetailsElement;
+    expect(custody.open).toBe(false);
+    expect(coordinator.querySelector('[data-problem]')).toBeNull();
+    expect(document.querySelector('[data-needs-you-total="3"]')?.textContent).toContain(
+      '1 yours to decide + 1 agent-owned problem reached you + 1 coordinators hold = 3 total',
+    );
   });
   it('labels stale counts after a refresh error and keeps the last records reachable', async () => {
     needs = quiet({ problems: [problem('owner-warning')] });
@@ -623,6 +660,7 @@ describe('the badge', () => {
     const announcement = document.querySelector('#needs-you [aria-live="polite"]');
     expect(announcement?.getAttribute('aria-atomic')).toBe('true');
     expect(announcement?.getAttribute('role')).toBeNull();
+    expect(announcement?.classList.contains('sr')).toBe(true);
     expect(announcement?.textContent).toContain('2 total, 1 yours, 1 coordinators hold');
     expect(
       screen.getByText('Since last update: 0 yours, +1 coordinator holds; +1 total.'),

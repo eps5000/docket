@@ -241,7 +241,7 @@ function NeedsYouSection({
       <h2 id="needs-you-title" className="ov-h2" tabIndex={-1}>
         Needs you{count > 0 ? ` · ${count}` : ''}
       </h2>
-      <p className="sr-only" aria-live="polite" aria-atomic="true">
+      <p className="sr" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
       {change && <p className="src ny-change">{change}</p>}

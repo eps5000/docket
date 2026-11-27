@@ -191,6 +191,17 @@
   font-weight: 600;
 }
 @media (max-width: 700px) {
+  /* Keep the shell's search control flexible while this dense Overview is open.
+     Its intrinsic text width otherwise pushes the theme control offscreen. */
+  .tl:has(.overview) header.top .search {
+    min-width: 0;
+  }
+  .tl:has(.overview) header.top .search .grow {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .tl .ov-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

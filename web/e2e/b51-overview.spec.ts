@@ -142,6 +142,9 @@ test('DKT-19: owner badge, full ledger, and keyboard custody drilldown at narrow
   await page.goto('/');
   await expect(page).toHaveTitle('(17) Docket');
   await expect(page.getByRole('heading', { level: 2, name: 'Needs you · 83' })).toBeVisible();
+  const announcement = page.locator('#needs-you [aria-live="polite"]');
+  await expect(announcement).toHaveClass(/\bsr\b/);
+  await expect(announcement).toHaveCSS('position', 'absolute');
   await expect(stat(page, 'needs-you')).toContainText('17 to act on');
   await expect(page.locator('[data-needs-you-total="83"]')).toContainText(
     '17 yours to decide + 66 coordinators hold = 83 total',
@@ -167,6 +170,16 @@ test('DKT-19: owner badge, full ledger, and keyboard custody drilldown at narrow
   expect(footerFits).toBe(true);
   await expectNoSidewaysScroll(page);
   await expectAxeClean(page, 'DKT-19 grouped Needs you at 390px');
+  await page.setViewportSize({ width: 350, height: 844 });
+  await expectNoSidewaysScroll(page);
+  for (const selector of ['header.top .search', 'header.top .iconbtn']) {
+    const bounds = await page.locator(selector).evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, right: box.right, viewport: document.documentElement.clientWidth };
+    });
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
+  }
 });
 
 test('STR: the numbers, the Queued and Blocked links, and the read API stays fast', async ({
