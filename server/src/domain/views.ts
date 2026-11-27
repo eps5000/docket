@@ -24,6 +24,11 @@
  * shared with it (`dateRiskBlockers` in model.ts).
  */
 import { openPartialExit, storedExit } from './exit-reports.js';
+import {
+  auditFreshAt,
+  ENDED_RESOURCE_AUDIT_FRESH_MS,
+  PARKED_AUDIT_FRESH_MS,
+} from './orca-audit-freshness.js';
 import { workEventSql } from './activity.js';
 import { COMPAT_SURFACES, resultMode } from './compat.js';
 import { readdirSync, statfsSync, statSync } from 'node:fs';
@@ -469,13 +474,9 @@ function runAudit(run: RunRow): OrcaAuditRecord | null {
   return audit && audit.key === dispatch ? audit : null;
 }
 
-function freshAudit(run: RunRow, now: string): OrcaAuditRecord | null {
+function freshAudit(run: RunRow, now: string, windowMs: number): OrcaAuditRecord | null {
   const audit = runAudit(run);
-  return audit &&
-    ms(now) - ms(audit.observed_at) <= 5 * 60_000 &&
-    ms(audit.observed_at) <= ms(now) + 5_000
-    ? audit
-    : null;
+  return audit && auditFreshAt(audit.observed_at, now, windowMs) ? audit : null;
 }
 
 /**
@@ -539,7 +540,7 @@ function recoveryProblems(
     if (!items.has(run.item_id)) continue;
     const audit = runAudit(run);
     if (!audit) continue;
-    const stale = !freshAudit(run, now);
+    const stale = !freshAudit(run, now, ENDED_RESOURCE_AUDIT_FRESH_MS);
     const age = ms(now) - ms(run.updated_at);
     const residue =
       audit.live_terminals > 0 ||
@@ -684,7 +685,7 @@ function recoveryProblems(
       run.dispatch_observation,
     );
     const storedAudit = runAudit(run);
-    const audit = freshAudit(run, now);
+    const audit = freshAudit(run, now, PARKED_AUDIT_FRESH_MS);
     const auditLost =
       storedAudit &&
       (!audit ||
