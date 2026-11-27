@@ -116,6 +116,25 @@ describe('parked orchestration custody', () => {
     expect(d.row<{ state: string }>('SELECT state FROM runs WHERE id = ?', rollout).state).toBe(
       'parked',
     );
+    d.write(coordinator, (w, s) =>
+      s.runs.updateStatus(w, {
+        id: gf231,
+        coordinator: 'orca',
+        waiting_on: {
+          items: [gf459, gf457],
+          orchestrator: true,
+          wake: { actor: 'orca', event: 'GF-459 report reviewed', due_at },
+        },
+      }),
+    );
+    const mixed = d.services.context.getContext(d.read(), { id: gf231, budget: 'small' }).wait!;
+    expect(mixed).toMatchObject({
+      resume_ready: false,
+      resumes_when: expect.stringMatching(
+        /Docket marks it ready when every listed item clears.*External wake: the coordinator explicitly relays it/,
+      ),
+    });
+    expect(mixed.resumes_when).not.toContain('; or ');
   });
 
   it.each([
