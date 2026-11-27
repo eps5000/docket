@@ -39,6 +39,7 @@ import {
   type AgentFileDetail,
   type AgentFilesResponse,
   type AgentsResponse,
+  type RunCustodyResponse,
   type Artifact,
   type BootstrapResponse,
   type BurndownResponse,
@@ -941,6 +942,8 @@ export interface ViewsService {
   /** Decision 37: an item's open problems (`get_context.problems`, the banner). */
   itemProblems(r: ReadContext, id: string): Problem[];
   agents(r: ReadContext, input: RouteQuery<'agents.list'>): AgentsResponse;
+  /** Exact owner read; historical ended runs are not bounded by the Agents view. */
+  runCustody(r: ReadContext, input: RouteParams<'runs.custody'>): RunCustodyResponse;
   labelPage(r: ReadContext, input: RouteParams<'labels.get'>): LabelPageResponse;
   settings(r: ReadContext): SettingsResponse;
 }

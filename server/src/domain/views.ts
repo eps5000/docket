@@ -45,6 +45,7 @@ import {
   type ActivityRow,
   type AgentRow,
   type AgentsResponse,
+  type RunCustodyResponse,
   type BootstrapResponse,
   type DecisionRecord,
   type DeferredRow,
@@ -1407,6 +1408,36 @@ function healthOf(r: ReadContext, deps: ServiceDeps): BootstrapResponse['health'
 export function createViewsService(deps: ServiceDeps): ViewsService {
   const windows = () => windowsOf(deps.config);
 
+  type CustodyRow = Pick<
+    RunRow,
+    | 'id'
+    | 'item_id'
+    | 'is_lead'
+    | 'state'
+    | 'last_signal_at'
+    | 'last_signal_kind'
+    | 'orca_presence_at'
+    | 'lease_expires_at'
+    | 'updated_at'
+    | 'orchestrator'
+  >;
+  function custodyState(x: CustodyRow, w: RunWindows, now: string) {
+    const state = displayRunState(x, w, now);
+    const open = isRunOpen(x.state);
+    const lease: RunCustodyResponse['lease'] =
+      x.is_lead !== 1
+        ? 'none'
+        : x.state === 'parked' || x.state === 'needs_input'
+          ? 'paused'
+          : !open
+            ? 'released'
+            : state === 'stale' ||
+                (x.lease_expires_at !== null && ms(x.lease_expires_at) <= ms(now))
+              ? 'expired'
+              : 'held';
+    return { state, lease, at: open ? x.last_signal_at : x.updated_at };
+  }
+
   /** The extra backup copy's last error, once the backup service exists (US10). */
   function backupError(r: ReadContext): string | null {
     try {
@@ -2183,7 +2214,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       };
       const ranked: { row: AgentRow; rank: number }[] = [];
       for (const x of runs) {
-        const state = displayRunState(x, w, s.now);
+        const { state, lease, at } = custodyState(x, w, s.now);
         const open = isRunOpen(x.state);
         const step =
           (x.current_step_id ? steps.get(x.current_step_id) : undefined) ??
@@ -2215,17 +2246,6 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
               : x.last_signal_kind === 'relayed'
                 ? 'relayed'
                 : null;
-        const lease: AgentRow['lease'] =
-          x.is_lead !== 1
-            ? 'none'
-            : x.state === 'parked' || x.state === 'needs_input'
-              ? 'paused'
-              : !open
-                ? 'released'
-                : state === 'stale' ||
-                    (x.lease_expires_at !== null && ms(x.lease_expires_at) <= ms(s.now))
-                  ? 'expired'
-                  : 'held';
         ranked.push({
           rank: ORDER[state] ?? 9,
           row: {
@@ -2248,7 +2268,7 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
             ...(open && storedActivity(x)?.flag ? { activity: storedActivity(x)!.flag! } : {}),
             ...(open && storedStatusUpdate(x) ? { updated_by: storedStatusUpdate(x)!.by } : {}),
             ...(open && coordinatorParkOf(x) ? { coordinator_park: coordinatorParkOf(x)! } : {}),
-            at: open ? x.last_signal_at : x.updated_at,
+            at,
           },
         });
       }
@@ -2279,6 +2299,42 @@ export function createViewsService(deps: ServiceDeps): ViewsService {
       const active = ranked.filter((x) => x.rank < 9);
       const ended = ranked.filter((x) => !active.includes(x)).slice(0, AGENTS_ENDED_LIMIT);
       return { rows: [...active, ...ended].map((x) => x.row) };
+    },
+
+    runCustody(r, input): RunCustodyResponse {
+      // Indexed exact-ID lookup. This never reads the bounded Agents slice or
+      // delivers a wake to the run, and it exposes no workspace or run text.
+      const row = r.db.sqlite
+        .prepare(
+          `SELECT r.id, r.item_id, r.is_lead, r.state, r.last_signal_at,
+                  r.last_signal_kind, r.orca_presence_at, r.lease_expires_at,
+                  r.updated_at, r.orchestrator FROM runs r
+           JOIN items i ON i.id = r.item_id
+           JOIN projects p ON p.key = i.project_key
+           WHERE r.id = ? AND p.deleted_at IS NULL`,
+        )
+        .get(input.id) as CustodyRow | undefined;
+      if (!row) throw new ToolError('not_found', 'Run not found.');
+      let dispatchId: string | null = null;
+      try {
+        const stored = row.orchestrator ? JSON.parse(row.orchestrator) : null;
+        if (
+          typeof stored?.dispatch_id === 'string' &&
+          /^ctx_[A-Za-z0-9_-]{1,96}$/.test(stored.dispatch_id)
+        )
+          dispatchId = stored.dispatch_id;
+      } catch {
+        // Malformed custody is visible as null; callers must hold.
+      }
+      const { state, lease, at } = custodyState(row, windows(), r.now);
+      return {
+        run_id: row.id,
+        item_id: row.item_id,
+        dispatch_id: dispatchId,
+        run_state: state,
+        lease,
+        at,
+      };
     },
 
     /**

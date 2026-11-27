@@ -9,6 +9,7 @@
  */
 import {
   agentsResponse,
+  runCustodyResponse,
   bootstrapResponse,
   burndownResponse,
   itemDetailResponse,
@@ -422,6 +423,60 @@ describe('GET /api/items/:id', () => {
     expect(res.status).toBe(404);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('not_found');
     results.push({ route: 'GET /api/items/RCP-999', result: '404 not_found', ms: 0 });
+  });
+});
+
+describe('GET /api/runs/:id/custody', () => {
+  it('finds an exact historical ended run omitted from the bounded Agents view without a wake', async () => {
+    const old = sql().prepare("SELECT id FROM runs WHERE state = 'failed' LIMIT 1").get() as {
+      id: string;
+    };
+    const oldAt = '2000-01-01T00:00:00.000Z';
+    sql()
+      .prepare('UPDATE runs SET updated_at = ?, orchestrator = ? WHERE id = ?')
+      .run(oldAt, JSON.stringify({ dispatch_id: 'ctx_historical' }), old.id);
+    const insert = sql().prepare(
+      `INSERT INTO runs
+       (id, item_id, client, is_lead, state, last_signal_at, last_signal_kind, created_at, updated_at)
+       VALUES (?, 'RCP-18', 'synthetic', 0, 'finished', ?, 'report', ?, ?)`,
+    );
+    for (let n = 0; n < 210; n += 1) {
+      const at = new Date(Date.parse(NOW.toISOString()) + n * 1000).toISOString();
+      insert.run(`run_recent_${n}`, at, at, at);
+    }
+    const recent = await get('/api/agents', agentsResponse);
+    expect(recent.rows.some((row) => row.run_id === old.id)).toBe(false);
+
+    const before = sql()
+      .prepare('SELECT version, last_signal_at, updated_at FROM runs WHERE id = ?')
+      .get(old.id);
+    const exact = await get(`/api/runs/${old.id}/custody`, runCustodyResponse);
+    expect(exact).toEqual({
+      run_id: old.id,
+      item_id: 'RCP-18',
+      dispatch_id: 'ctx_historical',
+      run_state: 'failed',
+      lease: 'released',
+      at: oldAt,
+    });
+    expect(
+      sql()
+        .prepare('SELECT version, last_signal_at, updated_at FROM runs WHERE id = ?')
+        .get(old.id),
+    ).toEqual(before);
+  });
+
+  it('returns no custody for an unknown run and does not expose private run fields', async () => {
+    const missing = await s.request('/api/runs/run_missing/custody', { headers: { cookie } });
+    expect(missing.status).toBe(404);
+    const row = sql().prepare('SELECT id FROM runs LIMIT 1').get() as { id: string };
+    const raw = await s.request(`/api/runs/${row.id}/custody`, { headers: { cookie } });
+    expect(raw.status).toBe(200);
+    const response = (await raw.json()) as Record<string, unknown>;
+    expect(runCustodyResponse.safeParse(response).success).toBe(true);
+    expect(Object.keys(response).sort()).toEqual(
+      ['at', 'dispatch_id', 'item_id', 'lease', 'run_id', 'run_state'].sort(),
+    );
   });
 });
 
