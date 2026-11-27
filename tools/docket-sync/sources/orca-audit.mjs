@@ -6,11 +6,13 @@ import { createGit } from '../lib/git.mjs';
 
 export const name = 'orca-audit';
 export const intervalMs = 60_000;
+export const independent = true;
 // One POST per pass; the runner's 30-second POST timeout is part of the cadence bound.
-export const batchSize = 24;
-export const auditConcurrency = 8;
-export const targetLimitMs = 18_000;
-const COLLECTION_LIMIT_MS = 90_000;
+export const batchSize = 25;
+export const auditConcurrency = 9;
+export const targetLimitMs = 17_000;
+export const collectionLimitMs = 80_000;
+let drainingBatch = null;
 export const enabled = (settings) => settings?.enabled === true;
 
 const DISPATCH = /^ctx_[A-Za-z0-9_-]{1,96}$/;
@@ -37,14 +39,13 @@ export function selectTargets(targets, state = {}, more = false) {
         !DISPATCH.test(target?.dispatch_id ?? '') ||
         !RUN_STATES.has(target?.state),
     ) ||
-    new Set(targets.map((target) => target.run_id)).size !== targets.length ||
-    new Set(targets.map((target) => target.dispatch_id)).size !== targets.length
+    new Set(targets.map((target) => target.run_id)).size !== targets.length
   )
     throw Object.assign(new Error('Audit inventory invalid'), { code: 'audit_inventory_invalid' });
 
   const priority = targets.filter(promptCustody);
   const ended = targets.filter((target) => !promptCustody(target));
-  const endedById = new Map(ended.map((target) => [target.dispatch_id, target]));
+  const endedById = new Map(ended.map((target) => [target.run_id, target]));
   const queued = [];
   const seen = new Set();
   for (const id of [...(Array.isArray(state?.ended) ? state.ended : []), ...endedById.keys()]) {
@@ -54,8 +55,8 @@ export function selectTargets(targets, state = {}, more = false) {
     }
   }
   const endedSlots = batchSize - priority.length;
-  // Four passes at (90 s collection + 30 s POST + 60 s interval), plus 90 s
-  // between the earliest and latest observation, are 810 s (< 15 minutes).
+  // Four independent passes at (15 s settings + 80 s collection + 30 s POST
+  // + 60 s interval), plus 95 s within a pass, are 835 s (< 15 minutes).
   if (endedSlots < 0 || ended.length > 4 * endedSlots)
     throw Object.assign(new Error('Audit capacity exceeded'), { code: 'audit_overflow' });
   const chosen = queued.slice(0, endedSlots);
@@ -63,6 +64,19 @@ export function selectTargets(targets, state = {}, more = false) {
     batch: [...priority, ...chosen.map((id) => endedById.get(id))],
     state: { ended: [...queued.slice(chosen.length), ...chosen] },
   };
+}
+
+export const worktreeFailure = (error, aborted = false) =>
+  !aborted && error?.code === 'selector_not_found' ? 'missing' : 'unknown';
+
+export function terminalCount(list) {
+  return list?.truncated === false &&
+    Array.isArray(list.hostScope?.omittedHostIds) &&
+    list.hostScope.omittedHostIds.length === 0 &&
+    Number.isInteger(list.totalCount) &&
+    list.totalCount >= 0
+    ? Math.min(50, list.totalCount)
+    : null;
 }
 
 /** Docket's run/dispatch association is checked again at ingest; Orca's runId is a different ID. */
@@ -103,14 +117,27 @@ function call(exe, args, signal, timeout = 15_000, extraEnv = {}) {
         env: { ...orcaEnv(), ...extraEnv },
         signal,
       },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      (error, stdout) => {
+        if (!error) return resolve(stdout);
+        // Orca uses exit 1 for typed JSON errors; keep only the code, never its text.
+        try {
+          if (JSON.parse(stdout)?.ok === false) return resolve(stdout);
+        } catch {
+          /* A transport, timeout or abort error is not a typed Orca result. */
+        }
+        reject(error);
+      },
     ),
   );
 }
 
 async function orca(exe, args, signal) {
   const response = JSON.parse(await call(exe, [...args, '--json'], signal));
-  if (response?.ok !== true) throw new Error('Orca read unavailable');
+  if (response?.ok !== true) {
+    const error = new Error('Orca read unavailable');
+    if (/^[a-z_]{1,40}$/.test(response?.error?.code ?? '')) error.code = response.error.code;
+    throw error;
+  }
   return response.result;
 }
 
@@ -265,6 +292,26 @@ export async function collectTarget(target, worker, scan, at) {
       observedAt(),
     );
   const result = await scan(path, target.main_branch);
+  if (
+    !Number.isInteger(result?.terminals) ||
+    result.terminals < 0 ||
+    result.terminals > 50 ||
+    !Number.isInteger(result?.processes?.count) ||
+    result.processes.count < 0 ||
+    result.processes.count > 50 ||
+    typeof result.processes.read !== 'boolean' ||
+    !['in-progress', 'completed', 'missing', 'unknown'].includes(result.worktree) ||
+    !['dirty', 'private', 'clean', 'unknown'].includes(result.artifacts)
+  )
+    return projectAudit(
+      target,
+      null,
+      'unknown',
+      0,
+      { count: 0, read: false },
+      'unknown',
+      observedAt(),
+    );
   return projectAudit(
     target,
     worker,
@@ -276,13 +323,50 @@ export async function collectTarget(target, worker, scan, at) {
   );
 }
 
+/** A deadline fails the pass immediately; unfinished reads must drain before another pass. */
+export async function collectBounded(batch, audit, signal, limitMs = collectionLimitMs) {
+  if (drainingBatch)
+    throw Object.assign(new Error('Previous audit still draining'), { code: 'audit_busy' });
+  const controller = new AbortController();
+  const passSignal = AbortSignal.any([signal, controller.signal].filter(Boolean));
+  const records = new Array(batch.length);
+  let next = 0;
+  const work = Promise.all(
+    Array.from({ length: Math.min(auditConcurrency, records.length) }, async () => {
+      while (next < records.length) {
+        const index = next++;
+        records[index] = await audit(batch[index], passSignal);
+      }
+    }),
+  );
+  drainingBatch = work;
+  void work
+    .finally(() => {
+      if (drainingBatch === work) drainingBatch = null;
+    })
+    .catch(() => {});
+  let deadline;
+  try {
+    await Promise.race([
+      work,
+      new Promise((_, reject) => {
+        deadline = setTimeout(() => {
+          controller.abort();
+          reject(Object.assign(new Error('Audit deadline exceeded'), { code: 'audit_timeout' }));
+        }, limitMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+  if (signal?.aborted) throw new Error('Audit aborted');
+  return records;
+}
+
 export async function collect({ signal, settings, state }) {
   const exe = orcaExecutable();
   if (!exe) throw Object.assign(new Error('Orca unavailable'), { code: 'orca_unavailable' });
   const selected = selectTargets(settings.targets, state, settings.more === true);
-  const passSignal = AbortSignal.any(
-    [signal, AbortSignal.timeout(COLLECTION_LIMIT_MS)].filter(Boolean),
-  );
   const unknown = (target) =>
     projectAudit(
       target,
@@ -293,7 +377,7 @@ export async function collect({ signal, settings, state }) {
       'unknown',
       new Date().toISOString(),
     );
-  const audit = async (target) => {
+  const audit = async (target, passSignal) => {
     if (passSignal.aborted) return unknown(target);
     const targetSignal = AbortSignal.any([passSignal, AbortSignal.timeout(targetLimitMs)]);
     let worker = null;
@@ -328,8 +412,8 @@ export async function collect({ signal, settings, state }) {
                   : status === 'in-progress'
                     ? 'in-progress'
                     : 'unknown';
-            } catch {
-              worktree = targetSignal.aborted ? 'unknown' : 'missing';
+            } catch (error) {
+              worktree = worktreeFailure(error, targetSignal.aborted);
             }
             try {
               const list = await orca(
@@ -337,12 +421,10 @@ export async function collect({ signal, settings, state }) {
                 ['terminal', 'list', '--worktree', `path:${path}`, '--limit', '50'],
                 targetSignal,
               );
-              terminals =
-                list.truncated === false && list.hostScope?.omittedHostIds?.length === 0
-                  ? Math.min(50, list.totalCount)
-                  : 50;
+              terminals = terminalCount(list);
+              if (terminals === null) throw new Error('Terminal inventory unknown');
             } catch {
-              terminals = 50;
+              throw new Error('Terminal inventory unknown');
             }
           }
           return {
@@ -359,19 +441,7 @@ export async function collect({ signal, settings, state }) {
       return unknown(target);
     }
   };
-  const records = new Array(selected.batch.length);
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(auditConcurrency, records.length) }, async () => {
-      while (next < records.length) {
-        const index = next++;
-        records[index] = await audit(selected.batch[index]);
-      }
-    }),
-  );
-  if (signal?.aborted) throw new Error('Audit aborted');
-  if (passSignal.aborted)
-    throw Object.assign(new Error('Audit deadline exceeded'), { code: 'audit_timeout' });
+  const records = await collectBounded(selected.batch, audit, signal);
   // Leave room for the runner's single 30-second POST and the 90-second ingest limit.
   if (
     records.length &&

@@ -27,8 +27,33 @@ const source = await import(
 const now = new Date('2026-11-26T19:30:00.000Z');
 
 describe('Orca audit freshness policy', () => {
-  it('rotates 7 parked and 68 ended targets within strict worst-case windows', () => {
-    const targets = Array.from({ length: 75 }, (_, index) => ({
+  it('enforces a hard collection deadline without overlapping a draining read', async () => {
+    let finish: (value: unknown) => void = () => {};
+    let aborted = false;
+    const pending = source.collectBounded(
+      [1],
+      (_target: unknown, signal: AbortSignal) =>
+        new Promise((resolve) => {
+          signal.addEventListener('abort', () => {
+            aborted = true;
+          });
+          finish = resolve;
+        }),
+      undefined,
+      10,
+    );
+    await expect(pending).rejects.toMatchObject({ code: 'audit_timeout' });
+    expect(aborted).toBe(true);
+    await expect(source.collectBounded([2], async () => 2, undefined, 10)).rejects.toMatchObject({
+      code: 'audit_busy',
+    });
+    finish(1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await source.collectBounded([3], async () => 3, undefined, 10)).toEqual([3]);
+  });
+
+  it('rotates 7 parked and 69 ended targets within strict worst-case windows', () => {
+    const targets = Array.from({ length: 76 }, (_, index) => ({
       run_id: `run_${index}`,
       dispatch_id: `ctx_${index}`,
       state: index % 11 === 0 ? 'parked' : 'finished',
@@ -40,23 +65,23 @@ describe('Orca audit freshness policy', () => {
     let state: { ended?: string[] } = {};
     const lastObserved = new Map<string, number>();
     const visits = new Map<string, number>();
-    // Runner starts the next pass after a single POST (30 s timeout) and its interval.
-    const passMs = 90_000 + 30_000 + source.intervalMs;
+    // The isolated lane adds bounded settings read, collect, one POST and its interval.
+    const passMs = 15_000 + source.collectionLimitMs + 30_000 + source.intervalMs;
     for (let pass = 0; pass < 12; pass += 1) {
       const selected = source.selectTargets(pass % 2 ? [...targets].reverse() : targets, state);
       state = selected.state;
-      expect(selected.batch).toHaveLength(24);
+      expect(selected.batch).toHaveLength(25);
       expect(
         new Set(selected.batch.map((target: { dispatch_id: string }) => target.dispatch_id)).size,
-      ).toBe(24);
+      ).toBe(25);
       expect(
         selected.batch.filter((target: { state: string }) => target.state === 'parked'),
       ).toHaveLength(7);
       for (const target of selected.batch) {
         const previous = lastObserved.get(target.dispatch_id);
         if (previous !== undefined) {
-          // Previous observation at pass start, next one at the 90-second deadline.
-          const worstGap = pass * passMs + 90_000 - previous;
+          // Previous observation at pass start, next after settings and collection limits.
+          const worstGap = pass * passMs + 15_000 + source.collectionLimitMs - previous;
           expect(worstGap).toBeLessThan(
             target.state === 'parked' ? PARKED_AUDIT_FRESH_MS : ENDED_RESOURCE_AUDIT_FRESH_MS,
           );
@@ -64,14 +89,16 @@ describe('Orca audit freshness policy', () => {
         lastObserved.set(target.dispatch_id, pass * passMs);
         visits.set(target.dispatch_id, (visits.get(target.dispatch_id) ?? 0) + 1);
       }
-      if (pass === 3) expect(lastObserved.size).toBe(75);
+      if (pass === 3) expect(lastObserved.size).toBe(76);
     }
     expect([...visits.values()].every((count) => count >= 2)).toBe(true);
-    expect(Math.ceil(24 / source.auditConcurrency) * (source.targetLimitMs + 1_000)).toBeLessThan(
+    expect(source.independent).toBe(true);
+    expect(source.collectionLimitMs).toBeLessThan(90_000);
+    expect(Math.ceil(25 / source.auditConcurrency) * (source.targetLimitMs + 1_000)).toBeLessThan(
       90_000,
     );
     expect(
-      Math.ceil(24 / source.auditConcurrency) * (source.targetLimitMs + 1_000) + 30_000,
+      Math.ceil(25 / source.auditConcurrency) * (source.targetLimitMs + 1_000) + 30_000,
     ).toBeLessThan(90_000);
   });
 
@@ -82,7 +109,7 @@ describe('Orca audit freshness policy', () => {
       state: index < 7 ? 'parked' : index === 7 ? 'open' : index === 8 ? 'needs_input' : 'finished',
     }));
     const selected = source.selectTargets(targets, {});
-    expect(selected.batch).toHaveLength(24);
+    expect(selected.batch).toHaveLength(25);
     expect(
       selected.batch
         .slice(0, 9)
@@ -113,9 +140,24 @@ describe('Orca audit freshness policy', () => {
     ).toThrow('Audit capacity exceeded');
   });
 
+  it('keeps distinct historical runs sharing one dispatch separate', () => {
+    const targets = [
+      { run_id: 'run_first', dispatch_id: 'ctx_shared', state: 'finished' },
+      { run_id: 'run_second', dispatch_id: 'ctx_shared', state: 'failed' },
+    ];
+    const first = source.selectTargets(targets, {});
+    expect(first.batch.map((target: { run_id: string }) => target.run_id)).toEqual([
+      'run_first',
+      'run_second',
+    ]);
+    expect(() => source.selectTargets([{ ...targets[0] }, { ...targets[0] }], {})).toThrow(
+      'Audit inventory invalid',
+    );
+  });
+
   it('covers the measured 66-target rotation and the bounded 80-target inventory', () => {
     // The server's historical rotation bound stays unchanged by this source-only fix.
-    expect(source.batchSize).toBe(24);
+    expect(source.batchSize).toBe(25);
     expect(source.intervalMs).toBe(60_000);
     expect(resourceRotationBoundMs(64)).toBe(10 * 60_000);
     expect(resourceRotationBoundMs(65)).toBe(12 * 60_000 + 30_000);
@@ -154,6 +196,30 @@ describe('Orca audit freshness policy', () => {
 });
 
 describe('bounded Orca resource projection', () => {
+  it('keeps failed worktree and terminal reads unknown', () => {
+    expect(source.worktreeFailure({ code: 'selector_not_found' })).toBe('missing');
+    for (const code of ['unavailable', 'permission_denied', 'bad_response']) {
+      expect(source.worktreeFailure({ code })).toBe('unknown');
+    }
+    expect(source.worktreeFailure({ code: 'selector_not_found' }, true)).toBe('unknown');
+    expect(
+      source.terminalCount({
+        truncated: false,
+        hostScope: { omittedHostIds: [] },
+        totalCount: 2,
+      }),
+    ).toBe(2);
+    for (const list of [
+      null,
+      { truncated: true, hostScope: { omittedHostIds: [] }, totalCount: 50 },
+      { truncated: false, hostScope: { omittedHostIds: ['other'] }, totalCount: 0 },
+      { truncated: false, hostScope: { omittedHostIds: [] }, totalCount: NaN },
+      { truncated: false, hostScope: { omittedHostIds: [] }, totalCount: -1 },
+      { truncated: false, hostScope: { omittedHostIds: [] }, totalCount: '2' },
+    ])
+      expect(source.terminalCount(list)).toBeNull();
+  });
+
   it('reads a workspace only after exact Orca dispatch, run and path custody agree', async () => {
     const path = 'C:/Users/test/orca/workspaces/project/worker';
     const target = {
@@ -216,6 +282,24 @@ describe('bounded Orca resource projection', () => {
       });
       expect(scans).toBe(1);
     }
+    const malformed = await source.collectTarget(
+      target,
+      worker,
+      async () => ({
+        worktree: 'completed',
+        terminals: NaN,
+        processes: { count: 0, read: true },
+        artifacts: 'clean',
+      }),
+      now.toISOString(),
+    );
+    expect(malformed).toMatchObject({
+      liveness: 'unknown',
+      worktree_status: 'unknown',
+      live_terminals: 0,
+      process_read: false,
+      artifacts: 'unknown',
+    });
   });
 
   it('drops chat text and process identity, while preserving custody categories', () => {
@@ -299,6 +383,87 @@ describe('Docket dispatch resource reconciliation', () => {
       run: { ok: true, interval_ms: 60_000 },
     });
   const problems = () => d.services.views.needsYou(d.read(), { scope: 'GF' }).problems;
+  const auditSettings = () => d.services.sync.source(d.read(), 'orca-audit').settings;
+  const insertAuditRows = (
+    count: number,
+    invalid: Set<number> = new Set(),
+    badWorkspace: Set<number> = new Set(),
+  ) => {
+    const insert = d.sql.prepare(
+      `INSERT INTO runs (id, item_id, client, state, last_signal_at, last_signal_kind,
+        orchestrator, workspace, created_at, updated_at)
+       VALUES (?, ?, 'codex', 'finished', ?, 'report', ?, ?, ?, ?)`,
+    );
+    for (let index = 0; index < count; index += 1) {
+      const at = new Date(now.getTime() - index * 1_000).toISOString();
+      insert.run(
+        `run_audit_${String(index).padStart(3, '0')}`,
+        id,
+        at,
+        JSON.stringify({
+          name: 'orca',
+          dispatch_id: invalid.has(index) ? 'bad' : `ctx_audit_${index}`,
+        }),
+        badWorkspace.has(index) ? '{bad' : JSON.stringify({ path: `C:/audit/${index}` }),
+        at,
+        at,
+      );
+    }
+  };
+
+  it('counts eligible targets before the 80-target cap', () => {
+    insertAuditRows(80, new Set([0, 1, 2, 3, 4]));
+    const settings = auditSettings();
+    expect(settings.targets).toHaveLength(76);
+    expect(settings.more).toBe(false);
+  });
+
+  it('includes the valid 81st raw row after an invalid earlier row', () => {
+    insertAuditRows(80, new Set([0]));
+    const settings = auditSettings();
+    expect(settings.targets).toHaveLength(80);
+    expect(settings.targets).toContainEqual(expect.objectContaining({ run_id: 'run_audit_079' }));
+    expect(settings.more).toBe(false);
+  });
+
+  it('reports genuine 81st eligible overflow', () => {
+    insertAuditRows(80);
+    const settings = auditSettings();
+    expect(settings.targets).toHaveLength(80);
+    expect(settings.more).toBe(true);
+  });
+
+  it('fails closed if the bounded raw scan is truncated before exhaustion', () => {
+    insertAuditRows(2_048, new Set(Array.from({ length: 2_048 }, (_, index) => index)));
+    const settings = auditSettings();
+    expect(settings.targets).toHaveLength(1);
+    expect(settings.more).toBe(true);
+  });
+
+  it('skips invalid ended rows before taking the most recent eligible ended rows', () => {
+    insertAuditRows(82, new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
+    const settings = auditSettings();
+    expect(settings.targets).toHaveLength(73);
+    expect(settings.targets).toContainEqual(expect.objectContaining({ run_id: 'run_audit_081' }));
+    expect(settings.more).toBe(false);
+  });
+
+  it('treats malformed optional workspace data as ineligible', () => {
+    insertAuditRows(5, new Set(), new Set([0]));
+    d.sql.prepare('UPDATE runs SET workspace = ? WHERE id = ?').run('null', 'run_audit_001');
+    d.sql.prepare('UPDATE runs SET workspace = ? WHERE id = ?').run('{}', 'run_audit_002');
+    d.sql.prepare('UPDATE runs SET workspace = NULL WHERE id = ?').run('run_audit_003');
+    d.sql.prepare('UPDATE runs SET workspace = ? WHERE id = ?').run('{"path":5}', 'run_audit_004');
+    const settings = auditSettings();
+    expect(settings.targets).toHaveLength(3);
+    expect(settings.targets).toContainEqual(
+      expect.objectContaining({ run_id: 'run_audit_002', path: null }),
+    );
+    expect(settings.targets).toContainEqual(
+      expect.objectContaining({ run_id: 'run_audit_003', path: null }),
+    );
+    expect(settings.more).toBe(false);
+  });
 
   it('refreshes an unchanged observation without a visible status event or write-path failure', () => {
     expect(post([record()])).toMatchObject({ accepted: 1, changed: 1 });

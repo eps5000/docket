@@ -278,6 +278,44 @@ describe('the runner', () => {
     return { t, now: () => t.now };
   };
 
+  it('runs the Orca audit on its own cadence while another source is awaiting I/O', async () => {
+    let releaseOther = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      releaseOther = resolve;
+    });
+    let audits = 0;
+    const other = makeSource(
+      async () => {
+        await blocked;
+        return { records: [], state: {} };
+      },
+      { name: 'other' },
+    );
+    const audit = makeSource(
+      () => {
+        audits += 1;
+        return { records: [], state: {} };
+      },
+      { name: 'orca-audit', intervalMs: 5, independent: true },
+    );
+    const controller = new AbortController();
+    const runner = createRunner({
+      docket: makeDocket(),
+      sources: [other, audit],
+      store: openStore(home),
+      log: logs().log,
+    });
+    const running = runner.run(controller.signal);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(audits).toBeGreaterThanOrEqual(2);
+    } finally {
+      controller.abort();
+      releaseOther();
+      await running;
+    }
+  });
+
   it('saves state only after every batch is accepted', async () => {
     const store = openStore(home);
     const records = Array.from({ length: BATCH_SIZE + 1 }, (_, k) => ({ key: `k${k}` }));

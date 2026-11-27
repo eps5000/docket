@@ -765,49 +765,96 @@ const orcaPresenceHandler: SyncHandler<OrcaPresenceRecord> = {
 /** The local helper audits only exact dispatches recorded on Docket runs. */
 const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
   settings(db) {
-    const rows = db.sqlite
-      .prepare(
-        `SELECT r.id, r.state, r.updated_at, r.orchestrator, r.workspace, i.project_key, i.epic_id,
-              p.main_branch
-       FROM runs r JOIN items i ON i.id = r.item_id JOIN projects p ON p.key = i.project_key
-       WHERE r.orchestrator IS NOT NULL AND i.archived_at IS NULL
-         AND (r.state IN ('open', 'parked', 'needs_input')
-              OR r.id IN (SELECT id FROM runs WHERE state IN ('finished', 'failed', 'interrupted')
-                          ORDER BY updated_at DESC LIMIT 80))
-       ORDER BY CASE WHEN r.state IN ('open', 'parked', 'needs_input') THEN 0 ELSE 1 END,
-                r.updated_at DESC LIMIT 81`,
-      )
-      .all() as {
+    const pageSize = 80;
+    const rawLimit = 2_048;
+    const query = db.sqlite.prepare(
+      `WITH candidates AS (
+         SELECT r.id, r.state, r.updated_at, r.orchestrator, r.workspace,
+                p.main_branch,
+                CASE WHEN r.state IN ('open', 'parked', 'needs_input') THEN 0 ELSE 1 END AS tier
+         FROM runs r JOIN items i ON i.id = r.item_id JOIN projects p ON p.key = i.project_key
+         WHERE r.orchestrator IS NOT NULL AND i.archived_at IS NULL
+           AND r.state IN ('open', 'parked', 'needs_input', 'finished', 'failed', 'interrupted')
+       )
+       SELECT * FROM candidates
+       WHERE (? IS NULL OR tier > ? OR
+              (tier = ? AND (updated_at < ? OR (updated_at = ? AND id < ?))))
+       ORDER BY tier, updated_at DESC, id DESC LIMIT ?`,
+    );
+    type AuditRow = {
       id: string;
       state: string;
       updated_at: string;
       orchestrator: string;
       workspace: string | null;
-      project_key: string;
-      epic_id: string | null;
       main_branch: string;
-    }[];
-    const targets = rows.slice(0, 80).flatMap((row) => {
-      try {
-        const dispatch = (JSON.parse(row.orchestrator) as { dispatch_id?: unknown }).dispatch_id;
-        const path = row.workspace ? (JSON.parse(row.workspace) as { path?: unknown }).path : null;
-        return typeof dispatch === 'string' && /^ctx_[A-Za-z0-9_-]{1,96}$/.test(dispatch)
-          ? [
-              {
-                run_id: row.id,
-                state: row.state,
-                updated_at: row.updated_at,
-                dispatch_id: dispatch,
-                path: typeof path === 'string' ? path : null,
-                main_branch: row.main_branch,
-              },
-            ]
-          : [];
-      } catch {
-        return [];
+      tier: number;
+    };
+    let cursor: AuditRow | null = null;
+    const readPage = (limit: number): AuditRow[] =>
+      query.all(
+        cursor?.tier ?? null,
+        cursor?.tier ?? null,
+        cursor?.tier ?? null,
+        cursor?.updated_at ?? null,
+        cursor?.updated_at ?? null,
+        cursor?.id ?? null,
+        limit,
+      ) as AuditRow[];
+    const targets: {
+      run_id: string;
+      state: string;
+      updated_at: string;
+      dispatch_id: string;
+      path: string | null;
+      main_branch: string;
+    }[] = [];
+    let scanned = 0;
+    let exhausted = false;
+    while (scanned < rawLimit && targets.length <= 80) {
+      const requested = Math.min(pageSize, rawLimit - scanned);
+      const rows = readPage(requested);
+      if (rows.length === 0) {
+        exhausted = true;
+        break;
       }
-    });
-    return { enabled: targets.length > 0, targets, more: rows.length > 80 };
+      for (const row of rows) {
+        scanned += 1;
+        cursor = row;
+        try {
+          const orchestrator = JSON.parse(row.orchestrator) as { dispatch_id?: unknown };
+          const dispatch = orchestrator?.dispatch_id;
+          if (typeof dispatch !== 'string' || !/^ctx_[A-Za-z0-9_-]{1,96}$/.test(dispatch)) continue;
+          let path: string | null = null;
+          if (row.workspace !== null) {
+            const workspace = JSON.parse(row.workspace) as unknown;
+            if (!workspace || typeof workspace !== 'object' || Array.isArray(workspace)) continue;
+            if ('path' in workspace) {
+              if (workspace.path !== null && typeof workspace.path !== 'string') continue;
+              path = workspace.path;
+            }
+          }
+          targets.push({
+            run_id: row.id,
+            state: row.state,
+            updated_at: row.updated_at,
+            dispatch_id: dispatch,
+            path,
+            main_branch: row.main_branch,
+          });
+          if (targets.length > 80) break;
+        } catch {
+          // A malformed row is ineligible; keep scanning for the 81st eligible target.
+        }
+      }
+      if (rows.length < requested) {
+        exhausted = true;
+        break;
+      }
+    }
+    const more =
+      targets.length > 80 || (!exhausted && scanned >= rawLimit && readPage(1).length > 0);
+    return { enabled: targets.length > 0 || more, targets: targets.slice(0, 80), more };
   },
 
   clean(raw) {
