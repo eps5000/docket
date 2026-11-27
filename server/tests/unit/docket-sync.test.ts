@@ -283,10 +283,21 @@ describe('the runner', () => {
     const blocked = new Promise<void>((resolve) => {
       releaseOther = resolve;
     });
+    let notifyOtherStarted = () => {};
+    const otherStarted = new Promise<void>((resolve) => {
+      notifyOtherStarted = resolve;
+    });
+    let otherFinished = false;
+    let notifyAuditsTwice = () => {};
+    const auditsTwice = new Promise<void>((resolve) => {
+      notifyAuditsTwice = resolve;
+    });
     let audits = 0;
     const other = makeSource(
       async () => {
+        notifyOtherStarted();
         await blocked;
+        otherFinished = true;
         return { records: [], state: {} };
       },
       { name: 'other' },
@@ -294,6 +305,7 @@ describe('the runner', () => {
     const audit = makeSource(
       () => {
         audits += 1;
+        if (audits === 2) notifyAuditsTwice();
         return { records: [], state: {} };
       },
       { name: 'orca-audit', intervalMs: 5, independent: true },
@@ -306,10 +318,18 @@ describe('the runner', () => {
       log: logs().log,
     });
     const running = runner.run(controller.signal);
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      await new Promise((resolve) => setTimeout(resolve, 80));
+      await Promise.race([
+        Promise.all([otherStarted, auditsTwice]),
+        new Promise<never>((_resolve, reject) => {
+          deadline = setTimeout(() => reject(new Error('audit did not run twice')), 10_000);
+        }),
+      ]);
       expect(audits).toBeGreaterThanOrEqual(2);
+      expect(otherFinished).toBe(false);
     } finally {
+      clearTimeout(deadline);
       controller.abort();
       releaseOther();
       await running;
