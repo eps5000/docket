@@ -161,6 +161,10 @@ test('DKT-19: owner badge, full ledger, and keyboard custody drilldown at narrow
   await expect(group.locator('summary button')).toHaveCount(0);
   await expectAxeClean(page, 'DKT-19 grouped Needs you at 1440px');
   await page.setViewportSize({ width: 390, height: 844 });
+  const footerFits = await page
+    .locator('.needs-you .onb-card .cardfoot')
+    .evaluate((footer) => footer.scrollWidth <= footer.clientWidth);
+  expect(footerFits).toBe(true);
   await expectNoSidewaysScroll(page);
   await expectAxeClean(page, 'DKT-19 grouped Needs you at 390px');
 });

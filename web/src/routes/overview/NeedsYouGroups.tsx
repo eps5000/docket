@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { needsYouCount, needsYouProblemActor, ownerNeedsYouCount } from '@docket/shared';
 import type { NeedsYouResponse, Problem, WorkspaceRow } from '@docket/shared';
 import { ProblemRow, workspaceFor } from '../needs-you/ProblemsCard';
@@ -34,6 +35,11 @@ export function needsYouProblemGroups(view: NeedsYouResponse) {
   const coordinatorOther = coordinator.filter(
     (p) => !['dispatch_resources', 'dispatch_custody', 'wait_missing_wake'].includes(p.kind),
   );
+  // Some agent-owned problems have explicitly reached the owner for visibility.
+  // Keep their actor (and badge partition) intact while exposing the old
+  // Problems row and its per-record actions.
+  const reached = coordinatorOther.filter((p) => p.reached_you);
+  const otherHolds = coordinatorOther.filter((p) => !p.reached_you);
   const dispatchParts = {
     retained: dispatch.filter(agentRetainedByRequest),
     protected: dispatch.filter(
@@ -50,6 +56,8 @@ export function needsYouProblemGroups(view: NeedsYouResponse) {
     custody,
     wake,
     coordinatorOther,
+    reached,
+    otherHolds,
     dispatchParts,
   };
 }
@@ -71,27 +79,54 @@ function CustodyLabels({ problem }: { problem: Problem }) {
   );
 }
 
-function Records({ rows, workspaces }: { rows: Problem[]; workspaces: readonly WorkspaceRow[] }) {
+function Record({
+  problem,
+  workspaces,
+  initiallyOpen,
+}: {
+  problem: Problem;
+  workspaces: readonly WorkspaceRow[];
+  initiallyOpen: boolean;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <details
+      className="ny-record"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <span className="ny-record-title">
+          {problem.item_id ? `${problem.item_id} · ` : ''}
+          {problem.title ?? problem.reason}
+        </span>
+        <CustodyLabels problem={problem} />
+      </summary>
+      <p className="src">
+        Who acts:{' '}
+        {problem.explanation?.who_text ??
+          (needsYouProblemActor(problem) === 'agent' ? 'Coordinator' : 'You')}
+        .
+      </p>
+      {open && <ProblemRow problem={problem} workspace={workspaceFor(problem, workspaces)} />}
+    </details>
+  );
+}
+
+function Records({
+  rows,
+  workspaces,
+  initiallyOpen = false,
+}: {
+  rows: Problem[];
+  workspaces: readonly WorkspaceRow[];
+  initiallyOpen?: boolean;
+}) {
   return (
     <ul className="ny-records" aria-label={`${rows.length} individual warnings`}>
       {rows.map((p, i) => (
         <li key={p.id ?? `${p.kind}:${i}`}>
-          <details className="ny-record">
-            <summary>
-              <span className="ny-record-title">
-                {p.item_id ? `${p.item_id} · ` : ''}
-                {p.title ?? p.reason}
-              </span>
-              <CustodyLabels problem={p} />
-            </summary>
-            <p className="src">
-              Who acts:{' '}
-              {p.explanation?.who_text ??
-                (needsYouProblemActor(p) === 'agent' ? 'Coordinator' : 'You')}
-              .
-            </p>
-            <ProblemRow problem={p} workspace={workspaceFor(p, workspaces)} />
-          </details>
+          <Record problem={p} workspaces={workspaces} initiallyOpen={initiallyOpen} />
         </li>
       ))}
     </ul>
@@ -145,19 +180,34 @@ export function NeedsYouGroups({
         </p>
       </div>
       <div id="problems" className="ny-problems" tabIndex={-1}>
-        {groups.drift.length > 0 && (
-          <details className="card ny-owner-group" data-group="agent-files" open>
-            <summary>
-              Agent files changed outside Docket · {groups.drift.length} · You decide
-            </summary>
-            <Records rows={groups.drift} workspaces={workspaces} />
-          </details>
-        )}
-        {groups.ownerOther.length > 0 && (
-          <details className="card ny-owner-group" data-group="owner-problems" open>
-            <summary>Other problems for you · {groups.ownerOther.length}</summary>
-            <Records rows={groups.ownerOther} workspaces={workspaces} />
-          </details>
+        {groups.owner.length + groups.reached.length > 0 && (
+          <section
+            className="ny-owner-problems"
+            data-card="problems"
+            aria-label="Problems for your attention"
+          >
+            <h3>Problems · {groups.owner.length + groups.reached.length}</h3>
+            {groups.drift.length > 0 && (
+              <details className="card ny-owner-group" data-group="agent-files" open>
+                <summary>
+                  Agent files changed outside Docket · {groups.drift.length} · You decide
+                </summary>
+                <Records rows={groups.drift} workspaces={workspaces} initiallyOpen />
+              </details>
+            )}
+            {groups.ownerOther.length > 0 && (
+              <details className="card ny-owner-group" data-group="owner-problems" open>
+                <summary>Other problems for you · {groups.ownerOther.length}</summary>
+                <Records rows={groups.ownerOther} workspaces={workspaces} initiallyOpen />
+              </details>
+            )}
+            {groups.reached.length > 0 && (
+              <details className="card ny-owner-group" data-group="reached-problems" open>
+                <summary>Agent problems that reached you · {groups.reached.length}</summary>
+                <Records rows={groups.reached} workspaces={workspaces} initiallyOpen />
+              </details>
+            )}
+          </section>
         )}
         {groups.coordinator.length > 0 && (
           <section className="card ny-coordinator" aria-labelledby="ny-coordinator-title">
@@ -236,7 +286,7 @@ export function NeedsYouGroups({
               group={{
                 key: 'other-holds',
                 label: 'Other coordinator holds',
-                rows: groups.coordinatorOther,
+                rows: groups.otherHolds,
               }}
               workspaces={workspaces}
             />

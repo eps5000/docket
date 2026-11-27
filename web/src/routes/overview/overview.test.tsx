@@ -469,9 +469,6 @@ describe('every owner action still works from Overview', () => {
     const user = userEvent.setup();
     renderAt();
     await section();
-    if (card === '[data-group="owner-problems"]') {
-      await user.click(inCard(card).querySelector('.ny-record > summary') as HTMLElement);
-    }
     await user.click(within(inCard(card)).getByRole('button', { name: button }));
     await waitFor(() => expect(sent.some((c) => request.test(c.path))).toBe(true));
   });
@@ -522,6 +519,48 @@ describe('the badge', () => {
     expect(within(stat('needs-you')).getByText(/Nothing for you/)).toBeTruthy();
     expect(screen.getByText(/Nothing for you to decide/)).toBeTruthy();
     expect(document.querySelector('[data-group="dispatch-custody"]')).toBeTruthy();
+  });
+  it('keeps owner problem actions visible while mounting coordinator actions only on drilldown', async () => {
+    const user = userEvent.setup();
+    needs = quiet({
+      problems: [
+        problem('owner-warning'),
+        { ...problem('coordinator-warning', 'agent'), kind: 'dispatch_resources' },
+      ],
+    });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    const ownerCard = document.querySelector('[data-card="problems"]') as HTMLElement;
+    expect(within(ownerCard).getByRole('heading', { name: 'Problems · 1' })).toBeTruthy();
+    expect(within(ownerCard).getByRole('button', { name: 'Acknowledge' })).toBeTruthy();
+    const dispatch = document.querySelector('[data-group="dispatch-resources"]') as HTMLElement;
+    expect(dispatch.querySelector('[data-problem="dispatch_resources"]')).toBeNull();
+    await user.click(dispatch.querySelector(':scope > summary') as HTMLElement);
+    const subgroup = dispatch.querySelector('[data-group="dispatch-unknown"]') as HTMLElement;
+    await user.click(subgroup.querySelector(':scope > summary') as HTMLElement);
+    await user.click(subgroup.querySelector('.ny-record > summary') as HTMLElement);
+    await waitFor(() =>
+      expect(subgroup.querySelector('[data-problem="dispatch_resources"]')).toBeTruthy(),
+    );
+  });
+  it('shows an agent problem that reached you without adding it to owner actions', async () => {
+    needs = quiet({
+      problems: [
+        {
+          ...problem('radar-warning', 'agent'),
+          kind: 'radar_conflict',
+          reached_you: 'Nobody is working on RCP-9',
+        },
+      ],
+    });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    const card = document.querySelector('[data-card="problems"]') as HTMLElement;
+    expect(within(card).getByRole('heading', { name: 'Problems · 1' })).toBeTruthy();
+    expect(card.querySelector('[data-problem="radar_conflict"]')).toBeTruthy();
+    expect(within(card).getByRole('link', { name: 'Open the item' })).toBeTruthy();
+    expect(nav().querySelector('.badge')).toBeNull();
+    expect(document.title).toBe('Docket');
   });
   it('labels stale counts after a refresh error and keeps the last records reachable', async () => {
     needs = quiet({ problems: [problem('owner-warning')] });
@@ -581,9 +620,10 @@ describe('the badge', () => {
     });
     await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
     expect(document.title).toBe('(1) Docket');
-    expect(document.querySelector('#needs-you [role="status"]')?.textContent).toContain(
-      '2 total, 1 yours, 1 coordinators hold',
-    );
+    const announcement = document.querySelector('#needs-you [aria-live="polite"]');
+    expect(announcement?.getAttribute('aria-atomic')).toBe('true');
+    expect(announcement?.getAttribute('role')).toBeNull();
+    expect(announcement?.textContent).toContain('2 total, 1 yours, 1 coordinators hold');
     expect(
       screen.getByText('Since last update: 0 yours, +1 coordinator holds; +1 total.'),
     ).toBeTruthy();
