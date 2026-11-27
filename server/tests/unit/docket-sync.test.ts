@@ -36,6 +36,9 @@ const { acquireLock, createLog, openStore, redact } = await lib('store.mjs');
 const source = await import(
   /* @vite-ignore */ pathToFileURL(join(TOOL, 'sources', 'github.mjs')).href
 );
+const auditSource = await import(
+  /* @vite-ignore */ pathToFileURL(join(TOOL, 'sources', 'orca-audit.mjs')).href
+);
 
 const TOKEN = `ghp_${'Z9y8'.repeat(10)}`;
 const NOW = Date.parse('2026-11-23T12:00:00.000Z');
@@ -416,6 +419,29 @@ describe('the runner', () => {
     await runner.once();
     expect(docket.posts).toHaveLength(1);
     expect(docket.posts[0]!.body.run).toMatchObject({ ok: true, partial: false });
+  });
+
+  it('posts the 42-record Orca audit pass as one accepted batch', async () => {
+    const records = Array.from({ length: 42 }, (_, index) => ({ key: `audit:${index}` }));
+    const docket = makeDocket();
+    const store = openStore(home);
+    const runner = createRunner({
+      docket,
+      sources: [
+        makeSource(() => ({ records, state: { ended: ['run_done'] } }), {
+          name: 'orca-audit',
+          batchSize: auditSource.batchSize,
+        }),
+      ],
+      store,
+      log: logs().log,
+    });
+    expect(auditSource.batchSize).toBe(42);
+    expect(await runner.once()).toEqual({ 'orca-audit': 'ran' });
+    expect(docket.posts).toHaveLength(1);
+    expect(docket.posts[0]!.body.records).toHaveLength(42);
+    expect(docket.posts[0]!.body.run).toMatchObject({ ok: true, partial: false });
+    expect(store.source('orca-audit').state).toEqual({ ended: ['run_done'] });
   });
 
   it('spends nothing on the source while Docket is down, then recovers', async () => {

@@ -82,33 +82,36 @@ describe('Orca audit freshness policy', () => {
     expect(await source.collectBounded([3], async () => 3, undefined, 10)).toEqual([3]);
   });
 
-  it('rotates 7 parked and 69 ended targets within strict worst-case windows', () => {
-    const targets = Array.from({ length: 76 }, (_, index) => ({
+  it('rotates 11 parked and 106 ended targets within strict worst-case windows', () => {
+    const targets = Array.from({ length: 117 }, (_, index) => ({
       run_id: `run_${index}`,
       dispatch_id: `ctx_${index}`,
-      state: index % 11 === 0 ? 'parked' : 'finished',
+      state: index < 11 ? 'parked' : 'finished',
       path: `C:/audit/${index}`,
       main_branch: 'main',
     }));
     const parked = targets.filter((target) => target.state === 'parked');
-    expect(parked).toHaveLength(7);
+    expect(parked).toHaveLength(11);
     let state: { ended?: string[] } = {};
     const lastObserved = new Map<string, number>();
     const visits = new Map<string, number>();
     // The isolated lane adds bounded settings read, collect, one POST and its interval.
     const passMs = 15_000 + source.collectionLimitMs + 30_000 + source.intervalMs;
+    expect(passMs).toBe(185_000);
+    expect(passMs + 95_000).toBeLessThan(PARKED_AUDIT_FRESH_MS);
+    expect(4 * passMs + 95_000).toBeLessThan(ENDED_RESOURCE_AUDIT_FRESH_MS);
     for (let pass = 0; pass < 12; pass += 1) {
       const selected = source.selectTargets(pass % 2 ? [...targets].reverse() : targets, state);
       state = selected.state;
-      expect(selected.batch).toHaveLength(25);
+      expect(selected.batch).toHaveLength(42);
       expect(
         new Set(selected.batch.map((target: { dispatch_id: string }) => target.dispatch_id)).size,
-      ).toBe(25);
+      ).toBe(42);
       expect(
         selected.batch.filter((target: { state: string }) => target.state === 'parked'),
-      ).toHaveLength(7);
+      ).toHaveLength(11);
       for (const target of selected.batch) {
-        const previous = lastObserved.get(target.dispatch_id);
+        const previous = lastObserved.get(target.run_id);
         if (previous !== undefined) {
           // Previous observation at pass start, next after settings and collection limits.
           const worstGap = pass * passMs + 15_000 + source.collectionLimitMs - previous;
@@ -116,19 +119,20 @@ describe('Orca audit freshness policy', () => {
             target.state === 'parked' ? PARKED_AUDIT_FRESH_MS : ENDED_RESOURCE_AUDIT_FRESH_MS,
           );
         }
-        lastObserved.set(target.dispatch_id, pass * passMs);
-        visits.set(target.dispatch_id, (visits.get(target.dispatch_id) ?? 0) + 1);
+        lastObserved.set(target.run_id, pass * passMs);
+        visits.set(target.run_id, (visits.get(target.run_id) ?? 0) + 1);
       }
-      if (pass === 3) expect(lastObserved.size).toBe(76);
+      if (pass === 3) expect(lastObserved.size).toBe(117);
     }
     expect([...visits.values()].every((count) => count >= 2)).toBe(true);
     expect(source.independent).toBe(true);
     expect(source.collectionLimitMs).toBeLessThan(90_000);
-    expect(Math.ceil(25 / source.auditConcurrency) * (source.targetLimitMs + 1_000)).toBeLessThan(
-      90_000,
+    expect(source.auditConcurrency).toBe(14);
+    expect(Math.ceil(42 / source.auditConcurrency) * (source.targetLimitMs + 1_000)).toBeLessThan(
+      source.collectionLimitMs,
     );
     expect(
-      Math.ceil(25 / source.auditConcurrency) * (source.targetLimitMs + 1_000) + 30_000,
+      Math.ceil(42 / source.auditConcurrency) * (source.targetLimitMs + 1_000) + 30_000,
     ).toBeLessThan(90_000);
   });
 
@@ -139,7 +143,7 @@ describe('Orca audit freshness policy', () => {
       state: index < 7 ? 'parked' : index === 7 ? 'open' : index === 8 ? 'needs_input' : 'finished',
     }));
     const selected = source.selectTargets(targets, {});
-    expect(selected.batch).toHaveLength(25);
+    expect(selected.batch).toHaveLength(42);
     expect(
       selected.batch
         .slice(0, 9)
@@ -154,20 +158,36 @@ describe('Orca audit freshness policy', () => {
     expect(() => source.selectTargets([{ ...targets[0], state: 'unknown' }], {})).toThrow(
       'Audit inventory invalid',
     );
+    const growth = Array.from({ length: 128 }, (_, index) => ({
+      run_id: `run_growth_${index}`,
+      dispatch_id: `ctx_growth_${index}`,
+      state: index < 14 ? 'parked' : 'finished',
+    }));
+    // 114 ended / 28 slots needs five passes, despite fitting the 128-target settings cap.
+    expect(() => source.selectTargets(growth, {})).toThrow('Audit capacity exceeded');
+    expect(
+      source.selectTargets(
+        growth.slice(0, 42).map((target) => ({ ...target, state: 'parked' })),
+        {},
+      ).batch,
+    ).toHaveLength(42);
     expect(() =>
       source.selectTargets(
-        [
-          ...targets,
-          ...targets.slice(0, 6).map((target, index) => ({
-            ...target,
-            run_id: `run_extra_${index}`,
-            dispatch_id: `ctx_extra_${index}`,
-            state: 'finished',
-          })),
-        ],
+        growth.slice(0, 43).map((target) => ({ ...target, state: 'parked' })),
         {},
       ),
     ).toThrow('Audit capacity exceeded');
+    const bounded = growth.map((target, index) => ({
+      ...target,
+      state: index < 11 ? 'parked' : 'finished',
+    }));
+    expect(source.selectTargets(bounded, {}).batch).toHaveLength(42);
+    expect(() =>
+      source.selectTargets(
+        [...bounded, { run_id: 'run_extra', dispatch_id: 'ctx_extra', state: 'finished' }],
+        {},
+      ),
+    ).toThrow('Audit inventory incomplete');
   });
 
   it('keeps distinct historical runs sharing one dispatch separate', () => {
@@ -185,16 +205,16 @@ describe('Orca audit freshness policy', () => {
     );
   });
 
-  it('covers the measured 66-target rotation and the bounded 80-target inventory', () => {
-    // The server's historical rotation bound stays unchanged by this source-only fix.
-    expect(source.batchSize).toBe(25);
+  it('preserves the server historical freshness policy while the source admits 128 targets', () => {
+    // The server's historical conservative helper remains unchanged.
+    expect(source.batchSize).toBe(42);
     expect(source.intervalMs).toBe(60_000);
     expect(resourceRotationBoundMs(64)).toBe(10 * 60_000);
     expect(resourceRotationBoundMs(65)).toBe(12 * 60_000 + 30_000);
     expect(resourceRotationBoundMs(66)).toBe(12 * 60_000 + 30_000);
     expect(resourceRotationBoundMs(80)).toBe(12 * 60_000 + 30_000);
     expect(ENDED_RESOURCE_AUDIT_FRESH_MS - resourceRotationBoundMs(80)!).toBe(2 * 60_000 + 30_000);
-    expect(resourceRotationBoundMs(81)).toBeNull(); // The helper refuses overflow.
+    expect(resourceRotationBoundMs(81)).toBeNull(); // Historical server helper, not source capacity.
     expect(PARKED_AUDIT_FRESH_MS).toBe(5 * 60_000);
   });
 
@@ -461,25 +481,33 @@ describe('Docket dispatch resource reconciliation', () => {
     }
   };
 
-  it('counts eligible targets before the 80-target cap', () => {
-    insertAuditRows(80, new Set([0, 1, 2, 3, 4]));
+  it('returns the measured 117 eligible targets from 135 raw rows', () => {
+    insertAuditRows(134, new Set(Array.from({ length: 18 }, (_, index) => index + 20)));
+    d.sql.prepare('UPDATE runs SET state = ? WHERE id = ?').run('parked', run);
+    for (let index = 0; index < 10; index += 1)
+      d.sql
+        .prepare('UPDATE runs SET state = ? WHERE id = ?')
+        .run('parked', `run_audit_${String(index).padStart(3, '0')}`);
     const settings = auditSettings();
-    expect(settings.targets).toHaveLength(76);
+    const targets = settings.targets as { state: string }[];
+    expect(settings.targets).toHaveLength(117);
+    expect(targets.filter((target) => target.state === 'parked')).toHaveLength(11);
+    expect(targets.filter((target) => target.state === 'finished')).toHaveLength(106);
     expect(settings.more).toBe(false);
   });
 
-  it('includes the valid 81st raw row after an invalid earlier row', () => {
-    insertAuditRows(80, new Set([0]));
+  it('includes the valid 138th raw row after invalid earlier rows at the 128 cap', () => {
+    insertAuditRows(137, new Set(Array.from({ length: 10 }, (_, index) => index)));
     const settings = auditSettings();
-    expect(settings.targets).toHaveLength(80);
-    expect(settings.targets).toContainEqual(expect.objectContaining({ run_id: 'run_audit_079' }));
+    expect(settings.targets).toHaveLength(128);
+    expect(settings.targets).toContainEqual(expect.objectContaining({ run_id: 'run_audit_136' }));
     expect(settings.more).toBe(false);
   });
 
-  it('reports genuine 81st eligible overflow', () => {
-    insertAuditRows(80);
+  it('reports genuine 129th eligible overflow', () => {
+    insertAuditRows(128);
     const settings = auditSettings();
-    expect(settings.targets).toHaveLength(80);
+    expect(settings.targets).toHaveLength(128);
     expect(settings.more).toBe(true);
   });
 
