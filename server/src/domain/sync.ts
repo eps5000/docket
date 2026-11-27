@@ -766,6 +766,7 @@ const orcaPresenceHandler: SyncHandler<OrcaPresenceRecord> = {
 const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
   settings(db) {
     const pageSize = 80;
+    const targetLimit = 128;
     const rawLimit = 2_048;
     const query = db.sqlite.prepare(
       `WITH candidates AS (
@@ -811,7 +812,7 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
     }[] = [];
     let scanned = 0;
     let exhausted = false;
-    while (scanned < rawLimit && targets.length <= 80) {
+    while (scanned < rawLimit && targets.length <= targetLimit) {
       const requested = Math.min(pageSize, rawLimit - scanned);
       const rows = readPage(requested);
       if (rows.length === 0) {
@@ -842,9 +843,9 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
             path,
             main_branch: row.main_branch,
           });
-          if (targets.length > 80) break;
+          if (targets.length > targetLimit) break;
         } catch {
-          // A malformed row is ineligible; keep scanning for the 81st eligible target.
+          // A malformed row is ineligible; keep scanning for the 129th eligible target.
         }
       }
       if (rows.length < requested) {
@@ -853,8 +854,8 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
       }
     }
     const more =
-      targets.length > 80 || (!exhausted && scanned >= rawLimit && readPage(1).length > 0);
-    return { enabled: targets.length > 0 || more, targets: targets.slice(0, 80), more };
+      targets.length > targetLimit || (!exhausted && scanned >= rawLimit && readPage(1).length > 0);
+    return { enabled: targets.length > 0 || more, targets: targets.slice(0, targetLimit), more };
   },
 
   clean(raw) {

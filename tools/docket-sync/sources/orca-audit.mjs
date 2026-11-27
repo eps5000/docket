@@ -8,8 +8,8 @@ export const name = 'orca-audit';
 export const intervalMs = 60_000;
 export const independent = true;
 // One POST per pass; the runner's 30-second POST timeout is part of the cadence bound.
-export const batchSize = 25;
-export const auditConcurrency = 9;
+export const batchSize = 42;
+export const auditConcurrency = 14;
 export const targetLimitMs = 17_000;
 export const collectionLimitMs = 80_000;
 let drainingBatch = null;
@@ -30,7 +30,7 @@ const RUN_STATES = new Set(['open', 'parked', 'needs_input', 'finished', 'failed
 
 /** Keep prompt-custody targets on every pass; rotate all other exact dispatches by ID. */
 export function selectTargets(targets, state = {}, more = false) {
-  if (!Array.isArray(targets) || targets.length > 80 || more)
+  if (!Array.isArray(targets) || targets.length > 128 || more)
     throw Object.assign(new Error('Audit inventory incomplete'), { code: 'audit_overflow' });
   if (
     targets.some(
