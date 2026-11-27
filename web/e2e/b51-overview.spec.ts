@@ -12,7 +12,8 @@ import type {
   OverviewResponse,
   WorkResponse,
 } from '@docket/shared';
-import { emptyNeedsYou, mockGet } from './fixtures/api-mocks';
+import { bootstrap, emptyNeedsYou, mockGet } from './fixtures/api-mocks';
+import { needsYouSnapshot83 } from './fixtures/needs-you-count';
 import {
   connectAgent,
   expect,
@@ -107,11 +108,130 @@ test('the badge is the owner actions on the page, and old links land on them', a
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   await expect(page.locator('#needs-you')).toBeInViewport();
   const n = await page.locator('[data-needs-you-count]').getAttribute('data-needs-you-count');
-  await expect(page.getByRole('heading', { level: 2, name: `Needs you · ${n}` })).toBeVisible();
+  const view = await needsYou(page, 'all');
+  const total =
+    view.for_you_now.length +
+    view.problems.length +
+    (view.onboarding_reviews?.length ?? 0) +
+    (view.overlaps?.length ?? 0) +
+    (view.undeclared_holds?.length ?? 0) +
+    (view.design_reviews?.length ?? 0) +
+    (view.resolutions?.length ?? 0) +
+    (view.project_decisions?.length ?? 0) +
+    (view.project_decision_groups?.length ?? 0);
+  await expect(page.getByRole('heading', { level: 2, name: `Needs you · ${total}` })).toBeVisible();
   await expect(
     page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Overview/ }),
   ).toContainText(n!);
   await expect(page).toHaveTitle(`(${n}) Docket`);
+});
+
+test('DKT-19: owner badge, full ledger, and keyboard custody drilldown at narrow width', async ({
+  page,
+}) => {
+  await mockGet(page, '/api/bootstrap', bootstrap);
+  await mockGet(page, '/api/needs-you', needsYouSnapshot83());
+  await mockGet(page, '/api/workspaces', { rows: [] });
+  await page.route('**/api/overview?**', (route) =>
+    route.fulfill({
+      status: 501,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'unavailable', message: 'Fixture metrics' } }),
+    }),
+  );
+  await page.goto('/');
+  await expect(page).toHaveTitle('(17) Docket');
+  await expect(page.getByRole('heading', { level: 2, name: 'Needs you · 83' })).toBeVisible();
+  const announcement = page.locator('#needs-you [aria-live="polite"]');
+  await expect(announcement).toHaveClass(/\bsr\b/);
+  await expect(announcement).toHaveCSS('position', 'absolute');
+  await expect(stat(page, 'needs-you')).toContainText('17 to act on');
+  await expect(page.locator('[data-needs-you-total="83"]')).toContainText(
+    '17 yours to decide + 66 coordinators hold = 83 total',
+  );
+  const group = page.locator('[data-group="dispatch-resources"]');
+  await expect(group).not.toHaveAttribute('open', '');
+  const summary = group.locator(':scope > summary');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(group).toHaveAttribute('open', '');
+  await expect(group).toContainText('57 + 2 + 3 = 62');
+  const retained = group.locator('[data-group="dispatch-retained"]');
+  await retained.locator(':scope > summary').click();
+  await retained.locator('.ny-record > summary').first().click();
+  await expect(retained.locator('.ny-record').first()).toContainText('Retained dispatch');
+  await expect(retained.locator('.ny-record').first()).toContainText('Protected changes');
+  await expect(group.locator('summary button')).toHaveCount(0);
+  await expectAxeClean(page, 'DKT-19 grouped Needs you at 1440px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const footerFits = await page
+    .locator('.needs-you .onb-card .cardfoot')
+    .evaluate((footer) => footer.scrollWidth <= footer.clientWidth);
+  expect(footerFits).toBe(true);
+  await expectNoSidewaysScroll(page);
+  await expectAxeClean(page, 'DKT-19 grouped Needs you at 390px');
+  await page.setViewportSize({ width: 350, height: 844 });
+  await expectNoSidewaysScroll(page);
+  for (const selector of ['header.top .search', 'header.top .iconbtn']) {
+    const bounds = await page.locator(selector).evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, right: box.right, viewport: document.documentElement.clientWidth };
+    });
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
+  }
+});
+
+test('DKT-19: a reached agent problem stays out of the owner metric and held count', async ({
+  page,
+}) => {
+  const reached: NeedsYouResponse = {
+    ...emptyNeedsYou,
+    problems: [
+      {
+        kind: 'radar_conflict',
+        id: 'radar-example',
+        item_id: 'RCP-12',
+        title: 'Example branch conflict',
+        reason: 'An agent must inspect the branch',
+        related: [],
+        link_id: null,
+        run_id: null,
+        resource_ids: [],
+        explanation: {
+          what: 'The branch is out of date.',
+          fix: 'Inspect the branch.',
+          who: 'agent',
+          who_text: 'An agent',
+        },
+        reached_you: 'Nobody is working on RCP-12',
+      },
+    ],
+  };
+  await mockGet(page, '/api/bootstrap', bootstrap);
+  await mockGet(page, '/api/needs-you', reached);
+  await mockGet(page, '/api/workspaces', { rows: [] });
+  await page.goto('/');
+  await expect(page).toHaveTitle('Docket');
+  await expect(page.locator('[data-stat="needs-you"]')).toContainText(
+    '1 agent-owned problem reached you below',
+  );
+  await expect(page.locator('[data-stat="needs-you"]')).not.toContainText(
+    'coordinator hold tracked below',
+  );
+  await expect(page.locator('#needs-you [aria-live="polite"]')).toContainText(
+    '1 total, 0 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+  );
+  await expect(page.locator('[data-card="problems"] [data-problem="radar_conflict"]')).toHaveCount(
+    1,
+  );
+  await expect(page.locator('.ny-coordinator')).toHaveCount(0);
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Primary' })
+      .getByRole('link', { name: /^Overview/ })
+      .locator('.badge'),
+  ).toHaveCount(0);
 });
 
 test('STR: the numbers, the Queued and Blocked links, and the read API stays fast', async ({

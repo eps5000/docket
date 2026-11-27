@@ -99,6 +99,137 @@
   font-size: 14px;
   font-weight: 700;
 }
+.tl .ny-ledger {
+  font-size: 13px;
+}
+.tl .ny-ledger h3,
+.tl .ny-coordinator h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+}
+.tl .ny-ledger p,
+.tl .ny-coordinator > p {
+  margin: 3px 0;
+}
+.tl .ny-equation {
+  overflow-wrap: anywhere;
+}
+.tl .ny-problems {
+  display: grid;
+  gap: 10px;
+}
+.tl .ny-owner-problems {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.tl .ny-owner-problems > h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.tl .ny-owner-group,
+.tl .ny-coordinator {
+  min-width: 0;
+  padding: 10px 14px;
+}
+.tl .ny-owner-group {
+  border-left: 3px solid var(--warn);
+}
+.tl .ny-coordinator {
+  border-left: 3px dashed var(--brand);
+}
+.tl .ny-owner-group > summary,
+.tl .ny-warning-group > summary,
+.tl .ny-record > summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.tl .ny-owner-group > summary,
+.tl .ny-warning-group > summary {
+  font-weight: 650;
+  padding: 5px 0;
+}
+.tl .ny-warning-group {
+  border-top: 1px solid var(--line);
+  padding: 4px 0;
+}
+.tl .ny-warning-group .ny-warning-group {
+  margin-left: 12px;
+}
+.tl .ny-records {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.tl .ny-records > li {
+  border-top: 1px solid var(--line);
+}
+.tl .ny-record > summary {
+  padding: 8px 0;
+}
+.tl .ny-record > .src {
+  margin: 4px 0;
+}
+.tl .ny-record .prob-row {
+  margin: 3px 0 9px;
+}
+.tl .ny-record-title {
+  font-weight: 600;
+}
+.tl .ny-labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 7px;
+}
+.tl .ny-custody-label {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+@media (max-width: 700px) {
+  /* Keep the shell's search control flexible while this dense Overview is open.
+     Its intrinsic text width otherwise pushes the theme control offscreen. */
+  .tl:has(.overview) header.top .search {
+    min-width: 0;
+  }
+  .tl:has(.overview) header.top .search .grow {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tl .ov-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tl .needs-you .onb-card .cardfoot,
+  .tl .needs-you .onb-card .cardfoot > .row {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .tl .needs-you .onb-card .cardfoot > .src {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .tl .ny-labels {
+    display: flex;
+    margin: 5px 0 0;
+  }
+  .tl .ny-record .prob-row > div:last-child {
+    display: flex;
+    flex-direction: column;
+  }
+  .tl .ny-record .prob-head {
+    display: contents;
+  }
+  .tl .ny-record .prob-acts {
+    order: 2;
+    margin-top: 6px;
+  }
+}
 .tl .ov-nothing {
   margin: 0;
   font-size: 14px;
