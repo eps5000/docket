@@ -145,6 +145,28 @@ const asking: NeedsYouResponse = {
   ] as NeedsYouResponse['for_you_now'],
 };
 
+const agentProblem = (
+  id: string,
+  kind: 'radar_conflict' | 'dispatch_custody',
+  reached_you: string | null = null,
+): NeedsYouResponse['problems'][number] => ({
+  kind,
+  item_id: id,
+  title: `Agent problem ${id}`,
+  reason: 'Needs coordination',
+  related: [],
+  link_id: null,
+  run_id: null,
+  resource_ids: [],
+  explanation: {
+    what: 'An agent problem',
+    fix: 'Coordinator verifies',
+    who: 'agent',
+    who_text: 'Coordinator',
+  },
+  reached_you,
+});
+
 let requests: string[] = [];
 
 function show(
@@ -222,6 +244,52 @@ describe('the sections', () => {
           .getAttribute('href'),
       ).toBe('/items/RCP-8'),
     );
+  });
+
+  it('separates a reached agent problem from owner actions and coordinator holds', async () => {
+    show(empty(), {
+      ...quiet,
+      problems: [agentProblem('RCP-9', 'radar_conflict', 'Nobody is working on RCP-9')],
+    });
+    const needs = await section('needs-you');
+    await waitFor(() =>
+      expect(needs.textContent).toContain('1 agent-owned problem reached you in the Overview.'),
+    );
+    expect(within(needs).getByRole('heading', { name: 'What needs you · 0' })).toBeTruthy();
+    expect(needs.textContent).not.toMatch(/coordinator hold/);
+    expect(within(needs).getAllByRole('link', { name: 'Overview' })).toHaveLength(1);
+  });
+
+  it('counts reached agent problems and custody holds separately', async () => {
+    show(empty(), {
+      ...quiet,
+      problems: [
+        agentProblem('RCP-9', 'radar_conflict', 'Nobody is working on RCP-9'),
+        agentProblem('RCP-10', 'dispatch_custody'),
+      ],
+    });
+    const needs = await section('needs-you');
+    await waitFor(() =>
+      expect(needs.textContent).toContain('1 coordinator hold is tracked in the Overview.'),
+    );
+    expect(needs.textContent).toContain('1 agent-owned problem reached you in the Overview.');
+    expect(needs.textContent).not.toContain('2 coordinator holds');
+    expect(within(needs).getAllByRole('link', { name: 'Overview' })).toHaveLength(2);
+  });
+
+  it('uses plural wording for multiple coordinator holds', async () => {
+    show(empty(), {
+      ...quiet,
+      problems: [
+        agentProblem('RCP-10', 'dispatch_custody'),
+        agentProblem('RCP-11', 'dispatch_custody'),
+      ],
+    });
+    const needs = await section('needs-you');
+    await waitFor(() =>
+      expect(needs.textContent).toContain('2 coordinator holds are tracked in the Overview.'),
+    );
+    expect(needs.textContent).not.toContain('agent-owned problem reached you');
   });
 
   it('lists runs held by an owner decision separately and calmly', async () => {
