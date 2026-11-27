@@ -71,7 +71,7 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: CI planner and gates
-        run: node --test .github/ci/ci.test.mjs
+        run: node --test .github/ci/ci.test.mjs docker/smoke/smoke.test.mjs
 
       - name: Lint
         run: |

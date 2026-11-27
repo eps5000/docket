@@ -154,11 +154,17 @@ async function prepare(surfaceName) {
   const mcp = await connect();
   try {
     const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    // Create a shaped sample item so the current Ready gate can accept it.
     const created = await mcp.call('create_item', {
       project: 'RCP',
       type: 'Task',
       title: `Smoke test: ${s.name} · ${stamp}`,
       description_md: 'Disposable ticket for the O07 smoke test (docker/smoke). Safe to delete.',
+      outcome_md: `${s.name} can connect to Docket and complete the real-client smoke workflow.`,
+      acceptance: [
+        'The client claims this item, creates a two-step plan, completes the first step, and releases the lead.',
+      ],
+      shared: 'none',
     });
     if (!created.ok) fail(`create_item failed: ${created.text}`);
     const id = created.data.item?.id ?? created.data.id;
