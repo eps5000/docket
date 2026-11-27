@@ -116,7 +116,7 @@ describe('the Needs you count (owner decision 41)', () => {
   it('the badge, the tab title and the page agree; problems agents handle are not counted', async () => {
     bootProjects = [project];
     needsYou = view({
-      problems: [problem('p1', 'owner'), problem('p2', 'owner')],
+      problems: [problem('p1', 'owner'), problem('p2', 'owner'), problem('p4', 'agent')],
       agent_problems: [problem('p3', 'agent')],
     });
     renderAt('/');
@@ -125,6 +125,7 @@ describe('the Needs you count (owner decision 41)', () => {
     expect(
       document.querySelector('[data-needs-you-count]')?.getAttribute('data-needs-you-count'),
     ).toBe('2');
+    expect(screen.getByRole('heading', { level: 2, name: 'Needs you · 3' })).toBeTruthy();
   });
 
   it('shows no badge at 0, even with problems agents are handling', async () => {

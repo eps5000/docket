@@ -5,7 +5,7 @@
  * its list, the window is remembered safely, and agent problems stay on one line.
  */
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,11 +19,13 @@ import { createAppQueryClient } from '../../app/queryClient';
 import { appRoutes } from '../../app/router';
 import { ShellStateProvider } from '../../app/ShellState';
 import { STORAGE_KEYS } from '../../lib/persistence';
+import { queryKeys } from '../../lib/api';
 import { toasts } from '../../lib/undo';
 import { axisTicks, bucketTicketsText, completedSummary } from './CompletedChart';
 import { placeTip } from './useChartTip';
 import { AGENTS_NOTE, deltaText } from './OverviewStats';
 import { ownerActionParts, readOverviewWindow } from './overviewWindow';
+import { needsYouProblemGroups } from './NeedsYouGroups';
 import { workloadText } from './WorkloadCard';
 
 const json = (status: number, body: unknown) =>
@@ -305,6 +307,10 @@ const metrics = (over: Partial<OverviewResponse> = {}): OverviewResponse => ({
 
 let needs: NeedsYouResponse;
 let overview: OverviewResponse;
+let currentClient: ReturnType<typeof createAppQueryClient>;
+let needsError = false;
+let holdNeeds = false;
+let completeNeeds: ((response: Response) => void) | null = null;
 /** A different Needs you for one project, by scope key. */
 let byScope: Record<string, NeedsYouResponse> = {};
 const sent: { method: string; path: string }[] = [];
@@ -312,6 +318,9 @@ const asked: string[] = [];
 
 beforeEach(() => {
   needs = busy();
+  needsError = false;
+  holdNeeds = false;
+  completeNeeds = null;
   overview = metrics();
   byScope = {};
   sent.length = 0;
@@ -351,6 +360,12 @@ beforeEach(() => {
         });
       }
       if (route === '/api/needs-you') {
+        if (holdNeeds)
+          return new Promise<Response>((resolve) => {
+            completeNeeds = resolve;
+          });
+        if (needsError)
+          return json(501, { error: { code: 'unavailable', message: 'Needs you unavailable' } });
         const scope = new URL(path, 'http://docket.test').searchParams.get('scope') ?? 'all';
         return json(200, byScope[scope] ?? needs);
       }
@@ -373,8 +388,9 @@ afterEach(() => {
 
 function renderAt(path = '/') {
   const router = createMemoryRouter(appRoutes(), { initialEntries: [path] });
+  currentClient = createAppQueryClient();
   render(
-    <QueryClientProvider client={createAppQueryClient()}>
+    <QueryClientProvider client={currentClient}>
       <ShellStateProvider>
         <RouterProvider router={router} />
       </ShellStateProvider>
@@ -431,7 +447,7 @@ describe('every owner action still works from Overview', () => {
     ],
     [
       'problem: Acknowledge',
-      '[data-card="problems"]',
+      '[data-group="owner-problems"]',
       'Acknowledge',
       /\/api\/problems\/acknowledge$/,
     ],
@@ -480,6 +496,359 @@ describe('every owner action still works from Overview', () => {
 });
 
 describe('the badge', () => {
+  it('keeps the owner metric unknown until the whole response loads', async () => {
+    holdNeeds = true;
+    needs = quiet({ problems: [problem('owner-warning')] });
+    renderAt();
+    expect(stat('needs-you').textContent).toContain('…');
+    expect(nav().querySelector('.badge')).toBeNull();
+    await screen.findByRole('status', { name: 'Loading what needs you' });
+    await act(async () => {
+      holdNeeds = false;
+      completeNeeds?.(json(200, needs));
+    });
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    expect(within(stat('needs-you')).getByRole('link', { name: '1 to act on' })).toBeTruthy();
+  });
+  it('keeps coordinator-only holds visible with no owner badge', async () => {
+    needs = quiet({ problems: [{ ...problem('coord-only', 'agent'), kind: 'dispatch_custody' }] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    expect(nav().querySelector('.badge')).toBeNull();
+    expect(document.title).toBe('Docket');
+    expect(within(stat('needs-you')).getByText(/Nothing for you/)).toBeTruthy();
+    expect(screen.getByText(/Nothing for you to decide/)).toBeTruthy();
+    expect(document.querySelector('[data-group="dispatch-custody"]')).toBeTruthy();
+  });
+  it('keeps owner problem actions visible while mounting coordinator actions only on drilldown', async () => {
+    const user = userEvent.setup();
+    needs = quiet({
+      problems: [
+        problem('owner-warning'),
+        { ...problem('coordinator-warning', 'agent'), kind: 'dispatch_resources' },
+      ],
+    });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    const ownerCard = document.querySelector('[data-card="problems"]') as HTMLElement;
+    expect(within(ownerCard).getByRole('heading', { name: 'Problems · 1' })).toBeTruthy();
+    expect(within(ownerCard).getByRole('button', { name: 'Acknowledge' })).toBeTruthy();
+    const dispatch = document.querySelector('[data-group="dispatch-resources"]') as HTMLElement;
+    expect(dispatch.querySelector('[data-problem="dispatch_resources"]')).toBeNull();
+    await user.click(dispatch.querySelector(':scope > summary') as HTMLElement);
+    const subgroup = dispatch.querySelector('[data-group="dispatch-unknown"]') as HTMLElement;
+    await user.click(subgroup.querySelector(':scope > summary') as HTMLElement);
+    await user.click(subgroup.querySelector('.ny-record > summary') as HTMLElement);
+    await waitFor(() =>
+      expect(subgroup.querySelector('[data-problem="dispatch_resources"]')).toBeTruthy(),
+    );
+  });
+  it('shows an agent problem that reached you without adding it to owner actions', async () => {
+    needs = quiet({
+      problems: [
+        {
+          ...problem('radar-warning', 'agent'),
+          kind: 'radar_conflict',
+          reached_you: 'Nobody is working on RCP-9',
+        },
+      ],
+    });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    const card = document.querySelector('[data-card="problems"]') as HTMLElement;
+    expect(within(card).getByRole('heading', { name: 'Problems · 1' })).toBeTruthy();
+    expect(card.querySelector('[data-problem="radar_conflict"]')).toBeTruthy();
+    expect(within(card).getByRole('link', { name: 'Open the item' })).toBeTruthy();
+    expect(nav().querySelector('.badge')).toBeNull();
+    expect(document.title).toBe('Docket');
+    expect(screen.getByText('0 yours to decide')).toBeTruthy();
+    expect(screen.getByText('1 agent-owned problem reached you')).toBeTruthy();
+    expect(screen.getByText('0 coordinators hold')).toBeTruthy();
+    expect(card.querySelectorAll('[data-problem="radar_conflict"]')).toHaveLength(1);
+    expect(document.querySelector('.ny-coordinator')).toBeNull();
+    expect(document.querySelector('[data-needs-you-total="1"]')).toBeTruthy();
+    expect(
+      within(stat('needs-you'))
+        .getByRole('link', {
+          name: '1 agent-owned problem reached you below',
+        })
+        .getAttribute('href'),
+    ).toBe('/#problems');
+    expect(within(stat('needs-you')).queryByText(/coordinator hold tracked below/)).toBeNull();
+    expect(document.querySelector('#needs-you [aria-live="polite"]')?.textContent).toContain(
+      '1 total, 0 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+    );
+    expect(screen.getByText(/agent-owned problems that reached you are listed below/)).toBeTruthy();
+  });
+  it('partitions owner, reached-agent and coordinator rows exactly once', async () => {
+    needs = quiet({
+      problems: [
+        problem('owner-warning'),
+        {
+          ...problem('radar-warning', 'agent'),
+          kind: 'radar_conflict',
+          reached_you: 'Nobody is working on RCP-9',
+        },
+        { ...problem('custody-warning', 'agent'), kind: 'dispatch_custody' },
+      ],
+    });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 3' });
+    expect(nav().querySelector('.badge')?.textContent).toContain('1');
+    const card = document.querySelector('[data-card="problems"]') as HTMLElement;
+    expect(within(card).getByRole('heading', { name: 'Problems · 2' })).toBeTruthy();
+    expect(card.querySelectorAll('[data-problem]')).toHaveLength(2);
+    const coordinator = document.querySelector('.ny-coordinator') as HTMLElement;
+    expect(
+      within(coordinator).getByRole('heading', { name: 'Coordinators hold · 1' }),
+    ).toBeTruthy();
+    const custody = coordinator.querySelector(
+      '[data-group="dispatch-custody"]',
+    ) as HTMLDetailsElement;
+    expect(custody.open).toBe(false);
+    expect(coordinator.querySelector('[data-problem]')).toBeNull();
+    expect(document.querySelector('[data-needs-you-total="3"]')?.textContent).toContain(
+      '1 yours to decide + 1 agent-owned problem reached you + 1 coordinators hold = 3 total',
+    );
+  });
+  it('labels stale counts after a refresh error and keeps the last records reachable', async () => {
+    needs = quiet({ problems: [problem('owner-warning')] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    needsError = true;
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await screen.findByRole('alert');
+    expect(screen.getByText(/Showing the last loaded counts/)).toBeTruthy();
+    expect(document.querySelector('[data-needs-you-total="1"]')).toBeTruthy();
+    expect(document.querySelector('[data-group="owner-problems"]')).toBeTruthy();
+  });
+  it('returns keyboard focus to the Needs you heading after a successful explicit retry', async () => {
+    const user = userEvent.setup();
+    needs = quiet({ problems: [problem('owner-warning')] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    needsError = true;
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    retry.focus();
+    expect(document.activeElement).toBe(retry);
+    needsError = false;
+    await user.keyboard('{Enter}');
+    const heading = screen.getByRole('heading', { level: 2, name: 'Needs you · 1' });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+  it('does not move keyboard focus during an ordinary background refresh', async () => {
+    needs = quiet({ problems: [problem('owner-warning')] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    const navigation = nav();
+    navigation.focus();
+    expect(document.activeElement).toBe(navigation);
+    needs = quiet({ problems: [problem('owner-warning'), problem('second-warning')] });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    expect(document.activeElement).toBe(navigation);
+  });
+  it('announces a changed full count without raising the owner badge for a coordinator hold', async () => {
+    const owner = problem('owner-warning');
+    needs = quiet({ problems: [owner] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    needs = quiet({
+      problems: [owner, { ...problem('coordinator-warning', 'agent'), kind: 'wait_missing_wake' }],
+    });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    expect(document.title).toBe('(1) Docket');
+    const announcement = document.querySelector('#needs-you [aria-live="polite"]');
+    expect(announcement?.getAttribute('aria-atomic')).toBe('true');
+    expect(announcement?.getAttribute('role')).toBeNull();
+    expect(announcement?.classList.contains('sr')).toBe(true);
+    expect(announcement?.textContent).toContain('2 total, 1 yours, 1 coordinator hold');
+    expect(
+      screen.getByText('Since last update: 0 yours, +1 coordinator hold; +1 total.'),
+    ).toBeTruthy();
+  });
+  it('announces a new reached-agent row without changing the owner badge', async () => {
+    const owner = problem('owner-warning');
+    const reached = {
+      ...problem('radar-warning', 'agent'),
+      kind: 'radar_conflict' as const,
+      reached_you: 'Nobody is working on RCP-9',
+    };
+    needs = quiet({ problems: [owner] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    needs = quiet({ problems: [owner, reached] });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    expect(document.title).toBe('(1) Docket');
+    expect(
+      within(stat('needs-you')).getByText(/1 agent-owned problem reached you below/),
+    ).toBeTruthy();
+    expect(within(stat('needs-you')).queryByText(/coordinator hold tracked below/)).toBeNull();
+    expect(document.querySelector('#needs-you [aria-live="polite"]')?.textContent).toContain(
+      '2 total, 1 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+    );
+    expect(
+      screen.getByText(
+        'Since last update: 0 yours, agent-owned problems reaching you +1, 0 coordinator holds; +1 total.',
+      ),
+    ).toBeTruthy();
+  });
+  it('announces a reached-versus-held change when total and badge stay the same', async () => {
+    const agent = { ...problem('radar-warning', 'agent'), kind: 'radar_conflict' as const };
+    needs = quiet({ problems: [{ ...agent, reached_you: null }] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    expect(within(stat('needs-you')).getByText('1 coordinator hold tracked below')).toBeTruthy();
+    needs = quiet({ problems: [{ ...agent, reached_you: 'Nobody is working on RCP-9' }] });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await waitFor(() =>
+      expect(document.querySelector('#needs-you [aria-live="polite"]')?.textContent).toContain(
+        '1 total, 0 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+      ),
+    );
+    expect(document.title).toBe('Docket');
+    expect(nav().querySelector('.badge')).toBeNull();
+    expect(
+      within(stat('needs-you')).getByText(/1 agent-owned problem reached you below/),
+    ).toBeTruthy();
+    expect(within(stat('needs-you')).queryByText(/coordinator hold tracked below/)).toBeNull();
+    expect(
+      screen.getByText(
+        'Since last update: 0 yours, agent-owned problems reaching you +1, -1 coordinator hold; 0 total.',
+      ),
+    ).toBeTruthy();
+    expect(document.querySelector('.ny-coordinator')).toBeNull();
+    expect(document.querySelectorAll('[data-problem="radar_conflict"]')).toHaveLength(1);
+  });
+  it('reconciles 83 total, 17 owner actions, and dispatch groups 57 + 2 + 3', async () => {
+    const source = busy();
+    const row = (
+      kind: Problem['kind'],
+      id: string,
+      who: 'owner' | 'agent',
+      reason: string,
+    ): Problem => ({
+      ...problem(id, who),
+      kind,
+      reason,
+    });
+    needs = quiet({
+      for_you_now: source.for_you_now.filter((r) => r.kind === 'question'),
+      onboarding_reviews: source.onboarding_reviews,
+      problems: [
+        ...Array.from({ length: 14 }, (_, i) =>
+          row('agent_files_drift', `drift-${i}`, 'owner', 'Agent file changed'),
+        ),
+        row('orphaned_resources', 'held', 'owner', 'Retained resource'),
+        ...Array.from({ length: 57 }, (_, i) =>
+          row('dispatch_resources', `dispatch-${i}`, 'agent', 'worktree status unknown'),
+        ),
+        ...Array.from({ length: 2 }, (_, i) =>
+          row(
+            'dispatch_resources',
+            `protected-${i}`,
+            'agent',
+            'worktree status unknown · changes protected',
+          ),
+        ),
+        ...Array.from({ length: 3 }, (_, i) =>
+          row(
+            'dispatch_resources',
+            `retained-${i}`,
+            'agent',
+            'agent retained by request · changes protected',
+          ),
+        ),
+        ...Array.from({ length: 2 }, (_, i) =>
+          row('dispatch_custody', `custody-${i}`, 'agent', 'dispatch custody unknown'),
+        ),
+        ...Array.from({ length: 2 }, (_, i) =>
+          row('wait_missing_wake', `wake-${i}`, 'agent', 'wake route missing'),
+        ),
+      ],
+    });
+    const groups = needsYouProblemGroups(needs);
+    const parts = ownerActionParts(needs);
+    expect(parts.reviews + parts.questions + parts.decisions + parts.problems).toBe(17);
+    expect(groups.dispatchParts.unknown).toHaveLength(57);
+    expect(groups.dispatchParts.protected).toHaveLength(2);
+    expect(groups.dispatchParts.retained).toHaveLength(3);
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 83' });
+    await waitFor(() => expect(nav().querySelector('.badge')?.textContent).toContain('17'));
+    expect(document.title).toBe('(17) Docket');
+    expect(
+      document.querySelector('[data-needs-you-total]')?.getAttribute('data-needs-you-total'),
+    ).toBe('83');
+    const dispatchGroup = document.querySelector(
+      '[data-group="dispatch-resources"]',
+    ) as HTMLDetailsElement;
+    expect(dispatchGroup.open).toBe(false);
+    const user = userEvent.setup();
+    await user.click(dispatchGroup.querySelector(':scope > summary') as HTMLElement);
+    expect(dispatchGroup.open).toBe(true);
+    expect(dispatchGroup.textContent).toContain('57 + 2 + 3 = 62');
+    const retained = dispatchGroup.querySelector(
+      '[data-group="dispatch-retained"]',
+    ) as HTMLDetailsElement;
+    await user.click(retained.querySelector(':scope > summary') as HTMLElement);
+    await user.click(retained.querySelector('.ny-record > summary') as HTMLElement);
+    expect(retained.textContent).toContain('Retained dispatch');
+    expect(retained.textContent).toContain('Protected changes');
+    expect(dispatchGroup.querySelector('summary button')).toBeNull();
+  });
+  it('keeps artifact-only and active-only dispatch reasons in unknown custody', async () => {
+    const make = (id: string, reason: string): Problem => ({
+      ...problem(id, 'agent'),
+      kind: 'dispatch_resources',
+      reason,
+      title: id,
+      explanation: { ...explanation, who: 'agent', who_text: 'Coordinator', what: reason },
+    });
+    needs = quiet({
+      problems: [
+        make('artifact-only', 'RCP-12 ended in Docket · private artifacts retained'),
+        make('active-only', 'RCP-12 ended in Docket · Orca dispatch still active'),
+        make('requested', 'RCP-12 ended in Docket · agent retained by request'),
+      ],
+    });
+    const groups = needsYouProblemGroups(needs);
+    expect(groups.dispatchParts.unknown.map((p) => p.id)).toEqual(['artifact-only', 'active-only']);
+    expect(groups.dispatchParts.protected).toHaveLength(0);
+    expect(groups.dispatchParts.retained.map((p) => p.id)).toEqual(['requested']);
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 3' });
+    const user = userEvent.setup();
+    const dispatch = document.querySelector(
+      '[data-group="dispatch-resources"]',
+    ) as HTMLDetailsElement;
+    await user.click(dispatch.querySelector(':scope > summary') as HTMLElement);
+    const unknown = dispatch.querySelector('[data-group="dispatch-unknown"]') as HTMLDetailsElement;
+    await user.click(unknown.querySelector(':scope > summary') as HTMLElement);
+    expect(unknown.textContent).toContain('artifact-only');
+    expect(unknown.textContent).toContain('active-only');
+    expect(unknown.textContent).toContain('Unknown custody');
+    await user.click(unknown.querySelectorAll('.ny-record > summary')[0] as HTMLElement);
+    await user.click(unknown.querySelectorAll('.ny-record > summary')[1] as HTMLElement);
+    expect(unknown.textContent).toContain('private artifacts retained');
+    expect(unknown.textContent).toContain('Orca dispatch still active');
+  });
   it('equals the owner actions shown, and the parts add up to it', async () => {
     renderAt();
     await section();

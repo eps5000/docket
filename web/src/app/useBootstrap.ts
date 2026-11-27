@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { needsYouCount } from '@docket/shared';
+import { ownerNeedsYouCount } from '@docket/shared';
 import { queryKeys } from '../lib/api';
 import { apiClient } from './queryClient';
 import { useShell } from './ShellState';
@@ -38,7 +38,7 @@ function useNeedsYouView() {
  */
 export function useNeedsYouCount(): number | undefined {
   const { data } = useNeedsYouView();
-  return data ? needsYouCount(data) : undefined;
+  return data ? ownerNeedsYouCount(data) : undefined;
 }
 
 /**

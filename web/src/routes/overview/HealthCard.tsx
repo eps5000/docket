@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import type { NeedsYouResponse, WorkspaceRow } from '@docket/shared';
+import { needsYouProblemActor, type NeedsYouResponse, type WorkspaceRow } from '@docket/shared';
 import { Card, CardHeader } from '../../components/kit';
 import { formatAgo, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
@@ -62,7 +62,7 @@ export function HealthCard({
   const atRisk = atRiskSummary(workspaces);
   const agentProblems = data.agent_problems ?? NO_PROBLEMS;
   const acknowledged = data.acknowledged ?? NO_PROBLEMS;
-  const mine = data.problems.length;
+  const mine = data.problems.filter((p) => needsYouProblemActor(p) === 'owner').length;
   return (
     <Card data-card="health" className="ov-health">
       <CardHeader title="Health" />

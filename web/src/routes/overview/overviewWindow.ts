@@ -4,6 +4,7 @@ import {
   OVERVIEW_WINDOWS,
   type NeedsYouResponse,
   type OverviewWindow,
+  needsYouProblemActor,
 } from '@docket/shared';
 import { readString, STORAGE_KEYS, writeString } from '../../lib/persistence';
 
@@ -40,7 +41,7 @@ export function useOverviewWindow(): [OverviewWindow, (w: OverviewWindow) => voi
 
 /**
  * The owner's actions by kind, for the Needs you card. The parts always add up
- * to `needsYouCount`, the badge's number (`overview.test.tsx` holds them to it).
+ * to `ownerNeedsYouCount`, the badge's number (`overview.test.tsx` holds them to it).
  */
 export function ownerActionParts(v: NeedsYouResponse) {
   const packets = v.for_you_now.filter((r) => r.kind === 'packet').length;
@@ -54,6 +55,6 @@ export function ownerActionParts(v: NeedsYouResponse) {
       (v.resolutions?.length ?? 0) +
       (v.project_decisions?.length ?? 0) +
       (v.project_decision_groups?.length ?? 0),
-    problems: v.problems.length,
+    problems: v.problems.filter((p) => needsYouProblemActor(p) === 'owner').length,
   };
 }

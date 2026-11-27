@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router';
 import {
   inferredTypesText,
   isCalendarDay,
-  needsYouCount,
+  ownerNeedsYouCount,
   STATUS_LABELS,
   type BriefResponse,
   type ItemType,
@@ -19,6 +19,7 @@ import { HelpLink } from '../../help/HelpLink';
 import { queryKeys } from '../../lib/api';
 import { formatAge, formatClock, formatStamp, isoTitle, plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
+import { needsYouProblemGroups } from '../overview/NeedsYouGroups';
 import { CostLine, TokenKinds } from '../usage/UsageParts';
 import { allTokens, formatTokens } from '../usage/usageText';
 import {
@@ -239,7 +240,10 @@ const NEEDS_ROWS = 8;
 
 function NeedsYou({ view, past }: { view: NeedsYouResponse; past: boolean }) {
   const lines: BriefLine[] = needsYouLines(view);
-  const count = needsYouCount(view);
+  const count = ownerNeedsYouCount(view);
+  const groups = needsYouProblemGroups(view);
+  const heldCount = groups.heldCount;
+  const reachedCount = groups.reached.length;
   return (
     <Section
       id="needs-you"
@@ -260,6 +264,18 @@ function NeedsYou({ view, past }: { view: NeedsYouResponse; past: boolean }) {
         shown={Math.min(count, NEEDS_ROWS)}
         to={`${paths.overview()}#needs-you`}
       />
+      {reachedCount > 0 && (
+        <p className="brief-none">
+          {plural(reachedCount, 'agent-owned problem')} reached you in the{' '}
+          <Link to={`${paths.overview()}#needs-you`}>Overview</Link>.
+        </p>
+      )}
+      {heldCount > 0 && (
+        <p className="brief-none">
+          {plural(heldCount, 'coordinator hold')} {heldCount === 1 ? 'is' : 'are'} tracked in the{' '}
+          <Link to={`${paths.overview()}#needs-you`}>Overview</Link>.
+        </p>
+      )}
     </Section>
   );
 }

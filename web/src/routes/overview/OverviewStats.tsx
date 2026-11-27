@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
-  needsYouCount,
+  ownerNeedsYouCount,
   type NeedsYouResponse,
   type OverviewResponse,
   type OverviewWindow,
@@ -10,6 +10,7 @@ import { HelpLink } from '../../help/HelpLink';
 import { plural } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { ownerActionParts, WINDOW_WORDS } from './overviewWindow';
+import { needsYouProblemGroups } from './NeedsYouGroups';
 
 /** "+6 vs the previous 7 days": the sign and the words carry it, never colour. */
 export function deltaText(count: number, prior: number, window: OverviewWindow): string {
@@ -66,7 +67,10 @@ export function OverviewStats({
   window: OverviewWindow;
 }) {
   const parts = needs ? ownerActionParts(needs) : null;
-  const count = needs ? needsYouCount(needs) : 0;
+  const count = needs ? ownerNeedsYouCount(needs) : 0;
+  const groups = needs ? needsYouProblemGroups(needs) : null;
+  const coordinatorCount = groups?.heldCount ?? 0;
+  const reachedCount = groups?.reached.length ?? 0;
   // The sidebar's Agents badge is `working`, from this same response (decision 43).
   const agents = needs?.agents_now ?? { working: 0, waiting: 0 };
   const actionLines = parts
@@ -144,7 +148,7 @@ export function OverviewStats({
             <span className="ov-num">{WAITING}</span>
           ) : count === 0 ? (
             <span className="ov-num ov-clear">
-              <span aria-hidden="true">✓ </span>Nothing
+              <span aria-hidden="true">✓ </span>Nothing for you
             </span>
           ) : (
             <>
@@ -162,6 +166,16 @@ export function OverviewStats({
                 ))}
               </span>
             </>
+          )}
+          {needs && reachedCount > 0 && (
+            <Link className="ov-sub" to="#problems">
+              {plural(reachedCount, 'agent-owned problem')} reached you below
+            </Link>
+          )}
+          {needs && coordinatorCount > 0 && (
+            <span className="ov-sub">
+              {plural(coordinatorCount, 'coordinator hold')} tracked below
+            </span>
           )}
         </Stat>
       </div>
