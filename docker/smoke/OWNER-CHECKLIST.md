@@ -1,160 +1,96 @@
-# Owner checklist: real clients, PDF preview and NVDA (about 20 minutes)
+# Owner checklist: real clients, PDF preview, and NVDA
 
-The checks that need you at the keyboard: your installed clients, your Orca workers, Chrome's
-PDF viewer and a screen reader. B18 ran everything that could run unattended; its results are in
-the first table, so you only do the rest. Tick each box, fill in the **Your result** column, and
-then hand this file to an agent (or edit it yourself) to record the results (step 8).
+The owner remains responsible for the onboarding and Settings acceptance pass. Record a
+result for each observed surface and each interactive question; leave everything else
+**Not verified**. The three DKT-10 pilot receipts below are bounded runtime evidence, not
+a complete four-surface or owner verdict.
 
-All of this runs on a **disposable** instance with the sample data (its own container and volume).
-Your real Docket and its data are never touched, and nothing here changes your client
-configuration except the steps that say so (the README's own setup, which you'd do anyway).
+| Surface               | Bounded pilot observation                                                                               | Owner result |
+| --------------------- | ------------------------------------------------------------------------------------------------------- | ------------ |
+| Installed Codex CLI   | RCP-32: connection, claim, plan, step, six-PASS check, release                                          |              |
+| Installed Claude Code | RCP-33: same receipts on another disposable item; default `.claude.json` changed and needs owner review |              |
+| Orca Codex worker     | RCP-32 on another instance: same receipts through its worker's direct MCP SDK route                     |              |
+| Orca Claude worker    | Not verified; separate supervised Claude Dispatch and startup isolation gate remain                     |              |
 
-## What B18 already verified (no action)
+DKT-10 holds the installed-client phase-one document and later Orca Codex worker evidence.
+Repeated RCP-32 identifies different disposable instances.
 
-| Check                                                     | How                                                                                                                                                    | Result                                                                                                                                                                                                                       |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code connects and works the smoke ticket           | Installed Claude Code 2.1.318, **headless** (`claude -p`), with a temporary `--mcp-config` file (`--strict-mcp-config`), against a disposable instance | `smoke.mjs check claude`: all 6 PASS (open lead run, client `claude`, label `smoke-claude`, two-step plan, first step done, run `live`)                                                                                      |
-| V3, part: `${DOCKET_TOKEN}` expansion                     | The same temporary config used `"Authorization": "Bearer ${DOCKET_TOKEN}"`; Claude Code expanded it from the environment                               | Works in an `--mcp-config` file (the `.mcp.json` format). User-scope expansion is still yours to check (step 2)                                                                                                              |
-| V6 for Claude Code: what reaches the model                | The eval transcripts (stream-json)                                                                                                                     | **Claude Code gives the model `structuredContent` as JSON, not the text block.** About 3.5× the tokens of the compact text on typical reads (a 25-item search: 2,045 vs 325). Recorded in BUILD_SPEC §12; a decision for you |
-| V7 for Claude Code, project path                          | The skills eval put the skills in the run folder's `.claude/skills/`                                                                                   | Claude Code loaded and invoked `docket-worker` and `docket-coordinator` headless                                                                                                                                             |
-| V5: SQLite WAL on a Docker Desktop named volume (Windows) | A write loop against a disposable container                                                                                                            | Every write tool p50 ≈ 1 ms, p95 ≤ 5 ms in the container's call log                                                                                                                                                          |
-| PDF preview                                               | Not possible headless                                                                                                                                  | **Yours: step 6**                                                                                                                                                                                                            |
-| NVDA                                                      | Not possible headless                                                                                                                                  | **Yours: step 7**                                                                                                                                                                                                            |
+## 0. Prove the disposable boundary
 
-## 0. Start the disposable instance (2 min)
+- [ ] Read live and dev container IDs, published addresses, mounts, volume names, and health.
+      The live `127.0.0.1:7420` and dev `127.0.0.1:7421` instances are outside this pilot.
+- [ ] Use [README.md](README.md#safe-disposable-route) to create a uniquely named container
+      and named volume with no host-code bind, publishing **only** `127.0.0.2:7421:7420`.
+      Stop if the exact bind or readback fails. Do not use the checked-in compose file or an
+      older checklist unchanged.
+- [ ] Record exact disposable container/image/volume identity, mount, bind, and health.
+      Set `DOCKET_URL=http://127.0.0.2:7421` in the task process and run
+      `node docker/smoke/smoke.mjs preflight`. Confirm that MCP readback is from that
+      disposable instance before any `prepare`, `check`, or `pdf` write.
+- [ ] Record only hashes and presence for default user Codex config/auth, default Claude
+      config/auth including `.claude.json`, and relevant project MCP files. Do not copy,
+      print, edit, or restore those files. If a default hash changes, stop and preserve
+      evidence for owner recovery rather than overwriting concurrent state.
 
-From the repository root. Docket runs in local trust (decision 32), so no token or unlock is
-needed; to check protected mode instead, set `DOCKET_PROTECTED_MODE=on` and `DOCKET_TOKEN` in
-that terminal first (README, "Protected mode"):
+## 1. Installed Codex CLI
 
-```bash
-cd docker
-docker compose stop docket        # your real instance, if it runs; its data stays put
-docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml up -d --build --wait
-cd ..
-node docker/smoke/smoke.mjs preflight
-docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key
-```
+- [ ] Follow [codex.md](codex.md) with task-only startup and already available isolated
+      auth. Stop if isolated auth or the invocation-scoped route cannot be proved.
+- [ ] Record the new item ID, client identity, Docket run ID, six smoke PASS/FAIL lines,
+      and the claim, plan, first step, readback, and release receipts.
+- [ ] **V1:** Observe an interactive open session across the idle window; record live or
+      reported. **V6:** Observe the result part the model actually receives. **V7:** Observe
+      skill loading from a task-only location. Otherwise each is **Not verified**.
 
-- [ ] Preflight passed. Open <http://127.0.0.1:7420> in **Chrome**: it opens with no unlock
-      (in protected mode, unlock with the key the last command printed).
+## 2. Installed Claude Code
 
-## 0. Connecting by the project files (3 min): decision 32, SC-019
+- [ ] Follow [claude-code.md](claude-code.md). `CLAUDE_CONFIG_DIR` plus strict task-only
+      MCP is a candidate that needs invocation-scoped startup proof and isolated auth.
+- [ ] Record the same item, identity, run, six checks, and tool receipts as step 1.
+- [ ] **V1:** Observe an interactive idle window. **V3:** Observe the relevant expansion
+      behavior without exposing a token. **V6:** Observe what reaches the model. **V7:**
+      Observe skill loading from the isolated task location. Otherwise **Not verified**.
+- [ ] Compare the default `.claude.json` hash. If changed, stop for owner recovery; do not
+      restore a backup over it. The earlier pilot's config change is a separate owner-review
+      concern, even though the disposable-ticket receipts passed.
 
-In a scratch git repo, Agent files → pick Recipe App → _Install into Recipe App's repo_ →
-Claude Code, then Codex (run each command in the repo).
+## 3. Orca Codex worker
 
-| Check                                                                                                                                                                                     | Your result |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| [ ] The repo now has `.mcp.json` and `.codex/config.toml`, each with only a `docket` entry added (any other servers you put there first are unchanged), and no token in either            |             |
-| [ ] `claude` in the repo asks once to use the `docket` server from `.mcp.json`; after you approve it, "call whoami on docket" answers "Connected as claude"                               |             |
-| [ ] `codex` in the repo asks once to trust the folder; after you trust it, "call whoami on docket" answers "Connected as codex"                                                           |             |
-| [ ] Settings → Connections → Security says "Local trust", with no _Reveal token_, _Lock this browser_ or _Rotate owner key_                                                               |             |
-| [ ] `curl -X POST -H 'content-type: application/json' -d '{"text":"from curl"}' http://127.0.0.1:7420/api/items/RCP-14/notes` works, and RCP-14 → Activity shows "owner (script: curl/…)" |             |
+- [ ] Follow [orca-codex.md](orca-codex.md) with a supervised Dispatch and explicit
+      worker-process MCP SDK route or proved task-only Codex startup. Do not count an
+      inherited host config as a connection receipt.
+- [ ] Record the item, worker/Dispatch identity, run, six checks, and actual tool receipts.
+      Observe interactive V1–V3/V6/V7 only if tested; otherwise **Not verified**.
 
-## 1. Installed Codex CLI (4 min): V1, V6, V7
+## 4. Orca Claude worker
 
-Follow [codex.md](codex.md): the TOML block from the README, then `prepare codex`, paste the
-prompt into `codex`, and `check codex <ID>`.
+- [ ] Ask the DKT-1 producer for a **separate supervised Claude Dispatch** only after an
+      invocation-scoped startup route is proved. A standard Orca worker launch has no
+      per-worker environment flag and does not isolate Claude automatically.
+- [ ] Follow [orca-claude.md](orca-claude.md). Stop if isolated auth is absent, routing is
+      uncertain, or default `.claude.json` changes.
+- [ ] Record the item, worker/Dispatch identity, run, six checks, and actual tool receipts.
+      This surface and its V1–V3/V6/V7 observations remain **Not verified** until then.
 
-| Check                                                                                                                                                                                           | Your result |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| [ ] `check codex` lines all PASS                                                                                                                                                                |             |
-| [ ] **V1:** in Agents, the run state is _live_. Leave Codex idle for 3 minutes (the live window is 2), then reload: still _live_ (it keeps its session open and answers pings) or _reported_?   |             |
-| [ ] **V6:** ask Codex "Paste exactly what the last tool result gave you." Does it show the plain text (lines like `RCP-31 · Ready · …`) or JSON (`{"item":…}`)?                                 |             |
-| [ ] **V7:** copy `skills/docket-worker` to `~/.codex/skills/`, start a new `codex`, and ask "Which skills do you have?" Is `docket-worker` listed? (Remove it afterwards if you don't want it.) |             |
+## 5. Owner UI and accessibility review
 
-## 2. Installed Claude Code, interactive (4 min): V1, V3
+- [ ] On the **disposable** instance, read Agents for the four runs and their client/label,
+      and Settings → Connections for last-seen state. Do not mark a compatibility entry
+      verified from a client config file or a partial pilot receipt.
+- [ ] With the disposable URL still proved, use `node docker/smoke/smoke.mjs pdf`. In
+      Chrome, open RCP-14 → Details → Documents → **pdf-preview-check.pdf**; verify its
+      one-page preview and Download.
+- [ ] With NVDA in Chrome, open RCP-12 from Needs you. Check its card, packet heading,
+      decision controls, required note announcement, and disabled submit state. Navigate
+      away without submitting. Record anything NVDA missed or read incorrectly.
+- [ ] Complete the separate owner onboarding review. Any compatibility matrix,
+      BUILD_SPEC §12, or T146 source change needs pinned scope, independent review,
+      focused tests, PR/CI/queue/main gates, and explicit owner acceptance.
 
-Follow [claude-code.md](claude-code.md) with the README's **user-scope** `claude mcp add`
-("A user-wide connection instead"), or from the repo of step 0, where `.mcp.json` connects it.
+## 6. Close the disposable attempt
 
-| Check                                                                                                                                                                                                                                      | Your result |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| [ ] `check claude` lines all PASS                                                                                                                                                                                                          |             |
-| [ ] **V1:** as for Codex: idle 3 minutes in the open session, then reload Agents: _live_ or _reported_? (B18's headless run was _live_ only while it ran; an interactive session is what decides V1)                                       |             |
-| [ ] **V3:** after `claude mcp add --scope user …`, does `~/.claude.json` hold the expanded token or `${DOCKET_TOKEN}`? (Look, don't paste it anywhere.) The README tells you to re-run the command if you rotate the token; is that right? |             |
-
-## 3. Orca worker running Claude (3 min): V2, V7
-
-Follow [orca-claude.md](orca-claude.md): start a worker from the same user account, give it the
-`prepare orca-claude` prompt, then `check orca-claude <ID>`.
-
-| Check                                                                                                                          | Your result |
-| ------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| [ ] `check orca-claude` lines all PASS                                                                                         |             |
-| [ ] **V2:** it connected with no extra setup (it inherited your user MCP config and `DOCKET_TOKEN`)? If not, what did it need? |             |
-| [ ] **V7:** with the skills in `~/.claude/skills/`, does the worker list `docket-worker`?                                      |             |
-
-## 4. Orca worker running Codex (3 min)
-
-Follow [orca-codex.md](orca-codex.md) the same way.
-
-| Check                                                            | Your result |
-| ---------------------------------------------------------------- | ----------- |
-| [ ] `check orca-codex` lines all PASS                            |             |
-| [ ] It inherited the user config and token (as discovery found)? |             |
-
-## 5. The UI for the four runs (1 min)
-
-- [ ] **Agents** shows each run with its client and label (`codex · smoke-codex`, `claude · smoke-claude`, `codex · orca-smoke-codex`, `claude · orca-smoke-claude`).
-- [ ] **Settings → Connections** shows each surface as last seen just now (the matrix still says _Not verified_ until step 8 records it).
-
-## 6. PDF preview in Chrome (1 min)
-
-```bash
-node docker/smoke/smoke.mjs pdf
-```
-
-- [ ] Open RCP-14 → Details → Documents → **pdf-preview-check.pdf**. The viewer shows one page
-      reading "Docket PDF preview check" inside the dialog (Chrome's PDF viewer, sandboxed).
-- [ ] **Download** saves the file.
-
-## 7. NVDA spot check of the packet flow (4 min)
-
-With NVDA running in Chrome:
-
-- [ ] On **Needs you**, Tab to _Open packet_ on RCP-12. NVDA reads the card (title, round, "to verify").
-- [ ] On the packet, NVDA reads the queue items, the heading "Your decision · round 2", and each
-      decision control together with the item it decides (approve, needs changes, defer).
-- [ ] Choose **Needs changes** on item 1: the note field is announced as required. Type a note.
-- [ ] The submit button is announced as disabled until every item is decided, and its name says the outcome.
-- [ ] Press Escape or go back; nothing is submitted. (No need to submit.)
-- [ ] Anything NVDA read wrongly, or not at all: write it down.
-
-## 7b. The UI sweep, after an update or import (3 min, unattended)
-
-The sweep (B35) is read-only, so unlike the steps above it can run against **your real
-Docket** as well as the disposable one: it only loads pages and opens and closes dialogs, and
-blocks any request that would write. Run it after each update, and after importing a project.
-
-```bash
-pnpm sweep                                    # your Docket at http://127.0.0.1:7420
-pnpm sweep -- --base http://127.0.0.1:7421    # another instance
-pnpm sweep -- --items 10 --json sweep.json    # more sample items; keep the results
-```
-
-- [ ] The last line says `0 failed`, and the command exited 0.
-- [ ] Anything failed: copy its `FAIL` block (the screen, the view, and what spilled, which axe
-      rule, or the console error) into a note for an agent. Nothing in the sweep changes data, so
-      it is safe to run again after a fix.
-- [ ] Note the slowest load time it reports. Owner views should appear in under a second
-      (SC-013); a few seconds on a 300-item board is worth reporting.
-
-## 8. Record the results
-
-Hand this file, filled in, to an agent with "record the B18 owner checklist results", or edit:
-
-- `server/src/domain/compat.ts`: for each surface whose `check` all passed, set
-  `verified: { on: '<day>', notes: '<what passed; live or reported>' }`. Leave the others `null`
-  with a note saying why. Settings shows "✓ Verified" only from this file.
-- `docs/BUILD_SPEC.md` §12: the V1, V2, V3, V6 and V7 rows' results.
-- `specs/001-task-lite-v1/tasks.md`: tick T146.
-
-## 9. Clean up
-
-```bash
-cd docker
-docker compose -p docket-smoke -f compose.yaml -f smoke/compose.smoke.yaml down --volumes
-docker compose start docket        # your real instance
-```
+- [ ] Compare both existing containers' IDs, mounts, published addresses, and health with
+      pre-state. Compare default user/project config/auth hashes and presence with pre-state.
+- [ ] Release **only** the exact disposable container and volume created and verified for
+      this attempt, container first. Stop if ownership or identity is uncertain. Leave live
+      Docket and the dev instance running.

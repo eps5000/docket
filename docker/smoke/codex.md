@@ -1,34 +1,36 @@
-# Smoke checklist: Installed Codex CLI
+# Smoke checklist: installed Codex CLI
 
-Follow [README.md](README.md) "Before you start" first. Commands run from the repository root.
+Follow the [safe disposable route](README.md#safe-disposable-route) first. Run from the
+repository root only after `DOCKET_URL=http://127.0.0.2:7421` and the exact disposable
+instance have passed identity, health, and MCP readback checks.
 
-## Set up
+## Invocation-scoped setup
 
-1. [ ] Connected one of two ways (decision 32: local trust needs no token): from a trusted repo where
-       Agent files → _Install_ wrote `.codex/config.toml`, or with `~/.codex/config.toml`
-       (Windows: `%USERPROFILE%\.codex\config.toml`) holding:
-   ```toml
-   [mcp_servers.docket]
-   url = "http://127.0.0.1:7420/mcp"
-   ```
-2. [ ] Protected mode only: the table also has `bearer_token_env_var = "DOCKET_TOKEN"`, and
-       `DOCKET_TOKEN` is set in the terminal you start Codex from (Windows: `setx`, then a new terminal).
-3. [ ] Start `codex` in any folder. `/mcp` lists `docket` with its tools.
+1. [ ] Record presence and SHA-256 hashes, without contents or copies, of the default
+       `~/.codex/config.toml`, `~/.codex/auth.json`, and any project `.codex/config.toml`.
+2. [ ] Use a task-only `CODEX_HOME` with its own already authorized auth. **Stop if isolated
+       auth is absent.** Do not copy default auth or config into it and do not install an MCP
+       entry in user or project config.
+3. [ ] Start Codex from that task process with an invocation-only `mcp_servers.docket.url`
+       override set to `http://127.0.0.2:7421/mcp`. Verify `/mcp` and an actual `whoami`
+       call reach the disposable instance before counting a connection. Stop if routing is
+       uncertain.
 
-## Run
+## Run and record
 
-1. [ ] `node docker/smoke/smoke.mjs prepare codex`, which prints a ticket ID and a prompt.
-2. [ ] Paste the prompt into the client. It should call `whoami`, `claim_lead`, `set_plan`,
-       `update_step` and `get_item`, and report the plan with the first step done.
-3. [ ] `node docker/smoke/smoke.mjs check codex <ID>`: every line says PASS.
-4. [ ] In the browser (unlock with `docker compose -p docket-smoke -f docker/compose.yaml -f docker/smoke/compose.smoke.yaml exec docket docket owner-key`):
-   - [ ] **Agents** shows the client name and label on the ticket, with its run state.
-   - [ ] **Settings → Connections** shows this surface last seen just now.
-5. [ ] Tell the client to call `release_lead` on the ticket.
+1. [ ] Run `node docker/smoke/smoke.mjs prepare codex` in the task process and retain its
+       new item ID and prompt.
+2. [ ] Give the prompt to that isolated Codex invocation. Capture `whoami`, `claim_lead`, a
+       two-step plan, first step done, `get_item`, and `release_lead` receipts with client
+       identity and run ID.
+3. [ ] Run `node docker/smoke/smoke.mjs check codex <item-id>` against the same disposable
+       URL; record each PASS/FAIL line. Read Agents and Settings only if the owner performs
+       those checks on the disposable instance.
+4. [ ] Compare the default config/auth and project-file hashes/presence with step 1. **Stop**
+       if any default config/auth hash changed; preserve both states for owner review rather
+       than overwriting them.
 
-## Record
-
-- [ ] PASS or FAIL for each `check` line, and the run state you saw (live or reported).
-- [ ] Anything you had to change from the README to make it connect.
-- [x] V6: measured in B48 on Codex 0.171.0: it shows the model `structuredContent` when there is one, so Docket sends it text-only results.
-- [ ] V7: does Codex load skills from `~/.codex/skills/`?
+The DKT-10 pilot observed the six connection/claim/plan/step/check/release receipts for an
+installed Codex CLI on a separate disposable instance. That receipt does not settle
+interactive V1, V6, V7, Settings verification, or owner acceptance; write **Not verified**
+until directly checked.
