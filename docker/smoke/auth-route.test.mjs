@@ -133,6 +133,7 @@ test('disposable resource assessment accepts only exact sole-use sample identity
     containerName: 'dkt34-pilot',
     volume: 'dkt34-pilot-data',
     mounts: ['dkt34-pilot-data'],
+    mountTarget: '/data',
   };
   const live = {
     id: 'b'.repeat(64),
@@ -168,20 +169,43 @@ test('disposable resource assessment accepts only exact sole-use sample identity
     () => assessDisposable({ pilot: { ...pilot, mounts: [] }, live, dev, volumeUsers: [pilot.id] }),
     /STOP_RESOURCE_OWNERSHIP/,
   );
+  assert.throws(
+    () =>
+      assessDisposable({
+        pilot: { ...pilot, mounts: [pilot.volume, 'docket-data'] },
+        live,
+        dev,
+        volumeUsers: [pilot.id],
+      }),
+    /STOP_RESOURCE_OWNERSHIP/,
+  );
+  assert.throws(
+    () =>
+      assessDisposable({
+        pilot: { ...pilot, mountTarget: '/other' },
+        live,
+        dev,
+        volumeUsers: [pilot.id],
+      }),
+    /STOP_RESOURCE_OWNERSHIP/,
+  );
 });
 
 test('fake process receives task-only homes and endpoint without inherited credentials', async () => {
   await fixture(async ({ root, profile }) => {
+    await mkdir(path.join(profile, 'temp'));
     const output = path.join(root, 'fixture-result.json');
     const script = path.join(root, 'fake-client.mjs');
     await writeFile(
       script,
-      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(output)}, JSON.stringify({home:process.env.HOME, codex:process.env.CODEX_HOME, claude:process.env.CLAUDE_CONFIG_DIR, mcp:process.env.DOCKET_MCP_URL, inheritedKey:'OPENAI_API_KEY' in process.env || 'ANTHROPIC_API_KEY' in process.env}));`,
+      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(output)}, JSON.stringify({home:process.env.HOME, codex:process.env.CODEX_HOME, claude:process.env.CLAUDE_CONFIG_DIR, temp:process.env.TEMP, tmp:process.env.TMP, mcp:process.env.DOCKET_MCP_URL, inheritedKey:'OPENAI_API_KEY' in process.env || 'ANTHROPIC_API_KEY' in process.env}));`,
     );
     const parentEnv = {
       ...process.env,
       OPENAI_API_KEY: 'FAKE_TEST_ONLY',
       ANTHROPIC_API_KEY: 'FAKE_TEST_ONLY',
+      TMP: path.join(root, 'default-temp'),
+      TEMP: path.join(root, 'default-temp'),
     };
     for (const surface of ['codex', 'claude', 'orca-codex', 'orca-claude']) {
       const env = fixtureEnvironment({ surface, profile, mcpUrl: PILOT_MCP_URL, parentEnv });
@@ -192,6 +216,8 @@ test('fake process receives task-only homes and endpoint without inherited crede
       assert.equal(observed.home, path.join(profile, 'home'));
       assert.equal(observed.codex, path.join(profile, 'codex'));
       assert.equal(observed.claude, path.join(profile, 'claude'));
+      assert.equal(observed.temp, path.join(profile, 'temp'));
+      assert.equal(observed.tmp, path.join(profile, 'temp'));
       assert.equal(observed.mcp, PILOT_MCP_URL);
       assert.equal(observed.inheritedKey, false);
     }

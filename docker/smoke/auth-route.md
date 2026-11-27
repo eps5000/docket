@@ -44,13 +44,16 @@ intentionally absent pending an independently reviewed auth source.
    `127.0.0.2:7421` bind, and unchanged identities of live 7420 and the dev
    instance. The pure manifest check returns `IDENTITY_CANDIDATE` for
    caller-supplied fields; it does **not** prove Docker provenance or authorize
-   cleanup. Action-time Docker inspection must prove sole use independently.
+   cleanup. The supplied manifest must show the pilot's sole mount as its exact
+   disposable volume at `/data`; action-time Docker inspection must prove sole
+   use independently.
    `auth-route.mjs` rejects any other endpoint or a task profile
    under the default user home or project root. Its current preflight never
    starts Docker or a client.
 3. Record hashes and presence only for default Codex/Claude auth/config and
    relevant project config. Do not save credential/config copies. Use an
-   approved task-only profile and an explicit process route. Stop if auth or
+   approved task-only profile (including its own temp directory) and an explicit
+   process route. Stop if auth or
    startup isolation is absent or if any default/project hash changes; do not
    attribute unproved drift to a particular process.
 4. Only after review and action-time gates, test each surface separately with

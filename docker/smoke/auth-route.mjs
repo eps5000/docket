@@ -136,7 +136,10 @@ export function assessDisposable({ pilot, live, dev, volumeUsers }) {
   if (
     !/^dkt[0-9]+-[a-z0-9-]+$/.test(pilot.containerName) ||
     !/^dkt[0-9]+-[a-z0-9-]+$/.test(pilot.volume) ||
-    !pilot.mounts?.includes(pilot.volume) ||
+    !Array.isArray(pilot.mounts) ||
+    pilot.mounts.length !== 1 ||
+    pilot.mounts[0] !== pilot.volume ||
+    pilot.mountTarget !== '/data' ||
     live.mounts?.includes(pilot.volume) ||
     dev.mounts?.includes(pilot.volume) ||
     volumeUsers.length !== 1 ||
@@ -178,22 +181,15 @@ export function fixtureEnvironment({ surface, profile, mcpUrl, parentEnv }) {
   if (!SURFACES.includes(surface) || mcpUrl !== PILOT_MCP_URL)
     throw new Error('STOP_DISPOSABLE_MCP_ROUTE');
   const env = {};
-  for (const name of [
-    'PATH',
-    'Path',
-    'PATHEXT',
-    'SystemRoot',
-    'WINDIR',
-    'ComSpec',
-    'TMP',
-    'TEMP',
-  ]) {
+  for (const name of ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'WINDIR', 'ComSpec']) {
     if (Object.hasOwn(parentEnv, name)) env[name] = parentEnv[name];
   }
   env.HOME = path.join(profile, 'home');
   env.USERPROFILE = env.HOME;
   env.APPDATA = path.join(profile, 'roaming');
   env.LOCALAPPDATA = path.join(profile, 'local');
+  env.TMP = path.join(profile, 'temp');
+  env.TEMP = env.TMP;
   env.CODEX_HOME = path.join(profile, 'codex');
   env.CLAUDE_CONFIG_DIR = path.join(profile, 'claude');
   env.DOCKET_URL = 'http://127.0.0.2:7421';
