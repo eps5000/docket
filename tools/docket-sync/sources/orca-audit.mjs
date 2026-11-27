@@ -104,6 +104,15 @@ export function verifiedCustody(target, worker) {
 const orcaEnv = () =>
   Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^ORCA_/i.test(key)));
 
+export function completedOrcaFailure(error, stdout, signal) {
+  if (error?.code !== 1 || error.killed || error.signal != null || signal?.aborted) return false;
+  try {
+    return JSON.parse(stdout)?.ok === false;
+  } catch {
+    return false;
+  }
+}
+
 function call(exe, args, signal, timeout = 15_000, extraEnv = {}) {
   return new Promise((resolve, reject) =>
     execFile(
@@ -119,12 +128,8 @@ function call(exe, args, signal, timeout = 15_000, extraEnv = {}) {
       },
       (error, stdout) => {
         if (!error) return resolve(stdout);
-        // Orca uses exit 1 for typed JSON errors; keep only the code, never its text.
-        try {
-          if (JSON.parse(stdout)?.ok === false) return resolve(stdout);
-        } catch {
-          /* A transport, timeout or abort error is not a typed Orca result. */
-        }
+        // Orca uses exit 1 for typed JSON errors; transport and cancellation remain unknown.
+        if (completedOrcaFailure(error, stdout, signal)) return resolve(stdout);
         reject(error);
       },
     ),

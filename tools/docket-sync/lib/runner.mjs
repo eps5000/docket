@@ -186,28 +186,40 @@ export function createRunner({ docket, sources, store, log, now = Date.now }) {
 
     /** The bounded Orca audit has its own clock; other sources remain serial. */
     async run(signal, tickMs = TICK_MS) {
+      const failure = new AbortController();
+      const runSignal = AbortSignal.any([signal, failure.signal]);
       const independent = sources.filter(
         (source) => source.name === 'orca-audit' && source.independent,
       );
       const serial = sources.filter((source) => !independent.includes(source));
       const serialLoop = async () => {
-        while (!signal.aborted) {
+        while (!runSignal.aborted) {
           for (const source of serial) {
-            if (signal.aborted) break;
-            await runSource(source, { signal });
+            if (runSignal.aborted) break;
+            await runSource(source, { signal: runSignal });
           }
-          await wait(tickMs, signal);
+          await wait(tickMs, runSignal);
         }
       };
       const independentLoop = async (source) => {
-        while (!signal.aborted) {
-          await runSource(source, { signal });
-          if (signal.aborted) break;
+        while (!runSignal.aborted) {
+          await runSource(source, { signal: runSignal });
+          if (runSignal.aborted) break;
           const dueIn = store.source(source.name).next_at - now();
-          await wait(Math.max(1, dueIn), signal);
+          await wait(Math.max(1, dueIn), runSignal);
         }
       };
-      await Promise.all([...independent.map(independentLoop), serialLoop()]);
+      const settle = (task) =>
+        task.catch((error) => {
+          failure.abort();
+          throw error;
+        });
+      const results = await Promise.allSettled([
+        ...independent.map((source) => settle(independentLoop(source))),
+        settle(serialLoop()),
+      ]);
+      const rejected = results.find((result) => result.status === 'rejected');
+      if (rejected) throw rejected.reason;
     },
   };
 }

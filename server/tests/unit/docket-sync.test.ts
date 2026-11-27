@@ -316,6 +316,48 @@ describe('the runner', () => {
     }
   });
 
+  it.each(['orca-audit', 'other'])(
+    'aborts and settles the sibling lane when %s persistence fails',
+    async (failing) => {
+      const controller = new AbortController();
+      let siblingStarted = false;
+      let siblingAborted = false;
+      let siblingSettled = false;
+      const docket = makeDocket({
+        readSource: (name: string, { signal }: { signal: AbortSignal }) => {
+          if (name === failing) return Promise.reject(new Error('read failed'));
+          siblingStarted = true;
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => {
+              siblingAborted = true;
+              reject(new Error('aborted'));
+            });
+          }).finally(() => {
+            siblingSettled = true;
+          });
+        },
+      });
+      const store = openStore(home);
+      store.save = () => {
+        throw new Error('persistence failed');
+      };
+      const runner = createRunner({
+        docket,
+        sources: [
+          makeSource(() => ({ records: [] }), { name: 'orca-audit', independent: true }),
+          makeSource(() => ({ records: [] }), { name: 'other' }),
+        ],
+        store,
+        log: logs().log,
+      });
+      await expect(runner.run(controller.signal)).rejects.toThrow('persistence failed');
+      expect(siblingStarted).toBe(true);
+      expect(siblingAborted).toBe(true);
+      expect(siblingSettled).toBe(true);
+      expect(controller.signal.aborted).toBe(false);
+    },
+  );
+
   it('saves state only after every batch is accepted', async () => {
     const store = openStore(home);
     const records = Array.from({ length: BATCH_SIZE + 1 }, (_, k) => ({ key: `k${k}` }));

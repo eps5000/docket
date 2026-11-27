@@ -196,6 +196,26 @@ describe('Orca audit freshness policy', () => {
 });
 
 describe('bounded Orca resource projection', () => {
+  it('accepts typed CLI errors only after a completed exit', () => {
+    const stdout = JSON.stringify({ ok: false, error: { code: 'selector_not_found' } });
+    expect(source.completedOrcaFailure({ code: 1, killed: false, signal: null }, stdout)).toBe(
+      true,
+    );
+    expect(source.completedOrcaFailure({ code: 1, killed: true, signal: 'SIGTERM' }, stdout)).toBe(
+      false,
+    );
+    expect(source.completedOrcaFailure({ code: 1, killed: false, signal: 'SIGTERM' }, stdout)).toBe(
+      false,
+    );
+    expect(source.completedOrcaFailure({ code: 'ABORT_ERR' }, stdout)).toBe(false);
+    expect(
+      source.completedOrcaFailure({ code: 1, killed: false, signal: null }, stdout, {
+        aborted: true,
+      }),
+    ).toBe(false);
+    expect(source.completedOrcaFailure({ code: 1, killed: false, signal: null }, '{')).toBe(false);
+  });
+
   it('keeps failed worktree and terminal reads unknown', () => {
     expect(source.worktreeFailure({ code: 'selector_not_found' })).toBe('missing');
     for (const code of ['unavailable', 'permission_denied', 'bad_response']) {
