@@ -680,15 +680,24 @@ function resumeSentence(
   ) {
     return `Resumes when ${items[0]}: ${relay}.`;
   }
-  const parts = [
+  const automatic = [
     items.length > 0 ? `every listed item clears (${items.join(' and ')})` : null,
+    waiting.until ? `it is ${waiting.until}` : null,
+  ].filter(Boolean);
+  const external = [
     waiting.person ? 'a person answers' : null,
     waiting.orchestrator
       ? 'the coordinator explicitly relays it; Docket cannot wake that session'
       : null,
-    waiting.until ? `it is ${waiting.until}` : null,
   ].filter(Boolean);
-  return `Ready when ${parts.join('; or ') || 'someone resumes it'}. ${relay}.`;
+  return [
+    automatic.length ? `Docket marks it ready when ${automatic.join(' or ')}.` : null,
+    external.length ? `External wake: ${external.join(' and ')}.` : null,
+    !automatic.length && !external.length ? 'Ready when someone resumes it.' : null,
+    `${relay}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** What the coordinator should send, in the event and the digest. */
