@@ -52,6 +52,36 @@ describe('Orca audit freshness policy', () => {
     expect(await source.collectBounded([3], async () => 3, undefined, 10)).toEqual([3]);
   });
 
+  it('aborts on an unexpected audit rejection and waits for siblings to drain', async () => {
+    let releaseSibling: (value: number) => void = () => {};
+    let siblingAborted = false;
+    const pending = source.collectBounded(
+      [0, 1],
+      (target: number, signal: AbortSignal) =>
+        target === 0
+          ? Promise.reject(new Error('unexpected audit failure'))
+          : new Promise<number>((resolve) => {
+              releaseSibling = resolve;
+              signal.addEventListener('abort', () => {
+                siblingAborted = true;
+              });
+            }),
+      undefined,
+      1_000,
+    );
+    try {
+      await expect(pending).rejects.toThrow('unexpected audit failure');
+      expect(siblingAborted).toBe(true);
+      await expect(source.collectBounded([2], async () => 2, undefined, 10)).rejects.toMatchObject({
+        code: 'audit_busy',
+      });
+    } finally {
+      releaseSibling(1);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(await source.collectBounded([3], async () => 3, undefined, 10)).toEqual([3]);
+  });
+
   it('rotates 7 parked and 69 ended targets within strict worst-case windows', () => {
     const targets = Array.from({ length: 76 }, (_, index) => ({
       run_id: `run_${index}`,

@@ -336,24 +336,36 @@ export async function collectBounded(batch, audit, signal, limitMs = collectionL
   const passSignal = AbortSignal.any([signal, controller.signal].filter(Boolean));
   const records = new Array(batch.length);
   let next = 0;
-  const work = Promise.all(
-    Array.from({ length: Math.min(auditConcurrency, records.length) }, async () => {
-      while (next < records.length) {
-        const index = next++;
+  let failed = false;
+  let rejectFailure;
+  const failure = new Promise((_, reject) => {
+    rejectFailure = reject;
+  });
+  const workers = Array.from({ length: Math.min(auditConcurrency, records.length) }, async () => {
+    while (!passSignal.aborted && next < records.length) {
+      const index = next++;
+      try {
         records[index] = await audit(batch[index], passSignal);
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          controller.abort();
+          rejectFailure(error);
+        }
+        throw error;
       }
-    }),
-  );
+    }
+  });
+  const work = Promise.allSettled(workers);
   drainingBatch = work;
-  void work
-    .finally(() => {
-      if (drainingBatch === work) drainingBatch = null;
-    })
-    .catch(() => {});
+  void work.finally(() => {
+    if (drainingBatch === work) drainingBatch = null;
+  });
   let deadline;
   try {
     await Promise.race([
       work,
+      failure,
       new Promise((_, reject) => {
         deadline = setTimeout(() => {
           controller.abort();
