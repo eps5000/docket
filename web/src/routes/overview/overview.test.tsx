@@ -567,6 +567,18 @@ describe('the badge', () => {
     expect(card.querySelectorAll('[data-problem="radar_conflict"]')).toHaveLength(1);
     expect(document.querySelector('.ny-coordinator')).toBeNull();
     expect(document.querySelector('[data-needs-you-total="1"]')).toBeTruthy();
+    expect(
+      within(stat('needs-you'))
+        .getByRole('link', {
+          name: '1 agent-owned problem reached you below',
+        })
+        .getAttribute('href'),
+    ).toBe('/#problems');
+    expect(within(stat('needs-you')).queryByText(/coordinator hold tracked below/)).toBeNull();
+    expect(document.querySelector('#needs-you [aria-live="polite"]')?.textContent).toContain(
+      '1 total, 0 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+    );
+    expect(screen.getByText(/agent-owned problems that reached you are listed below/)).toBeTruthy();
   });
   it('partitions owner, reached-agent and coordinator rows exactly once', async () => {
     needs = quiet({
@@ -661,10 +673,68 @@ describe('the badge', () => {
     expect(announcement?.getAttribute('aria-atomic')).toBe('true');
     expect(announcement?.getAttribute('role')).toBeNull();
     expect(announcement?.classList.contains('sr')).toBe(true);
-    expect(announcement?.textContent).toContain('2 total, 1 yours, 1 coordinators hold');
+    expect(announcement?.textContent).toContain('2 total, 1 yours, 1 coordinator hold');
     expect(
-      screen.getByText('Since last update: 0 yours, +1 coordinator holds; +1 total.'),
+      screen.getByText('Since last update: 0 yours, +1 coordinator hold; +1 total.'),
     ).toBeTruthy();
+  });
+  it('announces a new reached-agent row without changing the owner badge', async () => {
+    const owner = problem('owner-warning');
+    const reached = {
+      ...problem('radar-warning', 'agent'),
+      kind: 'radar_conflict' as const,
+      reached_you: 'Nobody is working on RCP-9',
+    };
+    needs = quiet({ problems: [owner] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    needs = quiet({ problems: [owner, reached] });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 2' });
+    expect(document.title).toBe('(1) Docket');
+    expect(
+      within(stat('needs-you')).getByText(/1 agent-owned problem reached you below/),
+    ).toBeTruthy();
+    expect(within(stat('needs-you')).queryByText(/coordinator hold tracked below/)).toBeNull();
+    expect(document.querySelector('#needs-you [aria-live="polite"]')?.textContent).toContain(
+      '2 total, 1 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+    );
+    expect(
+      screen.getByText(
+        'Since last update: 0 yours, agent-owned problems reaching you +1, 0 coordinator holds; +1 total.',
+      ),
+    ).toBeTruthy();
+  });
+  it('announces a reached-versus-held change when total and badge stay the same', async () => {
+    const agent = { ...problem('radar-warning', 'agent'), kind: 'radar_conflict' as const };
+    needs = quiet({ problems: [{ ...agent, reached_you: null }] });
+    renderAt();
+    await screen.findByRole('heading', { level: 2, name: 'Needs you · 1' });
+    expect(within(stat('needs-you')).getByText('1 coordinator hold tracked below')).toBeTruthy();
+    needs = quiet({ problems: [{ ...agent, reached_you: 'Nobody is working on RCP-9' }] });
+    await act(async () => {
+      await currentClient.invalidateQueries({ queryKey: queryKeys.family('needsYou') });
+    });
+    await waitFor(() =>
+      expect(document.querySelector('#needs-you [aria-live="polite"]')?.textContent).toContain(
+        '1 total, 0 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+      ),
+    );
+    expect(document.title).toBe('Docket');
+    expect(nav().querySelector('.badge')).toBeNull();
+    expect(
+      within(stat('needs-you')).getByText(/1 agent-owned problem reached you below/),
+    ).toBeTruthy();
+    expect(within(stat('needs-you')).queryByText(/coordinator hold tracked below/)).toBeNull();
+    expect(
+      screen.getByText(
+        'Since last update: 0 yours, agent-owned problems reaching you +1, -1 coordinator hold; 0 total.',
+      ),
+    ).toBeTruthy();
+    expect(document.querySelector('.ny-coordinator')).toBeNull();
+    expect(document.querySelectorAll('[data-problem="radar_conflict"]')).toHaveLength(1);
   });
   it('reconciles 83 total, 17 owner actions, and dispatch groups 57 + 2 + 3', async () => {
     const source = busy();

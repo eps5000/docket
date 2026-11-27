@@ -182,6 +182,58 @@ test('DKT-19: owner badge, full ledger, and keyboard custody drilldown at narrow
   }
 });
 
+test('DKT-19: a reached agent problem stays out of the owner metric and held count', async ({
+  page,
+}) => {
+  const reached: NeedsYouResponse = {
+    ...emptyNeedsYou,
+    problems: [
+      {
+        kind: 'radar_conflict',
+        id: 'radar-example',
+        item_id: 'RCP-12',
+        title: 'Example branch conflict',
+        reason: 'An agent must inspect the branch',
+        related: [],
+        link_id: null,
+        run_id: null,
+        resource_ids: [],
+        explanation: {
+          what: 'The branch is out of date.',
+          fix: 'Inspect the branch.',
+          who: 'agent',
+          who_text: 'An agent',
+        },
+        reached_you: 'Nobody is working on RCP-12',
+      },
+    ],
+  };
+  await mockGet(page, '/api/bootstrap', bootstrap);
+  await mockGet(page, '/api/needs-you', reached);
+  await mockGet(page, '/api/workspaces', { rows: [] });
+  await page.goto('/');
+  await expect(page).toHaveTitle('Docket');
+  await expect(page.locator('[data-stat="needs-you"]')).toContainText(
+    '1 agent-owned problem reached you below',
+  );
+  await expect(page.locator('[data-stat="needs-you"]')).not.toContainText(
+    'coordinator hold tracked below',
+  );
+  await expect(page.locator('#needs-you [aria-live="polite"]')).toContainText(
+    '1 total, 0 yours, 1 agent-owned problem reached you, 0 coordinator holds',
+  );
+  await expect(page.locator('[data-card="problems"] [data-problem="radar_conflict"]')).toHaveCount(
+    1,
+  );
+  await expect(page.locator('.ny-coordinator')).toHaveCount(0);
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Primary' })
+      .getByRole('link', { name: /^Overview/ })
+      .locator('.badge'),
+  ).toHaveCount(0);
+});
+
 test('STR: the numbers, the Queued and Blocked links, and the read API stays fast', async ({
   page,
 }) => {

@@ -37,7 +37,7 @@ import { Welcome } from '../needs-you/Welcome';
 import { CompletedChart } from './CompletedChart';
 import { FlowChart } from './FlowChart';
 import { HealthCard } from './HealthCard';
-import { NeedsYouGroups } from './NeedsYouGroups';
+import { NeedsYouGroups, needsYouProblemGroups } from './NeedsYouGroups';
 import { OverviewStats } from './OverviewStats';
 import { useOverviewWindow, WINDOW_LABELS, WINDOW_WORDS } from './overviewWindow';
 import { UsageCard } from './UsageCard';
@@ -213,29 +213,42 @@ function NeedsYouSection({
 }) {
   const count = needsYouCount(data);
   const owner = ownerNeedsYouCount(data);
-  const prior = useRef<{ total: number; owner: number } | null>(null);
+  const groups = needsYouProblemGroups(data);
+  const reached = groups.reached.length;
+  const held = groups.heldCount;
+  const summary = `${count} total, ${owner} yours, ${reached > 0 ? `${plural(reached, 'agent-owned problem')} reached you, ` : ''}${plural(held, 'coordinator hold')}.`;
+  const prior = useRef<{ total: number; owner: number; reached: number; held: number } | null>(
+    null,
+  );
   const [announcement, setAnnouncement] = useState('');
   const [change, setChange] = useState('');
   useEffect(() => {
     const before = prior.current;
-    if (!before)
-      setAnnouncement(
-        `Needs you: ${count} total, ${owner} yours, ${count - owner} coordinators hold.`,
-      );
-    else if (before.total !== count || before.owner !== owner) {
+    if (!before) setAnnouncement(`Needs you: ${summary}`);
+    else if (
+      before.total !== count ||
+      before.owner !== owner ||
+      before.reached !== reached ||
+      before.held !== held
+    ) {
       const difference = count - before.total;
       const ownerDifference = owner - before.owner;
-      const coordinatorDifference = difference - ownerDifference;
+      const reachedDifference = reached - before.reached;
+      const heldDifference = held - before.held;
       const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+      const reachedChange =
+        before.reached > 0 || reached > 0
+          ? `agent-owned problems reaching you ${signed(reachedDifference)}, `
+          : '';
       setChange(
-        `Since last update: ${signed(ownerDifference)} yours, ${signed(coordinatorDifference)} coordinator holds; ${signed(difference)} total.`,
+        `Since last update: ${signed(ownerDifference)} yours, ${reachedChange}${signed(heldDifference)} ${Math.abs(heldDifference) === 1 ? 'coordinator hold' : 'coordinator holds'}; ${signed(difference)} total.`,
       );
       setAnnouncement(
-        `Needs you changed: ${count} total, ${owner} yours, ${count - owner} coordinators hold. ${difference === 0 ? 'Who owes the next action changed.' : difference > 0 ? `${difference} more overall.` : `${-difference} fewer overall.`}`,
+        `Needs you changed: ${summary} ${difference === 0 ? 'The breakdown changed.' : difference > 0 ? `${difference} more overall.` : `${-difference} fewer overall.`}`,
       );
     }
-    prior.current = { total: count, owner };
-  }, [count, owner]);
+    prior.current = { total: count, owner, reached, held };
+  }, [count, owner, reached, held, summary]);
   return (
     <section id="needs-you" className="needs-you" tabIndex={-1} aria-labelledby="needs-you-title">
       <h2 id="needs-you-title" className="ov-h2" tabIndex={-1}>
@@ -255,7 +268,9 @@ function NeedsYouSection({
         <>
           {owner === 0 && (
             <p className="ov-nothing">
-              Nothing for you to decide; coordinator holds are listed below.
+              {reached > 0
+                ? `Nothing for you to decide; agent-owned problems that reached you${held > 0 ? ' and coordinator holds' : ''} are listed below.`
+                : 'Nothing for you to decide; coordinator holds are listed below.'}
             </p>
           )}
           {data.for_you_now.length > 0 && <ForYouNow rows={data.for_you_now} />}
