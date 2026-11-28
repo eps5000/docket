@@ -102,7 +102,9 @@ describe('live Work and Epic cards', () => {
     expect(screen.getByRole('link', { name: /PR checks · pending/ }).getAttribute('href')).toBe(
       'https://github.com/eps5000/docket/pull/244/checks',
     );
-    const run = screen.getByRole('link', { name: /PR run · failed \(run 456, attempt 2\)/ });
+    const run = screen.getByRole('link', {
+      name: /PR run · last observed failed at 2026-11-28T05:00:00Z \(run 456, attempt 2\)/,
+    });
     expect(run.getAttribute('href')).toBe(
       'https://github.com/eps5000/docket/actions/runs/456/attempts/2',
     );
@@ -139,6 +141,9 @@ describe('live Work and Epic cards', () => {
     await user.tab();
     expect(document.activeElement?.getAttribute('href')).toBe(
       'https://github.com/eps5000/docket/actions/runs/456/attempts/2',
+    );
+    expect(document.activeElement?.textContent).toContain(
+      'last observed failed at 2026-11-28T05:00:00Z',
     );
     document.activeElement?.dispatchEvent(
       new MouseEvent('click', { bubbles: true, cancelable: true }),
