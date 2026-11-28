@@ -8,7 +8,7 @@ const EPIC = 'DKT-3';
 const CHILD = 'DKT-12';
 // Keep a finite census while allowing historical Orca dispatches to grow.
 const MAX_WORKER_PAGES = 200;
-const MAX_AUDIT_TARGETS = 128;
+const MAX_AUDIT_TARGETS = 160;
 const ACTIVE_STATES = new Set(['starting', 'ready', 'start_unknown', 'stopping', 'stop_unknown']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RUN = /^run_[A-Za-z0-9_-]{1,96}$/;
