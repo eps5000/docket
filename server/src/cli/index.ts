@@ -21,6 +21,7 @@ import { SecretStore, ensureDataDirs, loadConfig } from '../config.js';
 import { migrateDb, openDb } from '../db/client.js';
 import { describeSeed, isDatabaseEmpty, loadSampleSeed } from '../db/seed/loader.js';
 import { runExport } from './export.js';
+import { ReadOnlyExportRefused, runReadOnlyExport } from './read-only-export.js';
 import {
   ArchiveError,
   RestoreRefused,
@@ -37,6 +38,8 @@ const USAGE = `Usage:
   docket checksums            Print item, event and document checksums
   docket export [--out <file>]
                                 Export all your data (JSON plus documents) to one .tar.gz
+  docket export --read-only-source --data-dir <source> --out <scratch-file>
+                                Export a live read-only mount to separate scratch storage
   docket seed sample          Load the sample data into an empty database
 Options:
   --data-dir <path>             Data directory (default /data)
@@ -61,8 +64,15 @@ export async function main(argv: string[]): Promise<number> {
   const nowText = option(args, '--now');
   const throughSeq = option(args, '--through-seq');
   const outPath = option(args, '--out');
+  const readOnlyIndex = args.indexOf('--read-only-source');
+  const readOnlySource = readOnlyIndex !== -1;
+  if (readOnlySource) args.splice(readOnlyIndex, 1);
   const [command, sub, ...rest] = args;
   const config = loadConfig(process.env, { dataDir });
+  if (readOnlySource && command !== 'export') {
+    err('--read-only-source is only valid with docket export.');
+    return 2;
+  }
 
   switch (command) {
     case 'owner-key':
@@ -134,6 +144,31 @@ export async function main(argv: string[]): Promise<number> {
 
     case 'export': {
       if (sub !== undefined) break;
+      if (readOnlySource) {
+        if (!outPath) {
+          err('Read-only export requires --out on a separate scratch mount.');
+          return 2;
+        }
+        try {
+          const { manifest } = await runReadOnlyExport({ config, out: outPath });
+          const rows = Object.values(manifest.tables).reduce((n, t) => n + t.rows, 0);
+          const c = manifest.checksums;
+          out('Read-only export written to separate scratch destination.');
+          out(
+            `${Object.keys(manifest.tables).length} tables (${rows} rows), ${manifest.documents.count} document files (${manifest.documents.bytes} bytes). No keys or tokens.`,
+          );
+          out(`items ${c.items.count} ${c.items.sha256}`);
+          out(`events ${c.events.count} ${c.events.sha256}`);
+          out(`documents ${c.documents.count} ${c.documents.sha256}`);
+          return 0;
+        } catch (error) {
+          if (error instanceof ReadOnlyExportRefused) {
+            err(`Read-only export refused: ${error.message}`);
+            return 1;
+          }
+          throw error;
+        }
+      }
       const db = openDb(config.paths.db);
       try {
         migrateDb(db);
