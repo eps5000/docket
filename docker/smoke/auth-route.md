@@ -34,6 +34,36 @@ boundary. The fake-process guard compares default/project hashes before and
 after and throws STOP with logical labels on drift. Real client launching is
 intentionally absent pending an independently reviewed auth source.
 
+## Child process containment remains a gate
+
+An API key placed in a client environment can also reach its shell, tool, or
+other child processes. The fake-client test demonstrates this inheritance for
+all four named surfaces, then demonstrates stripping in a **test-only** child
+environment. `fakeToolEnvironment` is a model, not a hook into Codex, Claude,
+or Orca, and it cannot establish real containment.
+
+For a real Codex pilot, independently review the installed version's
+`shell_environment_policy` with `inherit=core`,
+`ignore_default_excludes=false`, and an explicit API-key exclusion. Prove with
+an artificial canary that commands do not inherit it. This filter alone does
+not prevent reads from credential files or helpers, so the process also needs
+a separate least-privilege execution identity and a task-only profile.
+
+For a real Claude pilot, `--restricted --tools "" --strict-mcp-config` is a
+candidate for removing command, code, and file tools while retaining only the
+exact Docket MCP route. Review installed-version behavior, managed settings and
+managed MCP precedence, and prove that no shell or other subprocess-capable
+tool remains. Claude does not have a proven general shell-environment key
+filter here. If tool containment cannot be proven, STOP that surface. Orca
+Codex and Orca Claude need separate proof that their actual Dispatch uses the
+reviewed task-only startup and tool policy; a custom terminal alone is not
+that proof.
+
+Any task-only broker lease must be short-lived, least-privilege, bound to the
+approved account and billing context, restricted to the intended surface, and
+revoked on STOP, default/project drift, or release. No real key, lease, client,
+Docker resource, or host action is exercised by this harness.
+
 ## Required gate sequence
 
 1. Owner settles only the material account/auth-source choice after the options
@@ -68,6 +98,9 @@ routine owner cleanup work.
 
 Official behavior: [Codex authentication](https://developers.openai.com/codex/auth),
 [Codex environment variables](https://developers.openai.com/codex/config-file/environment-variables),
-[Claude authentication](https://code.claude.com/docs/en/authentication), and
-[Claude settings](https://code.claude.com/docs/en/settings). A DKT-33 reviewer
-must recheck these before any real invocation.
+[Claude authentication](https://code.claude.com/docs/en/authentication),
+[Claude settings](https://code.claude.com/docs/en/settings),
+[Claude CLI reference](https://code.claude.com/docs/en/cli-reference),
+[Codex shell environment policy](https://learn.chatgpt.com/docs/config-file/config-advanced),
+and [Codex security guidance](https://learn.chatgpt.com/docs/enterprise/security-cookbook).
+A DKT-33 reviewer must recheck these before any real invocation.
