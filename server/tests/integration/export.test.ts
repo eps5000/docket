@@ -85,13 +85,16 @@ function fileMetadata(path: string): { size: number; mtimeMs: number; sha256: st
 // separately for refusing an unproven local destination.
 function fixtureReadOnlyExport(input: Parameters<typeof runReadOnlyExport>[0]) {
   const source = realpathSync(input.config.dataDir);
+  const scratch = realpathSync(join(input.out, '..'));
   return runReadOnlyExport({
     ...input,
+    expectedMounts: { source, scratch },
     mountIdentity: (path) => ({
       id: path === source ? 'source-id' : 'scratch-id',
       device: '8:1',
       root: path === source ? '/volumes/source/_data' : '/volumes/scratch/_data',
       source: '/dev/synthetic',
+      mountPoint: path === source ? source : scratch,
     }),
   });
 }
@@ -328,15 +331,60 @@ describe('read-only current export', () => {
       runReadOnlyExport({
         config: s.runtime.config,
         out,
+        expectedMounts: { source, scratch: realpathSync(dest.dir) },
         mountIdentity: (path) => ({
           id: path === source ? 'bind-a' : 'bind-b',
           device: '8:1',
           root: '/volumes/same/_data',
           source: '/dev/synthetic',
+          mountPoint: path === source ? source : realpathSync(dest.dir),
         }),
       }),
     ).rejects.toThrow('Source and destination must be separate mounts.');
     expect(readdirSync(dest.dir)).toEqual([]);
+  });
+
+  it('refuses a writable non-scratch mount and an unmounted scratch directory', async () => {
+    s = seeded();
+    const scratch = tempDir('docket-readonly-scratch-');
+    const other = tempDir('docket-readonly-other-');
+    temps.push(scratch, other);
+    const source = realpathSync(s.dataDir);
+    const scratchRoot = realpathSync(scratch.dir);
+    const otherRoot = realpathSync(other.dir);
+    const identity = (path: string) => ({
+      id: path === source ? 'source-id' : path === scratchRoot ? 'scratch-id' : 'other-id',
+      device: '8:1',
+      root:
+        path === source
+          ? '/volumes/source/_data'
+          : path === scratchRoot
+            ? '/volumes/scratch/_data'
+            : '/container/root',
+      source: '/dev/synthetic',
+      mountPoint: path,
+    });
+    await expect(
+      runReadOnlyExport({
+        config: s.runtime.config,
+        out: join(otherRoot, 'bad.tar.gz'),
+        expectedMounts: { source, scratch: scratchRoot },
+        mountIdentity: identity,
+      }),
+    ).rejects.toThrow('Destination must be on the designated scratch mount.');
+    await expect(
+      runReadOnlyExport({
+        config: s.runtime.config,
+        out: join(scratchRoot, 'bad.tar.gz'),
+        expectedMounts: { source, scratch: scratchRoot },
+        mountIdentity: (path) => ({
+          ...identity(path),
+          mountPoint: path === scratchRoot ? source : path,
+        }),
+      }),
+    ).rejects.toThrow('Source and destination must be separate mounts.');
+    expect(readdirSync(scratchRoot)).toEqual([]);
+    expect(readdirSync(otherRoot)).toEqual([]);
   });
 
   it('refuses document traversal and nested symlink aliases without archiving bytes', async () => {

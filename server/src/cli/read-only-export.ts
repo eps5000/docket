@@ -34,6 +34,7 @@ interface MountIdentity {
   device: string;
   root: string;
   source: string;
+  mountPoint: string;
 }
 
 function unescapeMount(value: string): string {
@@ -61,6 +62,7 @@ function linuxMountIdentity(path: string): MountIdentity {
         device: fields[2]!,
         root: unescapeMount(fields[3]!),
         source: unescapeMount(fields[separator + 2]!),
+        mountPoint,
       },
     };
   }
@@ -162,15 +164,25 @@ function checkedDestination(
   config: Config,
   out: string,
   mountIdentity: (path: string) => MountIdentity,
+  expectedMounts: { source: string; scratch: string },
 ): string {
   if (!isAbsolute(out)) {
     throw new ReadOnlyExportRefused('Use an absolute destination on a separate scratch mount.');
   }
   let source: string;
   let destinationParent: string;
+  let scratch: string;
   try {
     source = realpathSync(config.dataDir);
     destinationParent = realpathSync(dirname(out));
+    scratch = realpathSync(expectedMounts.scratch);
+    if (
+      source !== expectedMounts.source ||
+      source !== realpathSync(expectedMounts.source) ||
+      scratch !== expectedMounts.scratch
+    ) {
+      throw new Error('mount path alias');
+    }
     for (const path of [config.paths.db, config.paths.docs]) {
       if (!within(source, realpathSync(path))) throw new Error('source alias');
     }
@@ -180,8 +192,19 @@ function checkedDestination(
   if (within(source, destinationParent) || within(destinationParent, source)) {
     throw new ReadOnlyExportRefused('Source and destination must be separate mounts.');
   }
+  if (!within(scratch, destinationParent)) {
+    throw new ReadOnlyExportRefused('Destination must be on the designated scratch mount.');
+  }
   try {
-    if (!separateMounts(mountIdentity(source), mountIdentity(destinationParent))) {
+    const sourceMount = mountIdentity(source);
+    const scratchMount = mountIdentity(scratch);
+    const destinationMount = mountIdentity(destinationParent);
+    if (
+      sourceMount.mountPoint !== source ||
+      scratchMount.mountPoint !== scratch ||
+      destinationMount.id !== scratchMount.id ||
+      !separateMounts(sourceMount, scratchMount)
+    ) {
       throw new Error('same mount');
     }
   } catch {
@@ -205,9 +228,16 @@ export async function runReadOnlyExport(input: {
   clock?: () => Date;
   /** Synthetic test seam only; the CLI always reads the actual Linux mount table. */
   mountIdentity?: (path: string) => MountIdentity;
+  /** Synthetic test seam only; the CLI requires /source and /scratch. */
+  expectedMounts?: { source: string; scratch: string };
 }): Promise<ExportResult> {
   const { config, out } = input;
-  const source = checkedDestination(config, out, input.mountIdentity ?? linuxMountIdentity);
+  const source = checkedDestination(
+    config,
+    out,
+    input.mountIdentity ?? linuxMountIdentity,
+    input.expectedMounts ?? { source: '/source', scratch: '/scratch' },
+  );
   let sqlite: Database.Database;
   try {
     sqlite = new Database(config.paths.db, { readonly: true, fileMustExist: true });
