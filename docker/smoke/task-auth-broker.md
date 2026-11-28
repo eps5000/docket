@@ -25,8 +25,11 @@ Only a
 `FAKE_DKT35_` key can enter the fake Node child environment, and only through
 the exact task-profile `fixture/fake-client.mjs` test path. The module returns
 categories and booleans; it never returns or logs the key, bindings, default
-file paths or provider exceptions. It invokes revocation on release and after
-a STOP. A missing provider, malformed lease, unsafe route/profile/resource,
+file paths or provider exceptions. It calls the provider's revoke callback on
+release and after a STOP. A successful callback is reported only as
+`revoke_call_completed`; it does not prove the provider revoked anything. Even
+an exception from `provider.issue` that mimics a local STOP code is classified
+as `STOP_FAKE_BROKER_ERROR`. A missing provider, malformed lease, unsafe route/profile/resource,
 failed fake child, changed default or project hash, or failed revoke stops the
 probe.
 

@@ -134,6 +134,7 @@ test('four fake surfaces receive only their synthetic lease and revoke on releas
       assert.equal(result.real_client_invoked, false);
       assert.equal(result.fake_child_invoked, true);
       assert.equal(result.resource_assessment, 'IDENTITY_CANDIDATE');
+      assert.equal(result.revoke_call_completed, true);
       assert.equal(observed.codex, surface.endsWith('codex'));
       assert.equal(observed.claude, surface.endsWith('claude'));
       assert.equal(observed.home, path.join(options.profile, 'home'));
@@ -143,6 +144,18 @@ test('four fake surfaces receive only their synthetic lease and revoke on releas
       assert.equal(provider.issued.length, 1);
       assert.equal(JSON.stringify({ result, observed }).includes(provider.fakeKey), false);
     }
+  });
+});
+
+test('a no-op fake revoke is reported only as a completed callback', async () => {
+  await fixture(async ({ options }) => {
+    const provider = fakeProvider({
+      changeLease: (lease) => ({ ...lease, revoke: async () => {} }),
+    });
+    const result = await runFakeBrokeredPilot({ ...options, provider });
+    assert.equal(result.revoke_call_completed, true);
+    assert.equal(Object.hasOwn(result, 'lease_revoked'), false);
+    assert.deepEqual(provider.revoked, []);
   });
 });
 
@@ -280,7 +293,7 @@ test('provider and revoke errors are bounded STOP categories with no fake key le
       runFakeBrokeredPilot({ ...options, provider: issueProvider }),
       (error) => error.message === 'STOP_FAKE_BROKER_ERROR',
     );
-    const forgedStop = fakeProvider({ issueError: new Error('STOP_PRIVATE_DETAIL') });
+    const forgedStop = fakeProvider({ issueError: new Error('STOP_FAKE_LEASE_INVALID') });
     await assert.rejects(
       runFakeBrokeredPilot({ ...options, provider: forgedStop }),
       (error) => error.message === 'STOP_FAKE_BROKER_ERROR',

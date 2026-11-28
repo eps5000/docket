@@ -178,7 +178,12 @@ export async function runFakeBrokeredPilot({
   let lease;
   let failure;
   try {
-    lease = await issue.call(provider, request);
+    try {
+      lease = await issue.call(provider, request);
+    } catch {
+      // Provider errors are untrusted, including errors that mimic local STOP codes.
+      throw new Error('STOP_FAKE_BROKER_ERROR');
+    }
     assertFakeLease(lease, request, nowMs);
     env[lease.keyName] = lease.fakeKey;
     const code = await runFakeClient({ script, env });
@@ -209,6 +214,7 @@ export async function runFakeBrokeredPilot({
     resource_assessment: resource.decision,
     fake_child_invoked: true,
     real_client_invoked: false,
-    lease_revoked: true,
+    // Completion of a provider callback does not prove that a lease was revoked.
+    revoke_call_completed: true,
   };
 }
