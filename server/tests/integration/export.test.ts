@@ -17,6 +17,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   statSync,
   symlinkSync,
   unlinkSync,
@@ -77,6 +78,22 @@ function fileMetadata(path: string): { size: number; mtimeMs: number; sha256: st
   if (!existsSync(path)) return null;
   const stat = statSync(path);
   return { size: stat.size, mtimeMs: stat.mtimeMs, sha256: sha256(readFileSync(path)) };
+}
+
+// Synthetic mount table: positive source/scratch tests do not need privileged
+// bind mounts. The CLI itself always uses /proc/self/mountinfo and is tested
+// separately for refusing an unproven local destination.
+function fixtureReadOnlyExport(input: Parameters<typeof runReadOnlyExport>[0]) {
+  const source = realpathSync(input.config.dataDir);
+  return runReadOnlyExport({
+    ...input,
+    mountIdentity: (path) => ({
+      id: path === source ? 'source-id' : 'scratch-id',
+      device: '8:1',
+      root: path === source ? '/volumes/source/_data' : '/volumes/scratch/_data',
+      source: '/dev/synthetic',
+    }),
+  });
 }
 
 describe('docket export (T147)', () => {
@@ -256,7 +273,7 @@ describe('read-only current export', () => {
     ];
     expect(statSync(`${config.paths.db}-wal`).size).toBeGreaterThan(0);
     const before = sourceFiles.map(fileMetadata);
-    const result = await runReadOnlyExport({ config, out, clock: s.clock.now });
+    const result = await fixtureReadOnlyExport({ config, out, clock: s.clock.now });
     const after = sourceFiles.map(fileMetadata);
     expect(after).toEqual(before);
     expect(result.manifest.documents.missing).toEqual([]);
@@ -271,10 +288,10 @@ describe('read-only current export', () => {
     const config = s.runtime.config;
     const inside = join(s.dataDir, 'exports');
     mkdirSync(inside);
-    await expect(runReadOnlyExport({ config, out: join(inside, 'bad.tar.gz') })).rejects.toThrow(
-      'Source and destination must be separate mounts.',
-    );
-    await expect(runReadOnlyExport({ config, out: 'relative.tar.gz' })).rejects.toThrow(
+    await expect(
+      fixtureReadOnlyExport({ config, out: join(inside, 'bad.tar.gz') }),
+    ).rejects.toThrow('Source and destination must be separate mounts.');
+    await expect(fixtureReadOnlyExport({ config, out: 'relative.tar.gz' })).rejects.toThrow(
       'Use an absolute destination on a separate scratch mount.',
     );
     if (process.platform !== 'win32') {
@@ -282,23 +299,83 @@ describe('read-only current export', () => {
       temps.push(dest);
       const link = join(dest.dir, 'alias');
       symlinkSync(inside, link, 'dir');
-      await expect(runReadOnlyExport({ config, out: join(link, 'bad.tar.gz') })).rejects.toThrow(
-        'Source and destination must be separate mounts.',
-      );
+      await expect(
+        fixtureReadOnlyExport({ config, out: join(link, 'bad.tar.gz') }),
+      ).rejects.toThrow('Source and destination must be separate mounts.');
     }
     const dest = tempDir('docket-readonly-dest-');
     temps.push(dest);
     const existing = join(dest.dir, 'existing.tar.gz');
     writeFileSync(existing, 'keep this file');
-    await expect(runReadOnlyExport({ config, out: existing })).rejects.toThrow(
+    await expect(fixtureReadOnlyExport({ config, out: existing })).rejects.toThrow(
       'Destination already exists.',
     );
     expect(readFileSync(existing, 'utf8')).toBe('keep this file');
     unlinkSync(config.paths.ownerKey);
-    await expect(runReadOnlyExport({ config, out: join(dest.dir, 'bad.tar.gz') })).rejects.toThrow(
-      'Required service secret guard is unavailable.',
-    );
+    await expect(
+      fixtureReadOnlyExport({ config, out: join(dest.dir, 'bad.tar.gz') }),
+    ).rejects.toThrow('Required service secret guard is unavailable.');
     expect(readdirSync(dest.dir)).toEqual(['existing.tar.gz']);
+  });
+
+  it('refuses one backing volume mounted at two different paths', async () => {
+    s = seeded();
+    const dest = tempDir('docket-readonly-dest-');
+    temps.push(dest);
+    const out = join(dest.dir, 'bad.tar.gz');
+    const source = realpathSync(s.dataDir);
+    await expect(
+      runReadOnlyExport({
+        config: s.runtime.config,
+        out,
+        mountIdentity: (path) => ({
+          id: path === source ? 'bind-a' : 'bind-b',
+          device: '8:1',
+          root: '/volumes/same/_data',
+          source: '/dev/synthetic',
+        }),
+      }),
+    ).rejects.toThrow('Source and destination must be separate mounts.');
+    expect(readdirSync(dest.dir)).toEqual([]);
+  });
+
+  it('refuses document traversal and nested symlink aliases without archiving bytes', async () => {
+    s = seeded();
+    const dest = tempDir('docket-readonly-dest-');
+    temps.push(dest);
+    const out = join(dest.dir, 'bad.tar.gz');
+    const original = s.runtime.db.sqlite
+      .prepare('SELECT path FROM document_versions ORDER BY path LIMIT 1')
+      .get() as { path: string };
+    s.runtime.db.sqlite
+      .prepare('UPDATE document_versions SET path = ? WHERE path = ?')
+      .run('../../secrets/owner-key', original.path);
+    await expect(fixtureReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
+      ReadOnlyExportRefused,
+    );
+    expect(readdirSync(dest.dir)).toEqual([]);
+    if (process.platform === 'win32') return;
+    s.runtime.db.sqlite
+      .prepare('UPDATE document_versions SET path = ? WHERE path = ?')
+      .run(original.path, '../../secrets/owner-key');
+    const parts = original.path.split('/');
+    const parent = join(s.runtime.config.paths.docs, parts[0]!);
+    const target = join(dest.dir, 'linked-docs');
+    // The directory symlink points outside docs but the resulting file exists.
+    mkdirSync(target, { recursive: true });
+    const sourceDir = join(s.runtime.config.paths.docs, parts[0]!, parts[1]!);
+    const linkedDir = join(target, parts[1]!);
+    symlinkSync(sourceDir, linkedDir, 'dir');
+    const nested = join(s.runtime.config.paths.docs, 'nested-alias');
+    symlinkSync(target, nested, 'dir');
+    s.runtime.db.sqlite
+      .prepare('UPDATE document_versions SET path = ? WHERE path = ?')
+      .run(['nested-alias', ...parts.slice(1)].join('/'), original.path);
+    await expect(fixtureReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
+      ReadOnlyExportRefused,
+    );
+    expect(readdirSync(dest.dir).sort()).toEqual(['linked-docs']);
+    expect(statSync(parent).isDirectory()).toBe(true);
   });
 
   it('refuses schema drift, missing referenced documents and secret-bearing rows without an archive', async () => {
@@ -310,7 +387,7 @@ describe('read-only current export', () => {
     s.runtime.db.sqlite.exec(
       'DELETE FROM __drizzle_migrations WHERE created_at = (SELECT max(created_at) FROM __drizzle_migrations)',
     );
-    await expect(runReadOnlyExport({ config, out })).rejects.toThrow(
+    await expect(fixtureReadOnlyExport({ config, out })).rejects.toThrow(
       'Source schema differs from this Docket build.',
     );
     expect(readdirSync(dest.dir)).toEqual([]);
@@ -321,7 +398,7 @@ describe('read-only current export', () => {
       .prepare('SELECT path FROM document_versions ORDER BY path LIMIT 1')
       .get() as { path: string };
     unlinkSync(join(s.runtime.config.paths.docs, ...document.path.split('/')));
-    await expect(runReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
+    await expect(fixtureReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
       ReadOnlyExportRefused,
     );
     expect(readdirSync(dest.dir)).toEqual([]);
@@ -330,7 +407,7 @@ describe('read-only current export', () => {
     s.runtime.db.sqlite
       .prepare("UPDATE items SET title = ? WHERE id = 'RCP-14'")
       .run(`synthetic ${s.runtime.secrets.agentToken()}`);
-    await expect(runReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
+    await expect(fixtureReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
       ReadOnlyExportRefused,
     );
     expect(readdirSync(dest.dir)).toEqual([]);
@@ -343,13 +420,13 @@ describe('read-only current export', () => {
       join(s.runtime.config.paths.docs, ...secretDocument.path.split('/')),
       `synthetic ${s.runtime.secrets.ownerKey()}`,
     );
-    await expect(runReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
+    await expect(fixtureReadOnlyExport({ config: s.runtime.config, out })).rejects.toBeInstanceOf(
       ReadOnlyExportRefused,
     );
     expect(readdirSync(dest.dir)).toEqual([]);
   });
 
-  it('requires an explicit scratch output and emits counts without source paths or secrets', async () => {
+  it('requires a separately verified mount and emits no source paths or secrets on refusal', async () => {
     s = seeded();
     const dest = tempDir('docket-readonly-dest-');
     temps.push(dest);
@@ -363,16 +440,14 @@ describe('read-only current export', () => {
       expect(await main(['export', '--read-only-source', '--data-dir', s.dataDir])).toBe(2);
       expect(
         await main(['export', '--read-only-source', '--data-dir', s.dataDir, '--out', out]),
-      ).toBe(0);
+      ).toBe(1);
     } finally {
       spy.mockRestore();
     }
     const text = lines.join('');
-    expect(text).toContain('Read-only export written to separate scratch destination.');
-    expect(text).toMatch(/items \d+ [0-9a-f]{64}/);
     expect(text).not.toContain(s.dataDir);
     expect(text).not.toContain(s.runtime.secrets.agentToken());
     expect(text).not.toContain(s.runtime.secrets.ownerKey());
-    expect(existsSync(out)).toBe(true);
+    expect(existsSync(out)).toBe(false);
   });
 });

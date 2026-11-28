@@ -71,6 +71,8 @@ export interface ExportDeps {
   out?: string;
   /** Refuse an archive that omits any document referenced by the snapshot. */
   requireCompleteDocuments?: boolean;
+  /** Strict source reader for a read-only mounted volume. */
+  readDocument?: (path: string) => { bytes: Buffer; mtime: Date };
 }
 
 const sha = () => createHash('sha256');
@@ -160,20 +162,30 @@ export async function runExport(deps: ExportDeps): Promise<ExportResult> {
           const full = join(config.paths.docs, ...path.split('/'));
           let size: number;
           let mtime: Date;
-          try {
-            const st = statSync(full);
-            size = st.size;
-            mtime = st.mtime;
-          } catch {
-            manifest.documents.missing.push(path);
-            continue;
+          let guardedBytes: Buffer | undefined;
+          if (deps.readDocument) {
+            // Refuse invalid paths and aliases before any filesystem read.
+            // Missing documents still fail the complete-export requirement.
+            const document = deps.readDocument(path);
+            guardedBytes = document.bytes;
+            size = guardedBytes.length;
+            mtime = document.mtime;
+          } else {
+            try {
+              const st = statSync(full);
+              size = st.size;
+              mtime = st.mtime;
+            } catch {
+              manifest.documents.missing.push(path);
+              continue;
+            }
           }
           const name = `documents/${path}`;
           let digest: string;
           if (deps.requireCompleteDocuments) {
             // Scan the exact bytes that will be archived. Read one document
             // at a time to avoid a separate-scan/archive race.
-            const bytes = readFileSync(full);
+            const bytes = guardedBytes ?? readFileSync(full);
             if (secrets.some((secret) => bytes.includes(Buffer.from(secret)))) {
               throw new Error('Export stopped: a service secret appeared in a document.');
             }
