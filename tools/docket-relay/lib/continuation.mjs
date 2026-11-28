@@ -170,7 +170,12 @@ async function verifiedHandoff(mapping, detail, orca, requestedAt) {
   const runs = detail.item.runs?.filter((run) => run.run_id === mapping.docket_run_id);
   if (runs?.length !== 1) return null;
   const run = runs[0];
-  if (run.is_lead !== true || run.orchestrator?.run_id !== mapping.orca_run_id) return null;
+  if (
+    run.is_lead !== true ||
+    !['reported', 'parked'].includes(run.run_state) ||
+    run.orchestrator?.run_id !== mapping.orca_run_id
+  )
+    return null;
   if (
     run.workspace?.path?.replaceAll('\\', '/').toLowerCase() !==
     mapping.workspace_id.split('::')[1].replaceAll('\\', '/').toLowerCase()

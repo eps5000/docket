@@ -313,6 +313,7 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
       },
       handoff: () => {
         detail.item.runs[0]!.orchestrator.dispatch_id = 'ctx_fresh';
+        detail.item.runs[0]!.run_state = 'reported';
         row.run_state = 'reported';
       },
       setPaused: (value: boolean) => {
@@ -480,6 +481,7 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     await h.scan();
     h.handoff();
     h.row.run_state = 'parked';
+    h.detail.item.runs[0]!.run_state = 'parked';
     h.row.lead_parked.since = '2026-11-28T04:00:02Z';
     h.row.lead_parked.waiting_on.wake.due_at = '2026-11-28T05:00:00Z';
     h.advance(2000);
