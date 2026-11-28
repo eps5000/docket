@@ -6,7 +6,8 @@ import { orcaExecutable } from './docket-sync/sources/orca-presence.mjs';
 
 const EPIC = 'DKT-3';
 const CHILD = 'DKT-12';
-const MAX_WORKER_PAGES = 40;
+// Keep a finite census while allowing historical Orca dispatches to grow.
+const MAX_WORKER_PAGES = 200;
 const MAX_AUDIT_TARGETS = 128;
 const ACTIVE_STATES = new Set(['starting', 'ready', 'start_unknown', 'stopping', 'stop_unknown']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
