@@ -106,6 +106,14 @@ export function classifyFailure(stderr) {
 export function assertReadOnly(args) {
   const [first, second] = args;
   if (first === 'auth' && second === 'status') return;
+  if (
+    first === 'api' &&
+    args.length === 2 &&
+    /^repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\?(?:event=pull_request&branch=[A-Za-z0-9._%/-]+|event=push&head_sha=[0-9a-f]{40})&per_page=100$/i.test(
+      second,
+    )
+  )
+    return;
   if (first === 'api' && second === 'graphql') {
     const query = args.find((arg) => arg.startsWith('query='));
     if (query && /^query=\s*query\b/.test(query) && !/\bmutation\b/i.test(query)) return;
@@ -169,7 +177,7 @@ function run(exe, args, { env, signal, timeoutMs = TIMEOUT_MS, keepOutput = true
   });
 }
 
-/** `{ authStatus, graphql }`, for one `gh` on this machine. */
+/** `{ authStatus, graphql, workflowRuns }`, for one `gh` on this machine. */
 export function createGh({ env = process.env, platform = process.platform } = {}) {
   const exe = () => {
     const found = findGh(env, platform);
@@ -201,6 +209,28 @@ export function createGh({ env = process.env, platform = process.platform } = {}
       const text = await run(exe(), args, { env, signal });
       try {
         return JSON.parse(text);
+      } catch {
+        throw new GhError('gh_error');
+      }
+    },
+
+    /** One bounded page of GitHub Actions runs. Only the two fixed read queries pass the guard. */
+    async workflowRuns(repo, filter, signal) {
+      if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) throw new GhError('not_read_only');
+      let query;
+      if (filter.event === 'pull_request' && /^[A-Za-z0-9._/-]+$/.test(filter.branch ?? '')) {
+        query = `event=pull_request&branch=${encodeURIComponent(filter.branch)}&per_page=100`;
+      } else if (filter.event === 'push' && /^[0-9a-f]{40}$/i.test(filter.head_sha ?? '')) {
+        query = `event=push&head_sha=${filter.head_sha}&per_page=100`;
+      } else {
+        throw new GhError('not_read_only');
+      }
+      const output = await run(exe(), ['api', `repos/${repo}/actions/runs?${query}`], {
+        env,
+        signal,
+      });
+      try {
+        return JSON.parse(output);
       } catch {
         throw new GhError('gh_error');
       }

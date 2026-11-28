@@ -14,6 +14,7 @@ import { hasControlChars } from '../install.js';
 import { projectKey } from '../mcp/common.js';
 import { input, jsonResponse, noInput, ownerMutationOutput } from './common.js';
 import { itemParams } from './read.js';
+import { githubWorkflowRunSchema } from './types.js';
 import { json, route } from './route.js';
 
 /** Records in one POST. The runner sends 200. */
@@ -115,6 +116,13 @@ export const githubPrRecord = z.strictObject({
   opened_at: isoTime,
   remote_updated_at: isoTime,
   related_keys: z.array(z.string().max(30)).max(40),
+  /** Optional until a collector verifies the exact workflow and PR association. */
+  workflow_runs: z.array(githubWorkflowRunSchema).max(3).optional(),
+  merged_sha: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/i)
+    .nullable()
+    .optional(),
 });
 export type GithubPrRecord = z.infer<typeof githubPrRecord>;
 
@@ -457,6 +465,9 @@ const itemPrSchema = z.object({
   merged_at: z.string().nullable(),
   /** The run active on this ticket when the PR was opened, when one is known. */
   run_id: z.string().nullable(),
+  workflow_runs: z.array(githubWorkflowRunSchema).max(3).optional(),
+  /** This repository has not supplied a current sync, even if another one has. */
+  stale: z.boolean().optional(),
 });
 export type ItemPr = z.infer<typeof itemPrSchema>;
 

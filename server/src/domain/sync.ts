@@ -19,6 +19,7 @@ import {
   ToolError,
   findSecret,
   githubRecord,
+  githubWorkflowRunSchema,
   hostGitRecord,
   hostWorktreeRecord,
   orcaPresenceRecord,
@@ -26,8 +27,10 @@ import {
   type GithubPrRecord,
   type GithubRecord,
   type GithubRepoRecord,
+  type GithubWorkflowRun,
   type GithubSettingsResponse,
   type GithubState,
+  type CardGithub,
   type HostGitRecord,
   type HostWorktreeRecord,
   type OrcaPresenceRecord,
@@ -61,6 +64,155 @@ const BRANCH_WITHHELD = 'withheld';
 /** B76: a conflicting file whose name looks like a secret. */
 const FILE_WITHHELD = '(a file name withheld: it looks like it contains a secret)';
 const MAX_EVENT_OBJECTS = 50;
+const MAX_CI_SNAPSHOTS = 200;
+
+type CiSnapshot = {
+  head_sha: string | null;
+  merged_sha: string | null;
+  workflow_runs: GithubWorkflowRun[];
+  observed_at: string;
+};
+
+function githubRepoStale(db: Db, repo: string, now: string): boolean {
+  const source = sourceRow(db, 'github');
+  const detail = parseDetail(source).repos as
+    Record<string, { last_sync_at?: string | null; error?: string | null }> | undefined;
+  const fact = detail?.[repo.toLowerCase()];
+  return (
+    !fact?.last_sync_at ||
+    !!fact.error ||
+    !Number.isFinite(Date.parse(fact.last_sync_at)) ||
+    Date.parse(now) - Date.parse(fact.last_sync_at) > staleAfter(source)
+  );
+}
+
+function runsFromSnapshot(
+  snapshot: CiSnapshot | undefined,
+  headSha: string | null,
+  stale: boolean,
+  now: string,
+): GithubWorkflowRun[] {
+  if (stale) return [];
+  if (
+    !snapshot ||
+    !headSha ||
+    snapshot.head_sha !== headSha ||
+    !Array.isArray(snapshot.workflow_runs) ||
+    !Number.isFinite(Date.parse(snapshot.observed_at)) ||
+    Date.parse(now) - Date.parse(snapshot.observed_at) > STALE_MIN_MS
+  )
+    return [];
+  return snapshot.workflow_runs.flatMap((raw) => {
+    const parsed = githubWorkflowRunSchema.safeParse(raw);
+    if (!parsed.success) return [];
+    const run = parsed.data;
+    return run.phase === 'pr_head' || (run.phase === 'main' && run.head_sha === snapshot.merged_sha)
+      ? [run]
+      : [];
+  });
+}
+
+/** Exact workflow observations kept in bounded source bookkeeping, not PR check inference. */
+export function observedGithubRuns(
+  db: Db,
+  prId: string,
+  headSha: string | null,
+  stale: boolean,
+  now: string,
+): GithubWorkflowRun[] {
+  const detail = parseDetail(sourceRow(db, 'github'));
+  const snapshots = detail.ci_by_pr as Record<string, CiSnapshot> | undefined;
+  return runsFromSnapshot(snapshots?.[prId.toLowerCase()], headSha, stale, now);
+}
+
+/** Compact PR evidence for visible Work tickets and their Epics. */
+export function cardGithubOf(
+  db: Db,
+  now: string,
+  ticketIds: readonly string[],
+  epicIds: readonly string[],
+): { tickets: Map<string, CardGithub>; epics: Map<string, CardGithub> } {
+  const tickets = new Map<string, CardGithub>();
+  const epics = new Map<string, CardGithub>();
+  if (ticketIds.length + epicIds.length === 0) return { tickets, epics };
+  const ticketSet = new Set(ticketIds);
+  const epicSet = new Set(epicIds);
+  const status = githubStatus(db, now);
+  const sourceStale =
+    !status.enabled || !status.last_sync_at || status.stale || status.state !== 'connected';
+  const snapshots = parseDetail(sourceRow(db, 'github')).ci_by_pr as
+    Record<string, CiSnapshot> | undefined;
+  const repoStaleness = new Map<string, boolean>();
+  const staleFor = (repo: string) => {
+    const key = repo.toLowerCase();
+    if (!repoStaleness.has(key)) repoStaleness.set(key, githubRepoStale(db, repo, now));
+    return sourceStale || repoStaleness.get(key)!;
+  };
+  type CardPrRow = {
+    item_id: string;
+    epic_id: string | null;
+    repo: string;
+    number: number;
+    state: CardGithub['state'];
+    ci: CardGithub['checks_status'];
+    head_sha: string | null;
+    remote_updated_at: string;
+  };
+  const rows: CardPrRow[] = [];
+  // Keep each query below SQLite's variable limit, including large Work lists.
+  for (const [column, requested] of [
+    ['l.item_id', [...ticketIds, ...epicIds]],
+    ['i.epic_id', epicIds],
+  ] as const) {
+    const unique = [...new Set(requested)];
+    for (let offset = 0; offset < unique.length; offset += 400) {
+      const batch = unique.slice(offset, offset + 400);
+      rows.push(
+        ...(db.sqlite
+          .prepare(
+            `SELECT l.item_id, i.epic_id, p.repo, p.number, p.state, p.ci,
+                    p.head_sha, p.remote_updated_at
+             FROM github_pr_links l
+             JOIN items i ON i.id = l.item_id
+             JOIN github_prs p ON p.id = l.pr_id
+             WHERE l.kind = 'primary' AND ${column} IN (${batch.map(() => '?').join(',')})`,
+          )
+          .all(...batch) as CardPrRow[]),
+      );
+    }
+  }
+  rows.sort(
+    (a, b) => b.remote_updated_at.localeCompare(a.remote_updated_at) || b.number - a.number,
+  );
+  for (const row of rows) {
+    const forTicket = ticketSet.has(row.item_id) && !tickets.has(row.item_id);
+    const forEpic =
+      (epicSet.has(row.item_id) && !epics.has(row.item_id)) ||
+      (!!row.epic_id && epicSet.has(row.epic_id) && !epics.has(row.epic_id));
+    if (!forTicket && !forEpic) continue;
+    const stale = staleFor(row.repo);
+    const value: CardGithub = {
+      item_id: row.item_id,
+      repo: row.repo,
+      number: row.number,
+      state: row.state,
+      checks_status: row.ci,
+      workflow_runs: runsFromSnapshot(
+        snapshots?.[`${row.repo}#${row.number}`.toLowerCase()],
+        row.head_sha,
+        stale,
+        now,
+      ),
+      stale,
+    };
+    if (ticketSet.has(row.item_id) && !tickets.has(row.item_id)) tickets.set(row.item_id, value);
+    if (epicSet.has(row.item_id) && !epics.has(row.item_id)) epics.set(row.item_id, value);
+    if (row.epic_id && epicSet.has(row.epic_id) && !epics.has(row.epic_id)) {
+      epics.set(row.epic_id, value);
+    }
+  }
+  return { tickets, epics };
+}
 
 export interface SyncService {
   source(r: ReadContext, name: string): SyncSourceResponse;
@@ -474,7 +626,7 @@ const githubHandler: SyncHandler<GithubRecord> = {
     return counts;
   },
 
-  detail(db, records, previous) {
+  detail(db, records, previous, now) {
     const repos = {
       ...((previous.repos ?? {}) as Record<
         string,
@@ -493,7 +645,32 @@ const githubHandler: SyncHandler<GithubRecord> = {
     // Only repositories a project still has, so this can't grow without bound.
     const connected = new Set(connectedRepos(db).map((r) => r.repo.toLowerCase()));
     const kept = Object.fromEntries(Object.entries(repos).filter(([k]) => connected.has(k)));
-    return { ...previous, repos: kept };
+    const snapshots = {
+      ...((previous.ci_by_pr ?? {}) as Record<string, CiSnapshot>),
+    };
+    for (const record of records) {
+      if (record.kind !== 'pr') continue;
+      const id = `${record.repo}#${record.number}`.toLowerCase();
+      const prior = snapshots[id];
+      if (record.workflow_runs !== undefined) {
+        const phases = new Map(record.workflow_runs.map((run) => [run.phase, run] as const));
+        snapshots[id] = {
+          head_sha: record.head_sha,
+          merged_sha: record.merged_sha ?? null,
+          workflow_runs: [...phases.values()],
+          observed_at: now,
+        };
+      } else if (prior && prior.head_sha !== record.head_sha) {
+        delete snapshots[id];
+      }
+    }
+    const bounded = Object.fromEntries(
+      Object.entries(snapshots)
+        .filter(([id]) => [...connected].some((repo) => id.toLowerCase().startsWith(`${repo}#`)))
+        .sort((a, b) => b[1].observed_at.localeCompare(a[1].observed_at))
+        .slice(0, MAX_CI_SNAPSHOTS),
+    );
+    return { ...previous, repos: kept, ci_by_pr: bounded };
   },
 };
 
@@ -1104,13 +1281,17 @@ export function createSyncService(deps: ServiceDeps): SyncService {
       const rows = r.db.sqlite
         .prepare(
           `SELECT l.kind, l.run_id, p.repo, p.number, p.title, p.head_branch, p.state, p.draft,
-                  p.ci, p.merged_at
+                  p.ci, p.merged_at, p.head_sha
            FROM github_pr_links l JOIN github_prs p ON p.id = l.pr_id
            WHERE l.item_id = ? ORDER BY p.number DESC`,
         )
-        .all(id) as (Omit<ItemPr, 'url' | 'branch' | 'branch_url' | 'checks_url' | 'draft'> & {
+        .all(id) as (Omit<
+        ItemPr,
+        'url' | 'branch' | 'branch_url' | 'checks_url' | 'draft' | 'workflow_runs'
+      > & {
         kind: 'primary' | 'related';
         head_branch: string;
+        head_sha: string | null;
         draft: number;
       })[];
       const toPr = (row: (typeof rows)[number]): ItemPr => {
@@ -1128,6 +1309,18 @@ export function createSyncService(deps: ServiceDeps): SyncService {
           checks_url: `${url}/checks`,
           merged_at: row.merged_at,
           run_id: row.run_id,
+          stale: githubRepoStale(r.db, row.repo, r.now),
+          workflow_runs: observedGithubRuns(
+            r.db,
+            `${row.repo}#${row.number}`,
+            row.head_sha,
+            !status.enabled ||
+              !status.last_sync_at ||
+              status.stale ||
+              status.state !== 'connected' ||
+              githubRepoStale(r.db, row.repo, r.now),
+            r.now,
+          ),
         };
       };
       const git = projectGit(r.db, item.project_key);

@@ -84,8 +84,43 @@ export const leadParkedSchema = z.object({
 });
 export type LeadParked = z.infer<typeof leadParkedSchema>;
 
+/** A fresh, owner-facing reading of run and wait evidence, separate from workflow status. */
+export const cardActivitySchema = z.object({
+  state: z.enum(['live', 'reported', 'waiting', 'stale', 'failed', 'unknown']),
+  /** A short action or wait, when the evidence contains one. */
+  action: z.string().nullable(),
+  actor: z.string().nullable(),
+  observed_at: z.string().nullable(),
+});
+export type CardActivity = z.infer<typeof cardActivitySchema>;
+
+/** A workflow run whose identity and source SHA were observed, never inferred from PR checks. */
+export const githubWorkflowRunSchema = z.strictObject({
+  phase: z.enum(['pr_head', 'combined', 'main']),
+  run_id: z.number().int().positive(),
+  attempt: z.number().int().positive(),
+  head_sha: z.string().regex(/^[0-9a-f]{40}$/i),
+  status: z.enum(['pending', 'passed', 'failed']),
+  observed_at: z.iso.datetime({ offset: true }),
+});
+export type GithubWorkflowRun = z.infer<typeof githubWorkflowRunSchema>;
+
+/** One linked PR for compact Work cards. An absent workflow phase is Unknown. */
+export const cardGithubSchema = z.object({
+  item_id: z.string(),
+  repo: z.string(),
+  number: z.number().int().positive(),
+  state: z.enum(['open', 'closed', 'merged']),
+  checks_status: z.enum(['passed', 'failed', 'pending', 'none']),
+  workflow_runs: z.array(githubWorkflowRunSchema).max(3),
+  stale: z.boolean(),
+});
+export type CardGithub = z.infer<typeof cardGithubSchema>;
+
 /** A row on Work (board, list, map): what the cards and the list need beyond the summary. */
 export const workItemSchema = itemSummarySchema.extend({
+  activity: cardActivitySchema.nullable().optional(),
+  github: cardGithubSchema.nullable().optional(),
   /** The lead's park, when it is parked (B20). */
   lead_parked: leadParkedSchema.nullable().optional(),
   /**
@@ -143,6 +178,10 @@ export type EpicWait = z.infer<typeof epicWaitSchema>;
 
 /** An epic on the Epics row and the epic page header. */
 export const epicCardSchema = itemSummarySchema.extend({
+  activity: cardActivitySchema.nullable().optional(),
+  /** A live child action alongside the Epic producer, when one is visible. */
+  child_activity: cardActivitySchema.nullable().optional(),
+  github: cardGithubSchema.nullable().optional(),
   children: z.object({
     total: z.number().int(),
     done: z.number().int(),

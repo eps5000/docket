@@ -145,7 +145,7 @@ test.describe.serial('the GitHub connection', () => {
       'href',
       `https://github.com/${REPO}/pull/41`,
     );
-    await expect(main).toContainText('CI failed');
+    await expect(main).toContainText('PR checks failed');
     const related = panel.getByRole('list', { name: 'Related pull requests' });
     await expect(related).toContainText('#9041');
     await expect(main).not.toContainText('#9041');
