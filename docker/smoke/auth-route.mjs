@@ -197,6 +197,38 @@ export function fixtureEnvironment({ surface, profile, mcpUrl, parentEnv }) {
   return env;
 }
 
+/** Fake tool-child policy model only. Real CLI descendants need native enforcement and review. */
+export function fakeToolEnvironment(clientEnv) {
+  if (
+    clientEnv.DOCKET_MCP_URL !== PILOT_MCP_URL ||
+    clientEnv.DOCKET_URL !== 'http://127.0.0.2:7421'
+  ) {
+    throw new Error('STOP_DISPOSABLE_MCP_ROUTE');
+  }
+  const env = {};
+  for (const name of [
+    'PATH',
+    'Path',
+    'PATHEXT',
+    'SystemRoot',
+    'WINDIR',
+    'ComSpec',
+    'HOME',
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'TMP',
+    'TEMP',
+    'CODEX_HOME',
+    'CLAUDE_CONFIG_DIR',
+    'DOCKET_URL',
+    'DOCKET_MCP_URL',
+  ]) {
+    if (Object.hasOwn(clientEnv, name)) env[name] = clientEnv[name];
+  }
+  return env;
+}
+
 /** Test-only execution seam: accepts Node itself and never exposes child output. */
 export async function runFakeClient({ script, env, timeoutMs = 3000 }) {
   if (!path.isAbsolute(script) || !script.endsWith('.mjs')) throw new Error('STOP_FIXTURE_PATH');

@@ -10,6 +10,7 @@ import {
   assertNoDrift,
   authCandidates,
   changedLabels,
+  fakeToolEnvironment,
   fixtureEnvironment,
   hashOnlySnapshot,
   preflight,
@@ -221,6 +222,52 @@ test('fake process receives task-only homes and endpoint without inherited crede
       assert.equal(observed.mcp, PILOT_MCP_URL);
       assert.equal(observed.inheritedKey, false);
     }
+  });
+});
+
+test('fake tool descendants inherit injected keys by default and require explicit stripping', async () => {
+  await fixture(async ({ root, profile }) => {
+    const output = path.join(root, 'descendant-result.json');
+    const childScript = path.join(root, 'fake-tool.mjs');
+    const clientScript = path.join(root, 'fake-agent.mjs');
+    await writeFile(
+      childScript,
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.env.DKT34_TEST_OUTPUT, JSON.stringify({ codex: Object.hasOwn(process.env, 'CODEX_API_KEY'), claude: Object.hasOwn(process.env, 'ANTHROPIC_API_KEY') }));",
+    );
+    await writeFile(
+      clientScript,
+      `import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fakeToolEnvironment } from ${JSON.stringify(new URL('./auth-route.mjs', import.meta.url).href)};
+const observed = { clientCodex: Object.hasOwn(process.env, 'CODEX_API_KEY'), clientClaude: Object.hasOwn(process.env, 'ANTHROPIC_API_KEY') };
+const childScript = ${JSON.stringify(childScript)};
+const output = ${JSON.stringify(output)};
+for (const [label, env] of [['inherited', process.env], ['stripped', fakeToolEnvironment(process.env)]]) {
+  const result = spawnSync(process.execPath, [childScript], { env: { ...env, DKT34_TEST_OUTPUT: output }, stdio: 'ignore', windowsHide: true });
+  if (result.status !== 0) process.exit(1);
+  observed[label] = JSON.parse(readFileSync(output, 'utf8'));
+}
+writeFileSync(output, JSON.stringify(observed));`,
+    );
+    for (const surface of ['codex', 'claude', 'orca-codex', 'orca-claude']) {
+      const env = {
+        ...fixtureEnvironment({ surface, profile, mcpUrl: PILOT_MCP_URL, parentEnv: process.env }),
+        CODEX_API_KEY: 'FAKE_TEST_ONLY',
+        ANTHROPIC_API_KEY: 'FAKE_TEST_ONLY',
+      };
+      assert.equal(await runFakeClient({ script: clientScript, env }), 0);
+      const observed = JSON.parse(await readFile(output, 'utf8'));
+      assert.deepEqual(observed, {
+        clientCodex: true,
+        clientClaude: true,
+        inherited: { codex: true, claude: true },
+        stripped: { codex: false, claude: false },
+      });
+    }
+    assert.throws(
+      () => fakeToolEnvironment({ DOCKET_MCP_URL: 'http://127.0.0.1:7420/mcp' }),
+      /STOP_DISPOSABLE_MCP_ROUTE/,
+    );
   });
 });
 
