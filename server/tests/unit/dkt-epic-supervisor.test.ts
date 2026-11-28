@@ -146,6 +146,24 @@ describe('Docket-only Epic supervisor', () => {
     expect(precheckSafe(mapping, { complete: false, workers: [] })).toBe(false);
   });
 
+  it('accepts only a complete bounded 160-target audit', () => {
+    const input = base();
+    const original = input.audit.settings.targets;
+    input.audit.settings.targets = [
+      ...original,
+      ...Array.from({ length: 158 }, (_, index) => ({
+        run_id: `run_history_${index}`,
+        dispatch_id: `ctx_history_${index}`,
+      })),
+    ];
+    expect(assessSupervisor(input)).toMatchObject({ status: 'ok' });
+    input.audit.settings.more = true;
+    expect(assessSupervisor(input)).toMatchObject({ status: 'hold' });
+    input.audit.settings.more = false;
+    input.audit.settings.targets.push({ run_id: 'run_extra', dispatch_id: 'ctx_extra' });
+    expect(assessSupervisor(input)).toMatchObject({ status: 'hold' });
+  });
+
   it('identifies the mapped producer separately from a live reviewer and a child follow-up', () => {
     const input = base();
     input.inventory.workers.push({ ...worker, dispatchId: 'ctx_reviewer', agent: 'claude/opus' });
