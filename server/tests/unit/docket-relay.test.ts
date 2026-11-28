@@ -77,8 +77,10 @@ if (path.basename(process.argv[1] ?? '') === 'orchestration') {
       reply({ ok: true, result: { dispatchId: flag('--dispatch'), runId: d.runId, state: d.workerState } }, 0);
     }
     reply({ ok: true, result: {
-      dispatch: { status: d.status, runId: d.runId, capabilityRevokedAt: d.revoked ?? null },
-      worker: d.workerState ? { state: d.workerState, worktreeId: d.worktreeId ?? null } : null,
+      dispatch: { status: d.status, runId: d.runId, capabilityRevokedAt: d.revoked ?? null,
+        dispatchedAt: d.dispatchedAt ?? null, creatorDispatchId: d.creatorDispatchId ?? null },
+      worker: d.workerState ? { state: d.workerState, worktreeId: d.worktreeId ?? null,
+        startOptions: { launch: { effective: { agent: d.agent ?? 'codex' } } } } : null,
       projection: { resource: { state: d.resourceState ?? 'absent' } },
       terminal: null,
       terminalResource: null,
@@ -194,12 +196,23 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     let time = Date.parse('2026-11-28T04:00:00.000Z');
     let paused = false;
     const saves: string[] = [];
-    const starts: { requestId: string; spec: string; workspaceId: string }[] = [];
+    const requests: { requestId: string; body: string; to: string }[] = [];
     const escalations: { type: string; body: string; requestId: string }[] = [];
     let workers: unknown[] = [];
     let workerListFails = false;
     let driftOnList = false;
-    let startResult: { ok: boolean; dispatchId?: string } = { ok: true, dispatchId: 'ctx_fresh' };
+    let requestResult: { ok: boolean } = { ok: true };
+    const freshReceipt = {
+      found: true,
+      runId: mapping.orca_run_id,
+      status: 'dispatched',
+      capabilityRevokedAt: null,
+      workerState: 'ready',
+      workspaceId,
+      creatorDispatchId: null,
+      agent: 'codex',
+      dispatchedAt: '2026-11-28 04:00:01',
+    };
     const state = {
       continuations: {} as Record<
         string,
@@ -237,7 +250,10 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
             run_id: mapping.docket_run_id,
             run_state: 'parked',
             is_lead: true,
-            orchestrator: { dispatch_id: mapping.dispatch_id, run_id: mapping.orca_run_id },
+            orchestrator: {
+              dispatch_id: mapping.dispatch_id,
+              run_id: mapping.orca_run_id as string | null,
+            },
             workspace: { path: workspacePath },
           },
         ],
@@ -250,17 +266,7 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
       readContinuationItem: async () => detail,
     };
     const orca = {
-      showDispatch: async (id: string) =>
-        id === mapping.dispatch_id
-          ? original
-          : {
-              found: true,
-              runId: mapping.orca_run_id,
-              status: 'dispatched',
-              capabilityRevokedAt: null,
-              workerState: 'ready',
-              workspaceId,
-            },
+      showDispatch: async (id: string) => (id === mapping.dispatch_id ? original : freshReceipt),
       listWorkers: async () => {
         if (workerListFails) throw new Error('unavailable');
         if (driftOnList) {
@@ -269,11 +275,11 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
         }
         return workers;
       },
-      startFollowup: async (input: { requestId: string; spec: string; workspaceId: string }) => {
-        starts.push(input);
-        return startResult;
-      },
-      send: async (input: { type: string; body: string; requestId: string }) => {
+      send: async (input: { type: string; body: string; requestId: string; to: string }) => {
+        if (input.type === 'status') {
+          requests.push(input);
+          return requestResult;
+        }
         escalations.push(input);
         return { ok: true };
       },
@@ -292,7 +298,7 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
       state,
       row,
       detail,
-      starts,
+      starts: requests,
       escalations,
       saves,
       scan,
@@ -302,8 +308,16 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
       setWorkers: (rows: unknown[]) => {
         workers = rows;
       },
-      setStartResult: (result: typeof startResult) => {
-        startResult = result;
+      setStartResult: (result: typeof requestResult) => {
+        requestResult = result;
+      },
+      setFreshReceipt: (patch: Partial<typeof freshReceipt>) => {
+        Object.assign(freshReceipt, patch);
+      },
+      handoff: () => {
+        detail.item.runs[0]!.orchestrator.dispatch_id = 'ctx_fresh';
+        detail.item.runs[0]!.run_state = 'reported';
+        row.run_state = 'reported';
       },
       setPaused: (value: boolean) => {
         paused = value;
@@ -317,30 +331,37 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     };
   }
 
-  it('starts one exact follow-up for the DKT-1 completed and revoked dispatch, then observes its receipt', async () => {
+  it('requests one exact coordinator follow-up for the completed dispatch, then verifies its receipt', async () => {
     const h = continuationHarness();
     await h.scan();
     expect(h.starts).toHaveLength(1);
-    expect(h.starts[0]).toMatchObject({ workspaceId, requestId: expect.any(String) });
-    expect(h.starts[0]!.spec).toContain(mapping.dispatch_id);
+    expect(h.starts[0]).toMatchObject({
+      to: `run:${mapping.orca_run_id}`,
+      requestId: expect.any(String),
+    });
+    expect(h.starts[0]!.body).toContain(mapping.dispatch_id);
     expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
-      state: 'started',
-      dispatch_id: 'ctx_fresh',
+      state: 'requested',
       attempts: 1,
     });
     await h.scan();
     expect(h.starts).toHaveLength(1);
+    h.handoff();
+    h.advance(1000);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'acknowledged',
+      dispatch_id: 'ctx_fresh',
+      current_dispatch_id: 'ctx_fresh',
+    });
     const restarted = continuationHarness();
     Object.assign(restarted.state.continuations, JSON.parse(JSON.stringify(h.state.continuations)));
     await restarted.scan();
     expect(restarted.starts).toHaveLength(0);
-    h.row.run_state = 'reported';
-    await h.scan();
-    expect(h.state.continuations[mapping.docket_run_id]?.state).toBe('acknowledged');
-    expect(h.saves.length).toBeGreaterThanOrEqual(3); // intent, attempt, observed follow-up, Docket acknowledgement
+    expect(h.saves.length).toBeGreaterThanOrEqual(4); // intent, attempt, request, verified handoff
   });
 
-  it('retries with one stable idempotency key, then escalates after bounded failed starts', async () => {
+  it('retries one stable request id, then escalates after bounded failed sends', async () => {
     const h = continuationHarness();
     h.setStartResult({ ok: false });
     await h.scan();
@@ -429,7 +450,7 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     );
   });
 
-  it('escalates a verified start that receives no Docket transition or repark acknowledgement', async () => {
+  it('escalates a delivered request that receives no verified Dispatch or Docket transition', async () => {
     const h = continuationHarness();
     await h.scan();
     expect(h.starts).toHaveLength(1);
@@ -440,7 +461,78 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
       state: 'escalated',
       attempts: 1,
+      reason: 'coordinator_no_handoff',
     });
+  });
+
+  it('does not acknowledge a Docket transition backed by the wrong Orca agent', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    h.setFreshReceipt({ agent: 'claude' });
+    h.handoff();
+    h.advance(5 * MINUTE);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'escalated',
+      reason: 'coordinator_no_handoff',
+    });
+    expect(h.escalations).toHaveLength(1);
+  });
+
+  it('acknowledges a verified same-Run follow-up that re-parks on a new future wait', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    h.handoff();
+    h.row.run_state = 'parked';
+    h.detail.item.runs[0]!.run_state = 'parked';
+    h.row.lead_parked.since = '2026-11-28T04:00:02Z';
+    h.row.lead_parked.waiting_on.wake.due_at = '2026-11-28T05:00:00Z';
+    h.advance(2000);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'acknowledged',
+      current_dispatch_id: 'ctx_fresh',
+    });
+  });
+
+  it('accepts a null legacy Docket Orca Run id only with exact Orca proof and same-second dispatch time', async () => {
+    const h = continuationHarness();
+    h.detail.item.runs[0]!.orchestrator.run_id = null;
+    h.advance(500);
+    await h.scan();
+    h.setFreshReceipt({ dispatchedAt: '2026-11-28 04:00:00' });
+    h.handoff();
+    h.advance(100);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'acknowledged',
+      dispatch_id: 'ctx_fresh',
+    });
+  });
+
+  it('acknowledges a verified handoff when Docket derives the open run as live', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    h.handoff();
+    h.detail.item.runs[0]!.run_state = 'live';
+    h.row.run_state = 'live';
+    h.advance(1000);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'acknowledged',
+      dispatch_id: 'ctx_fresh',
+    });
+  });
+
+  it('keeps a delivered request idempotent across relay restart until coordinator handoff', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    const restarted = continuationHarness();
+    Object.assign(restarted.state.continuations, JSON.parse(JSON.stringify(h.state.continuations)));
+    restarted.advance(MINUTE);
+    await restarted.scan();
+    expect(restarted.starts).toHaveLength(0);
+    expect(restarted.state.continuations[mapping.docket_run_id]?.state).toBe('requested');
   });
 
   it('holds owner choices and malformed state rather than manufacturing a producer', async () => {
@@ -3248,26 +3340,23 @@ describe('calling Orca safely', () => {
     });
   });
 
-  it('uses exact existing worktree and stable request ID for a fresh same-Run follow-up', async () => {
+  it('routes a stable wake request to the real Run coordinator without claiming worker-start authority', async () => {
     const h = await harness();
     const orca = createOrca({ exe: fakeExe, env: h.env });
     const id = requestIdFor('continuation', 'due-key');
     expect(
-      await orca.startFollowup({
-        runId: 'run_8cc91a814db8',
-        workspaceId: '48ca27d0-4847-4d2e-a2e5-6c6c74a2133e::C:/exact/worktree',
-        agent: 'codex',
-        spec: 'Bounded Docket wake',
+      await orca.send({
+        to: 'run:run_8cc91a814db8',
+        subject: 'Due wake',
+        body: 'Bounded Docket wake',
         requestId: id,
       }),
-    ).toEqual({ ok: true, dispatchId: 'ctx_fresh' });
-    const call = h.calls().find((entry) => entry.args[0] === 'worker-start')!;
+    ).toEqual({ ok: true });
+    expect(h.calls().some((entry) => entry.args[0] === 'worker-start')).toBe(false);
+    const call = h.calls().find((entry) => entry.args[0] === 'send')!;
     expect(call.args).toContain('--retry-request');
     expect(call.args[call.args.indexOf('--retry-request') + 1]).toBe(id);
-    expect(call.args[call.args.indexOf('--worktree') + 1]).toBe(
-      'id:48ca27d0-4847-4d2e-a2e5-6c6c74a2133e::C:/exact/worktree',
-    );
-    expect(call.args[call.args.indexOf('--run') + 1]).toBe('run_8cc91a814db8');
+    expect(call.args[call.args.indexOf('--to') + 1]).toBe('run:run_8cc91a814db8');
     expect(call.orcaEnv).toEqual([]);
   });
 

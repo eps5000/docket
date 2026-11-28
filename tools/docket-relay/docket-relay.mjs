@@ -153,7 +153,7 @@ function statusLines(running, state, facts) {
     `last delivery: ${state.last_delivery ? `${state.last_delivery.at} ${state.last_delivery.item} to ${state.last_delivery.to} (${state.last_delivery.kinds.join(', ')}) in ${state.last_delivery.latency_ms} ms` : 'never'}`,
     `last failure: ${state.last_failure ? `${state.last_failure.at} ${state.last_failure.reason}` : 'none'}`,
     `waiting to send: ${Object.keys(state.batches).length} ticket(s)`,
-    `continuations: ${Object.values(state.continuations).filter((r) => r.state === 'started').length} started, ${Object.values(state.continuations).filter((r) => r.state === 'escalated').length} escalated`,
+    `continuations: ${Object.values(state.continuations).filter((r) => r.state === 'requested').length} requested, ${Object.values(state.continuations).filter((r) => r.state === 'started').length} started, ${Object.values(state.continuations).filter((r) => r.state === 'escalated').length} escalated`,
     `counts: delivered ${c.delivered}, no live lead ${c.no_live_lead}, undelivered ${c.undelivered}, skipped ${c.skipped}, send failures ${c.send_failures}`,
   ];
   for (const entry of state.undelivered.slice(-5)) {
@@ -195,6 +195,7 @@ async function status(env, args) {
                 state: r.state,
                 attempts: r.attempts,
                 dispatch_id: r.dispatch_id ?? null,
+                requested_at: r.requested_at ? new Date(r.requested_at).toISOString() : null,
                 started_at: r.started_at ? new Date(r.started_at).toISOString() : null,
                 ack_at: r.ack_at ? new Date(r.ack_at).toISOString() : null,
                 escalated_at: r.escalated_at ? new Date(r.escalated_at).toISOString() : null,
