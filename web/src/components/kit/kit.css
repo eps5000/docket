@@ -926,6 +926,82 @@
 }
 
 /* ---------- ticket and epic cards ---------- */
+.tl .work-activity {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+.tl .wa-heading {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+}
+.tl .wa-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: transparent;
+  margin-right: 4px;
+}
+.tl .wa-live .wa-dot {
+  color: var(--ok);
+  background: var(--ok);
+}
+.tl .wa-waiting .wa-dot {
+  color: var(--warn);
+}
+.tl .wa-failed .wa-dot {
+  color: var(--bad);
+  background: var(--bad);
+}
+.tl .wa-actor {
+  font-weight: 400;
+}
+.tl .wa-action {
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.tl .wa-ci {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 9px;
+  padding: 2px 4px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.tl .wa-ci-phases {
+  display: contents;
+}
+.tl .wa-ci a:focus-visible,
+.tl .wa-ci-phase a:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+.tl .wa-ci-phase {
+  color: var(--ink-3);
+}
+.tl .epiccard-wrap {
+  display: grid;
+  align-content: start;
+}
+.tl .epic-child-activity {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+.tl a.tcard:focus-visible,
+.tl a.epiccard:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
 .tl a.tcard {
   display: grid;
   /* One shrinkable column: an auto track grows to the widest child's
@@ -978,7 +1054,10 @@
 .tl .tcw {
   position: relative;
 }
-.tl .tcw .tcard {
+.tl .tcw.done .tcard {
+  padding-bottom: 36px;
+}
+.tl .tcw.has-ci .wa-ci {
   padding-bottom: 36px;
 }
 .tl .tcw .archbtn {

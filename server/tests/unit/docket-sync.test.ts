@@ -28,7 +28,7 @@ const lib = (name: string) =>
   import(/* @vite-ignore */ pathToFileURL(join(TOOL, 'lib', name)).href);
 
 const { assertReadOnly, childEnv, classifyFailure, createGh, findGh } = await lib('gh.mjs');
-const { MAX_REQUESTS, RATE_FLOOR, collectWith, isMergeQueue, keysInText, toRecord } =
+const { MAX_REQUESTS, RATE_FLOOR, collectWith, exactRun, isMergeQueue, keysInText, toRecord } =
   await lib('github.mjs');
 const { BATCH_SIZE, backoffMs, createRunner, loadSources } = await lib('runner.mjs');
 const { DocketError } = await lib('docket.mjs');
@@ -110,6 +110,92 @@ describe('reading GitHub', () => {
       related_keys: ['GF-8'],
     });
     expect(JSON.stringify(record)).not.toContain('Private body');
+  });
+
+  it('accepts only an exact PR-head or resulting-main workflow association', () => {
+    const pr = toRecord(
+      'acme/web',
+      prNode(7, {
+        state: 'MERGED',
+        mergedAt: '2026-11-23T11:00:00Z',
+        mergeCommit: { oid: 'b'.repeat(40) },
+      }),
+    );
+    const at = new Date(NOW).toISOString();
+    const run = {
+      id: 77,
+      run_attempt: 2,
+      head_sha: 'c'.repeat(40),
+      head_branch: pr.head_branch,
+      name: 'ci',
+      path: '.github/workflows/ci.yml@dev/GF-7-x',
+      event: 'pull_request',
+      status: 'completed',
+      conclusion: 'failure',
+      pull_requests: [{ number: 7, head: { sha: pr.head_sha } }],
+    };
+    expect(exactRun(pr, run, 'pr_head', at)).toMatchObject({
+      run_id: 77,
+      attempt: 2,
+      status: 'failed',
+    });
+    expect(
+      exactRun(
+        pr,
+        { ...run, pull_requests: [{ number: 8, head: { sha: pr.head_sha } }] },
+        'pr_head',
+        at,
+      ),
+    ).toBeNull();
+    expect(exactRun(pr, run, 'combined', at)).toBeNull();
+    expect(
+      exactRun(
+        pr,
+        {
+          ...run,
+          id: 78,
+          head_sha: 'b'.repeat(40),
+          head_branch: 'main',
+          event: 'push',
+          conclusion: 'success',
+        },
+        'main',
+        at,
+      ),
+    ).toMatchObject({
+      run_id: 78,
+      status: 'passed',
+    });
+  });
+
+  it('collects an observed pending PR run without inventing queue or main runs', async () => {
+    const gh = {
+      ...fakeGh(() => page([prNode(7)])),
+      workflowRuns: async () => ({
+        workflow_runs: [
+          {
+            id: 90,
+            run_attempt: 1,
+            head_sha: 'c'.repeat(40),
+            head_branch: 'dev/GF-7-x',
+            name: 'ci',
+            path: '.github/workflows/ci.yml@dev/GF-7-x',
+            event: 'pull_request',
+            status: 'in_progress',
+            conclusion: null,
+            pull_requests: [{ number: 7, head: { sha: 'a'.repeat(40) } }],
+          },
+        ],
+      }),
+    };
+    const { records } = await collect(gh);
+    const pr = records.find((r: { kind: string }) => r.kind === 'pr');
+    expect(pr.workflow_runs).toMatchObject([{ phase: 'pr_head', run_id: 90, status: 'pending' }]);
+    expect(
+      pr.workflow_runs.some(
+        (run: { phase: string }) => run.phase === 'combined' || run.phase === 'main',
+      ),
+    ).toBe(false);
   });
 
   it('finds keys in prose as whole tokens', () => {
@@ -205,6 +291,12 @@ describe('the gh wrapper', () => {
     expect(() =>
       assertReadOnly(['api', 'graphql', '-f', 'query=query { viewer { login } }']),
     ).not.toThrow();
+    expect(() =>
+      assertReadOnly([
+        'api',
+        'repos/acme/web/actions/runs?event=push&head_sha=' + 'a'.repeat(40) + '&per_page=100',
+      ]),
+    ).not.toThrow();
     for (const args of [
       ['api', 'graphql', '-f', 'query=mutation { addComment }'],
       ['api', 'graphql', '-f', 'query=query { x } mutation { y }'],
@@ -212,6 +304,8 @@ describe('the gh wrapper', () => {
       ['pr', 'comment', '1'],
       ['api', 'repos/acme/web/issues', '-X', 'POST'],
       ['auth', 'token'],
+      ['api', 'repos/acme/web/actions/runs?event=push&head_sha=bad&per_page=100'],
+      ['api', 'repos/acme/web/issues'],
     ]) {
       expect(() => assertReadOnly(args), args.join(' ')).toThrow('not_read_only');
     }

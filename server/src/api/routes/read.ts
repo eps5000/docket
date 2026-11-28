@@ -8,6 +8,7 @@
  * `layout=timeline` takes its `timeline` section from the forecast service (US8).
  */
 import type { Env, Hono } from 'hono';
+import { withCardActivity } from '../../domain/work-card-activity.js';
 import { defineRoute, type RouteDeps } from '../define.js';
 
 export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
@@ -33,8 +34,16 @@ export function readRoutes<E extends Env>(api: Hono<E>, deps: RouteDeps): void {
 
   defineRoute(api, 'work.get', deps, ({ services, read, query }) => {
     const work = services.views.work(read, query);
-    if (query.layout !== 'timeline') return work;
-    return { ...work, timeline: services.forecast.timeline(read, query) };
+    // The Agents view already computes live vs reported vs stale and lease
+    // custody. Keep this projection outside views.ts while DKT-36 owns it.
+    const activity = withCardActivity(
+      work,
+      services.views.agents(read, { scope: query.scope }),
+      read.db,
+      read.now,
+    );
+    if (query.layout !== 'timeline') return activity;
+    return { ...activity, timeline: services.forecast.timeline(read, query) };
   });
 
   defineRoute(api, 'items.get', deps, ({ services, read, params }) =>

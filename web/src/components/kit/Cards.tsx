@@ -22,6 +22,7 @@ import { EpicReadinessNote } from './EpicReadiness';
 import { EpicReleaseNote } from './EpicRelease';
 import { FinishedPartlyNote } from './FinishedPartly';
 import { EpicMidflightNote } from './EpicMidflight';
+import { GithubCiLinks, WorkActivity } from './WorkActivity';
 
 /** `codex · orca-w1`. */
 export function leadName(lead: { client: string; label: string | null }): string {
@@ -155,7 +156,9 @@ export function TicketCard({
       )}
       {/* Decision 61: a partial exit leads, ahead of the run line. */}
       {item.finished_partly && <FinishedPartlyNote partly={item.finished_partly} />}
-      {item.lead && (
+      {item.activity !== undefined ? (
+        <WorkActivity activity={item.activity} />
+      ) : item.lead ? (
         <RunLine
           state={item.lead.run_state}
           reason={leadReason(item.lead_parked)}
@@ -163,8 +166,8 @@ export function TicketCard({
           age={formatAge(item.last_activity_at, now)}
           ageTitle={`Last activity ${isoTitle(item.last_activity_at)}`}
         />
-      )}
-      {item.producer && (
+      ) : null}
+      {item.producer && item.activity === undefined && (
         <div className="meta src" data-card-producer={item.producer.name}>
           {item.producer.between_workers
             ? `Between workers · ${item.producer.name}`
@@ -173,10 +176,18 @@ export function TicketCard({
       )}
     </Link>
   );
-  if (item.status !== 'done') return card;
+  if (item.status !== 'done') {
+    return (
+      <div className="tcw">
+        {card}
+        <GithubCiLinks github={item.github} />
+      </div>
+    );
+  }
   return (
-    <div className="tcw">
+    <div className={item.github ? 'tcw done has-ci' : 'tcw done'}>
       {card}
+      <GithubCiLinks github={item.github} />
       {item.archived
         ? onUnarchive && (
             <Button size="sm" className="archbtn" onClick={onUnarchive}>
@@ -240,45 +251,55 @@ export function EpicCard({
   const { total, done, by_status, queued = 0, blocked = 0 } = epic.children;
   const depsId = useId();
   return (
-    <Link
-      className={total === 0 ? 'epiccard empty' : 'epiccard'}
-      to={paths.item(epic.id)}
-      aria-current={current || undefined}
-      aria-describedby={epic.waits_on?.length ? depsId : undefined}
-    >
-      <span className="row" style={{ gap: 6, minWidth: 0 }}>
-        <TypeIcon type="Epic" />
-        <span className="et" title={epic.title}>
-          {epic.title}
+    <div className="epiccard-wrap">
+      <Link
+        className={total === 0 ? 'epiccard empty' : 'epiccard'}
+        to={paths.item(epic.id)}
+        aria-current={current || undefined}
+        aria-describedby={epic.waits_on?.length ? depsId : undefined}
+      >
+        <span className="row" style={{ gap: 6, minWidth: 0 }}>
+          <TypeIcon type="Epic" />
+          <span className="et" title={epic.title}>
+            {epic.title}
+          </span>
+          <span className="mono muted" style={{ marginLeft: 'auto' }}>
+            {epic.id}
+          </span>
         </span>
-        <span className="mono muted" style={{ marginLeft: 'auto' }}>
-          {epic.id}
+        {/* An epic with no tickets has no bar (B35): "0/0 done" over an empty bar read as broken. */}
+        {total > 0 && <StatusBar counts={by_status} label={`${done} of ${total} done`} mini />}
+        <WorkActivity activity={epic.activity} />
+        {epic.child_activity && (
+          <span className="epic-child-activity">
+            <span className="src">Child progress</span>
+            <WorkActivity activity={epic.child_activity} />
+          </span>
+        )}
+        <span className="src">
+          {total === 0
+            ? epicEmptyText(epic.status)
+            : `${done}/${total} done · ${STATUS_LABELS[epic.status]}`}
+          {/* Decision 57: what waits its turn, and what needs attention, in words. */}
+          {queued + blocked > 0 && (
+            <span data-epic-waits=""> · {waitCountsText({ queued, blocked })}</span>
+          )}
+          {forYou > 0 && (
+            <>
+              {' · '}
+              <b style={{ color: 'var(--warn)' }}>{forYou} for you</b>
+            </>
+          )}
         </span>
-      </span>
-      {/* An epic with no tickets has no bar (B35): "0/0 done" over an empty bar read as broken. */}
-      {total > 0 && <StatusBar counts={by_status} label={`${done} of ${total} done`} mini />}
-      <span className="src">
-        {total === 0
-          ? epicEmptyText(epic.status)
-          : `${done}/${total} done · ${STATUS_LABELS[epic.status]}`}
-        {/* Decision 57: what waits its turn, and what needs attention, in words. */}
-        {queued + blocked > 0 && (
-          <span data-epic-waits=""> · {waitCountsText({ queued, blocked })}</span>
-        )}
-        {forYou > 0 && (
-          <>
-            {' · '}
-            <b style={{ color: 'var(--warn)' }}>{forYou} for you</b>
-          </>
-        )}
-      </span>
-      {epic.waits_on && <EpicDepsNote waits={epic.waits_on} namesId={depsId} />}
-      {/* Decision 58: Not ready to start, or Started with N unshaped tickets. */}
-      {epic.readiness && <EpicReadinessNote readiness={epic.readiness} />}
-      {/* Decision 62: tickets added after it started, and how many are untriaged. */}
-      {epic.midflight && <EpicMidflightNote midflight={epic.midflight} />}
-      {/* Decision 64: the open bugs holding its release. */}
-      {epic.release && <EpicReleaseNote release={epic.release} />}
-    </Link>
+        {epic.waits_on && <EpicDepsNote waits={epic.waits_on} namesId={depsId} />}
+        {/* Decision 58: Not ready to start, or Started with N unshaped tickets. */}
+        {epic.readiness && <EpicReadinessNote readiness={epic.readiness} />}
+        {/* Decision 62: tickets added after it started, and how many are untriaged. */}
+        {epic.midflight && <EpicMidflightNote midflight={epic.midflight} />}
+        {/* Decision 64: the open bugs holding its release. */}
+        {epic.release && <EpicReleaseNote release={epic.release} />}
+      </Link>
+      <GithubCiLinks github={epic.github} />
+    </div>
   );
 }
