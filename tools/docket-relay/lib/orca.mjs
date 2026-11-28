@@ -130,14 +130,70 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
       const { dispatch } = reply.result;
       // A reply we can't read says nothing about the dispatch, so it isn't "unknown".
       if (!dispatch) throw Object.assign(new Error('unreadable'), { code: 'unreadable' });
-      return { found: true, runId: dispatch.runId ?? null };
+      return {
+        found: true,
+        runId: dispatch.runId ?? null,
+        status: dispatch.status ?? null,
+        capabilityRevokedAt: dispatch.capabilityRevokedAt ?? null,
+        workspaceId: reply.result.worker?.worktreeId ?? null,
+        workerState: reply.result.worker?.state ?? null,
+        resourceState: reply.result.projection?.resource?.state ?? null,
+        terminalAbsent: reply.result.terminal === null,
+        terminalResourceAbsent: reply.result.terminalResource === null,
+      };
+    },
+
+    /** Exhaustive same-Run census; an incomplete page is never used for an admission decision. */
+    async listWorkers(runId) {
+      const workers = [];
+      let cursor = null;
+      for (let page = 0; page < 20; page += 1) {
+        const args = ['orchestration', 'worker-list', '--run', runId, '--limit', '100', '--json'];
+        if (cursor) args.push('--cursor', cursor);
+        const reply = await run(args);
+        if (!reply.ok || !Array.isArray(reply.result?.workers))
+          throw new Error('worker_list_unknown');
+        workers.push(...reply.result.workers);
+        if (workers.length > 500) throw new Error('worker_list_overflow');
+        cursor = reply.result.nextCursor ?? null;
+        if (!cursor) return workers;
+      }
+      throw new Error('worker_list_incomplete');
+    },
+
+    /** Orca request dedupe makes a crash after start safe to retry with the same request ID. */
+    async startFollowup({ runId, workspaceId, agent, spec, requestId }) {
+      const reply = await run([
+        'orchestration',
+        'worker-start',
+        '--run',
+        runId,
+        '--from',
+        SENDER,
+        '--worktree',
+        `id:${workspaceId}`,
+        '--agent',
+        agent,
+        '--spec',
+        spec,
+        '--retry-request',
+        requestId,
+        '--json',
+      ]);
+      if (!reply.ok) return reply;
+      const dispatchId =
+        reply.result?.dispatch?.id ??
+        reply.result?.dispatch?.dispatchId ??
+        reply.result?.dispatchId ??
+        null;
+      return { ok: true, dispatchId };
     },
 
     /**
      * `{ ok }`, or `{ ok: false, code, transient }`. The one place that builds
      * `--to`: anything but a coordinator address is refused before Orca runs.
      */
-    async send({ to, subject, body, requestId }) {
+    async send({ to, subject, body, requestId, type = 'status' }) {
       if (!isCoordinatorAddress(to)) {
         return { ok: false, code: 'address_refused', transient: false };
       }
@@ -149,7 +205,7 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
         '--from',
         SENDER,
         '--type',
-        'status',
+        type,
         '--subject',
         subject,
         '--body',

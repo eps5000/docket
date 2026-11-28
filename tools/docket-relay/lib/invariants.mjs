@@ -3,6 +3,7 @@
  * means `hold_reconcile`. Times against the clock are checked in relay.mjs.
  */
 import { ITEM_RE, KNOWN_KINDS } from './classify.mjs';
+import { continuationProblem } from './continuation.mjs';
 
 const CURSOR = /^\d{1,15}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -62,6 +63,8 @@ function batchProblem(item, batch, cursor) {
 
 /** A short code for the first broken invariant, or null. */
 export function stateProblem(s) {
+  const continuation = continuationProblem(s.continuations);
+  if (continuation) return continuation;
   if (s.cursor === null) {
     if (s.anchor !== null) return 'anchor_without_cursor';
     if (Object.keys(s.seen).length > 0) return 'seen_ahead';

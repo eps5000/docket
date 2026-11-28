@@ -9,6 +9,7 @@
  * `hold_reconcile` (hold.mjs): nothing is sent and the cursor stays put.
  */
 import { randomUUID } from 'node:crypto';
+import { runContinuationLoop } from './continuation.mjs';
 import { recordEvent } from './batch.mjs';
 import { buildMessage, orderKinds } from './classify.mjs';
 import { checkFeed, holdRecord, pageIsCoherent, readAnchor } from './hold.mjs';
@@ -70,6 +71,7 @@ export function createRelay({
   log = () => {},
   now = Date.now,
   sleep = abortableSleep,
+  continuationMappings = [],
   options = {},
 }) {
   const opts = { ...DEFAULTS, ...options };
@@ -517,7 +519,23 @@ export function createRelay({
     if (signal.aborted) stop();
     else signal.addEventListener('abort', stop, { once: true });
     if (!assess()) {
-      await Promise.all([pollLoop(loops.signal), flushLoop(loops.signal)]);
+      await Promise.all([
+        pollLoop(loops.signal),
+        flushLoop(loops.signal),
+        runContinuationLoop(
+          {
+            mappings: continuationMappings,
+            state: s,
+            save: store.save,
+            docket,
+            orca,
+            now,
+            log,
+          },
+          loops.signal,
+          sleep,
+        ),
+      ]);
     }
     // Whatever was in flight has finished and been recorded before the hold is reported.
     await flushing;

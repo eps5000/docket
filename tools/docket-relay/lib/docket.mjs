@@ -65,6 +65,92 @@ export function createDocket({ baseUrl, fetchImpl = fetch }) {
   };
 
   return {
+    /** Bounded current-run roster for the DKT-only continuation lane. */
+    async readAgents({ signal } = {}) {
+      const response = await get('/api/agents', { signal, timeoutMs: 15_000 });
+      if (!response.ok) throw failure(response);
+      let page;
+      try {
+        page = await response.json();
+      } catch {
+        throw new DocketError('bad_response', response.status);
+      }
+      if (!Array.isArray(page?.rows) || page.rows.length > 500)
+        throw new DocketError('bad_response', response.status);
+      return { rows: page.rows };
+    },
+
+    async readDocketPause({ signal } = {}) {
+      const response = await get('/api/bootstrap', { signal, timeoutMs: 15_000 });
+      if (!response.ok) throw failure(response);
+      let page;
+      try {
+        page = await response.json();
+      } catch {
+        throw new DocketError('bad_response', response.status);
+      }
+      const projects = page?.projects;
+      if (!Array.isArray(projects) || projects.length > 100)
+        throw new DocketError('bad_response', response.status);
+      const docket = projects.filter((project) => project.key === 'DKT');
+      if (docket.length !== 1) throw new DocketError('bad_response', response.status);
+      const pause = docket[0].paused;
+      if (pause === undefined) return false;
+      if (
+        !pause ||
+        typeof pause !== 'object' ||
+        typeof pause.decision_id !== 'string' ||
+        typeof pause.reason !== 'string' ||
+        typeof pause.paused_by !== 'string' ||
+        typeof pause.paused_at !== 'string'
+      )
+        throw new DocketError('bad_response', response.status);
+      return true;
+    },
+
+    /** Exact Epic/run identity only; no owner text is logged or sent. */
+    async readContinuationItem(id, { signal } = {}) {
+      const response = await get(`/api/items/${encodeURIComponent(id)}`, {
+        signal,
+        timeoutMs: 15_000,
+      });
+      if (!response.ok) throw failure(response);
+      let detail;
+      try {
+        detail = await response.json();
+      } catch {
+        throw new DocketError('bad_response', response.status);
+      }
+      if (!detail?.item || !Array.isArray(detail.item.runs))
+        throw new DocketError('bad_response', response.status);
+      return {
+        item: {
+          id: detail.item.id,
+          project: detail.item.project,
+          type: detail.item.type,
+          open_question: detail.item.open_question
+            ? { answered_at: detail.item.open_question.answered_at }
+            : null,
+          runs: detail.item.runs.map((run) => ({
+            run_id: run.run_id,
+            run_state: run.run_state,
+            is_lead: run.is_lead,
+            orchestrator: run.orchestrator
+              ? {
+                  dispatch_id: run.orchestrator.dispatch_id,
+                  run_id: run.orchestrator.run_id,
+                }
+              : null,
+            workspace: run.workspace ? { path: run.workspace.path } : null,
+          })),
+        },
+        decisions: (detail.decisions ?? []).map((decision) => ({
+          authority: decision.authority,
+          status: decision.status,
+        })),
+      };
+    },
+
     /** The end of the feed, without waiting. */
     async currentCursor({ signal } = {}) {
       const response = await get('/agent/changes/wait?timeout_s=0&limit=1', {

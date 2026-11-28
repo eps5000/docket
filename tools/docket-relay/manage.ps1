@@ -18,9 +18,9 @@ param(
 )
 
 $script:AppFiles = @('docket-relay.mjs', 'launch.ps1', 'manage.ps1', 'README.md')
-$script:LibFiles = @('batch.mjs', 'classify.mjs', 'docket.mjs', 'hold.mjs', 'invariants.mjs',
+$script:LibFiles = @('batch.mjs', 'classify.mjs', 'continuation.mjs', 'docket.mjs', 'hold.mjs', 'invariants.mjs',
   'orca.mjs', 'relay.mjs', 'store.mjs', 'target.mjs')
-$script:StateFiles = @('state.json', 'relay.log', 'relay.log.1', 'reconcile-audit.jsonl', 'instance.json')
+$script:StateFiles = @('state.json', 'relay.log', 'relay.log.1', 'reconcile-audit.jsonl', 'instance.json', 'continuation-config.json')
 $script:StatePattern = '^(state\.json\.corrupt-\d+|(state|instance)\.json\.\d+\.tmp)$'
 # How far the recorded start may be from the one Windows reports.
 $script:StartToleranceMs = 60000
