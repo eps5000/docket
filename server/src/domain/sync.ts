@@ -943,7 +943,7 @@ const orcaPresenceHandler: SyncHandler<OrcaPresenceRecord> = {
 const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
   settings(db) {
     const pageSize = 80;
-    const targetLimit = 128;
+    const targetLimit = 160;
     const rawLimit = 2_048;
     const query = db.sqlite.prepare(
       `WITH candidates AS (
@@ -1022,7 +1022,7 @@ const orcaAuditHandler: SyncHandler<OrcaAuditRecord> = {
           });
           if (targets.length > targetLimit) break;
         } catch {
-          // A malformed row is ineligible; keep scanning for the 129th eligible target.
+          // A malformed row is ineligible; keep scanning for the 161st eligible target.
         }
       }
       if (rows.length < requested) {
