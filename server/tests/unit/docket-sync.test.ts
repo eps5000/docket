@@ -27,7 +27,8 @@ const TOOL = join(ROOT, 'tools', 'docket-sync');
 const lib = (name: string) =>
   import(/* @vite-ignore */ pathToFileURL(join(TOOL, 'lib', name)).href);
 
-const { assertReadOnly, childEnv, classifyFailure, createGh, findGh } = await lib('gh.mjs');
+const { GhError, assertReadOnly, childEnv, classifyFailure, createGh, findGh } =
+  await lib('gh.mjs');
 const { MAX_REQUESTS, RATE_FLOOR, collectWith, exactRun, isMergeQueue, keysInText, toRecord } =
   await lib('github.mjs');
 const { BATCH_SIZE, backoffMs, createRunner, loadSources } = await lib('runner.mjs');
@@ -277,6 +278,15 @@ describe('reading GitHub', () => {
       exactRun(exactPr, { ...prRun, head_sha: 'c'.repeat(40) }, 'pr_head', at, true),
     ).toBeNull();
     expect(exactRun(exactPr, prRun, 'pr_head', at)).toBeNull();
+    expect(
+      exactRun(
+        exactPr,
+        { ...prRun, pull_requests: [{ number: 248, head: { sha: exactPr.head_sha } }] },
+        'pr_head',
+        at,
+        true,
+      ),
+    ).toBeNull();
     expect(exactRun(exactPr, prRun, 'combined', at, true)).toBeNull();
   });
 
@@ -314,6 +324,114 @@ describe('reading GitHub', () => {
     };
     const { records } = await collect(gh);
     expect(records.find((r: { key: string }) => r.key === 'acme/web#7').workflow_runs).toEqual([]);
+  });
+
+  it('treats an oversized or unavailable commit association as Unknown without stalling the cycle', async () => {
+    const merged = prNode(7, {
+      state: 'MERGED',
+      mergedAt: '2026-11-23T11:00:00Z',
+      mergeCommit: { oid: 'b'.repeat(40) },
+    });
+    const run = {
+      id: 7,
+      run_attempt: 1,
+      head_sha: 'a'.repeat(40),
+      head_branch: 'dev/GF-7-x',
+      name: 'ci',
+      path: '.github/workflows/ci.yml',
+      event: 'pull_request',
+      repository: { full_name: 'acme/web' },
+      html_url: 'https://github.com/acme/web/actions/runs/7',
+      status: 'completed',
+      conclusion: 'success',
+      pull_requests: [],
+    };
+    let fail = false;
+    const gh = {
+      ...fakeGh(() => page([merged])),
+      workflowRuns: async (_repo: string, filter: { event: string }) => ({
+        workflow_runs: filter.event === 'pull_request' ? [run] : [],
+      }),
+      commitPulls: async () => {
+        if (fail) throw new GhError('gh_error');
+        return Array.from({ length: 100 }, () => ({
+          number: 7,
+          head: { sha: 'a'.repeat(40), ref: 'dev/GF-7-x' },
+          base: { repo: { full_name: 'acme/web' } },
+        }));
+      },
+    };
+    const oversized = await collect(gh);
+    expect(
+      oversized.records.find((r: { key: string }) => r.key === 'acme/web#7').workflow_runs,
+    ).toEqual([]);
+    fail = true;
+    const unavailable = await collect(gh, oversized.state);
+    expect(
+      unavailable.records.find((r: { key: string }) => r.key === 'acme/web#7').workflow_runs,
+    ).toEqual([]);
+    expect(unavailable.state.next_ci_offset).toBe(0);
+  });
+
+  it('reserves CI calls, avoids a partial merged read and rotates candidates', async () => {
+    const nodes = Array.from({ length: 10 }, (_, index) =>
+      prNode(index + 1, {
+        state: 'MERGED',
+        mergedAt: '2026-11-23T11:00:00Z',
+        mergeCommit: { oid: 'b'.repeat(40) },
+        headRefOid: 'a'.repeat(39) + (index + 1).toString(16),
+      }),
+    );
+    const branches: string[] = [];
+    const gh = {
+      ...fakeGh((query) => (query.includes('states:OPEN') ? page([]) : page(nodes))),
+      workflowRuns: async (_repo: string, filter: { event: string; branch?: string }) => {
+        if (filter.event === 'push') return { workflow_runs: [] };
+        branches.push(filter.branch ?? '');
+        const number = Number(/GF-(\d+)-x/.exec(filter.branch ?? '')?.[1]);
+        return {
+          workflow_runs: [
+            {
+              id: number,
+              run_attempt: 1,
+              head_sha: 'a'.repeat(39) + number.toString(16),
+              head_branch: filter.branch,
+              name: 'ci',
+              path: '.github/workflows/ci.yml',
+              event: 'pull_request',
+              repository: { full_name: 'acme/web' },
+              html_url: `https://github.com/acme/web/actions/runs/${number}`,
+              status: 'completed',
+              conclusion: 'success',
+              pull_requests: [],
+            },
+          ],
+        };
+      },
+      commitPulls: async (_repo: string, sha: string) => {
+        const number = Number.parseInt(sha.slice(-1), 16);
+        return [
+          {
+            number,
+            head: { sha, ref: `dev/GF-${number}-x` },
+            base: { repo: { full_name: 'acme/web' } },
+          },
+        ];
+      },
+    };
+    const first = await collect(gh);
+    expect(gh.calls).toHaveLength(2);
+    expect(branches).toHaveLength(6);
+    expect(first.state.next_ci_offset).toBe(6);
+    expect(
+      first.records.find((r: { key: string }) => r.key === 'acme/web#7').workflow_runs,
+    ).toBeUndefined();
+    const second = await collect(gh, first.state);
+    expect(branches[6]).toBe('dev/GF-7-x');
+    expect(
+      second.records.find((r: { key: string }) => r.key === 'acme/web#7').workflow_runs,
+    ).toMatchObject([{ phase: 'pr_head', run_id: 7 }]);
+    expect(gh.calls).toHaveLength(4);
   });
 
   it('finds keys in prose as whole tokens', () => {
@@ -426,6 +544,9 @@ describe('the gh wrapper', () => {
       ['api', 'repos/acme/web/issues', '-X', 'POST'],
       ['auth', 'token'],
       ['api', 'repos/acme/web/actions/runs?event=push&head_sha=bad&per_page=100'],
+      ['api', 'repos/acme/web/commits/' + 'a'.repeat(40) + '/pulls'],
+      ['api', 'repos/acme/web/commits/' + 'a'.repeat(40) + '/pulls?per_page=100&x=1'],
+      ['api', 'repos/acme/web/commits/short/pulls?per_page=100'],
       ['api', 'repos/acme/web/issues'],
     ]) {
       expect(() => assertReadOnly(args), args.join(' ')).toThrow('not_read_only');
@@ -465,6 +586,16 @@ describe('the gh wrapper', () => {
   it('says gh is missing', async () => {
     await expect(createGh({ env: { PATH: home } }).authStatus()).rejects.toMatchObject({
       code: 'gh_missing',
+    });
+  });
+
+  it('rejects an invalid commit-pulls repo or sha before running gh', async () => {
+    const gh = createGh({ env: { PATH: home } });
+    await expect(gh.commitPulls('acme/web/extra', 'a'.repeat(40))).rejects.toMatchObject({
+      code: 'not_read_only',
+    });
+    await expect(gh.commitPulls('acme/web', 'short')).rejects.toMatchObject({
+      code: 'not_read_only',
     });
   });
 });

@@ -127,7 +127,8 @@ export function exactRun(pr, run, phase, at, commitLinked = false) {
     const linked = run.pull_requests?.some(
       (link) => link.number === pr.number && link.head?.sha === pr.head_sha,
     );
-    if (!linked && (!commitLinked || sha !== pr.head_sha)) return null;
+    if (!linked && (!commitLinked || sha !== pr.head_sha || (run.pull_requests?.length ?? 0) > 0))
+      return null;
   } else if (phase === 'main') {
     if (
       pr.state !== 'merged' ||
@@ -314,10 +315,23 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
           /^[0-9a-f]{40}$/i.test(pr.head_sha ?? '') &&
           gh.commitPulls &&
           !spent() &&
-          runs.some((run) => run?.event === 'pull_request' && run?.head_branch === pr.head_branch)
+          runs.some(
+            (run) =>
+              run?.event === 'pull_request' &&
+              run?.head_branch === pr.head_branch &&
+              run?.head_sha === pr.head_sha,
+          )
         ) {
           used += 1;
-          const pulls = await gh.commitPulls(pr.repo, pr.head_sha, signal);
+          let pulls;
+          try {
+            pulls = await gh.commitPulls(pr.repo, pr.head_sha, signal);
+          } catch (error) {
+            if (error?.code !== 'gh_error') throw error;
+            // A malformed or unavailable commit association is Unknown for
+            // this PR; advance the bounded candidate rotation.
+            log('ci_link_unavailable', { repo: pr.repo });
+          }
           const matching =
             Array.isArray(pulls) && pulls.length < 100
               ? pulls.filter(
