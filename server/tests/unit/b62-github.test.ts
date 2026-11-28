@@ -227,7 +227,7 @@ describe('ingest', () => {
         phase: 'pr_head' as const,
         run_id: 111,
         attempt: 2,
-        head_sha: 'c'.repeat(40),
+        head_sha: head,
         status: 'failed' as const,
         observed_at: at,
       },
@@ -264,6 +264,56 @@ describe('ingest', () => {
     ingest([pr(81, { head_branch: `dev/${id}-x`, head_sha: 'd'.repeat(40) })]);
     expect(panel(id).primary[0]?.workflow_runs).toEqual([]);
   });
+
+  it.each(['pending', 'failed'] as const)(
+    'keeps exact passed links beyond 15 minutes with a fresh source but hides aged %s CI',
+    (agedStatus) => {
+      start();
+      const id = ticket('Rotating CI');
+      const at = d.clock.now().toISOString();
+      const head = 'a'.repeat(40);
+      const merged = 'b'.repeat(40);
+      const record = pr(83, {
+        head_branch: `dev/${id}-x`,
+        head_sha: head,
+        state: 'merged',
+        merged_at: at,
+        merged_sha: merged,
+        workflow_runs: [
+          {
+            phase: 'pr_head',
+            run_id: 444,
+            attempt: 1,
+            head_sha: head,
+            status: 'passed',
+            observed_at: at,
+          },
+          {
+            phase: 'main',
+            run_id: 555,
+            attempt: 1,
+            head_sha: merged,
+            status: agedStatus,
+            observed_at: at,
+          },
+        ],
+      });
+      ingest([
+        record,
+        { key: `repo:${REPO}`, kind: 'repo', repo: REPO, ok: true, error: null, at },
+      ]);
+      d.clock.advance(minutes(20));
+      const refreshedAt = d.clock.now().toISOString();
+      ingest([
+        { ...record, workflow_runs: undefined, remote_updated_at: refreshedAt },
+        { key: `repo:${REPO}`, kind: 'repo', repo: REPO, ok: true, error: null, at: refreshedAt },
+      ]);
+      expect(panel(id).stale).toBe(false);
+      expect(panel(id).primary[0]?.workflow_runs).toEqual([record.workflow_runs![0]]);
+      ingest([{ ...record, workflow_runs: undefined, merged_sha: 'c'.repeat(40) }]);
+      expect(panel(id).primary[0]?.workflow_runs).toEqual([]);
+    },
+  );
 
   it('fails closed on stale GitHub observations', () => {
     start();

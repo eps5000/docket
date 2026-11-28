@@ -118,8 +118,8 @@ export function CiPhases({
           <span key={phase} className="wa-ci-phase" data-ci-phase={phase}>
             {url ? (
               <a href={url} target="_blank" rel="noreferrer noopener">
-                {label} · {run.status} (run {run.run_id}, attempt {run.attempt})
-                <span className="sr"> (opens GitHub)</span>
+                {label} · last observed {run.status} at {run.observed_at} (run {run.run_id}, attempt{' '}
+                {run.attempt})<span className="sr"> (opens GitHub)</span>
               </a>
             ) : (
               <span>
