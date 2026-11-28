@@ -204,7 +204,7 @@ describe('the ticket’s GitHub panel', () => {
     );
     const list = await screen.findByRole('list', { name: 'Pull requests for this ticket' });
     expect(within(list).getByText('✓ Merged')).toBeTruthy();
-    expect(within(list).getByText('CI failed')).toBeTruthy();
+    expect(within(list).getByText('PR checks failed')).toBeTruthy();
     const link = within(list).getByRole('link', { name: /#12 Change 12/ });
     expect(link.getAttribute('href')).toBe('https://github.com/acme/web-app/pull/12');
     expect(link.getAttribute('rel')).toContain('noopener');
