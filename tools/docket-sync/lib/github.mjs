@@ -1,7 +1,7 @@
 /**
  * Reads pull requests for each connected repository (owner decision 49).
  *
- * Each run makes at most `MAX_REQUESTS` GraphQL calls: the open PRs (their CI
+ * Each run makes at most `MAX_REQUESTS` GitHub calls: the open PRs (their CI
  * can change without the PR's `updatedAt` moving), then what changed since the
  * last run, newest first, stopping at the watermark. Near the hourly limit it
  * stops and waits for the reset. PR bodies are read only to find ticket keys,
@@ -11,6 +11,8 @@ import { GhError } from './gh.mjs';
 
 export const MAX_REQUESTS = 20;
 export const MAX_PAGES_PER_QUERY = 6;
+const CI_REQUESTS_RESERVED = 8;
+const MERGED_CI_LOOKBACK_MS = 24 * 60 * 60_000;
 /** Stop reading below this many points left in the shared 5,000 per hour. */
 export const RATE_FLOOR = 500;
 const PAGE_SIZE = 50;
@@ -100,7 +102,7 @@ const runStatus = (run) => {
 };
 
 /** A CI workflow run bound to an exact PR head or resulting-main commit. */
-export function exactRun(pr, run, phase, at) {
+export function exactRun(pr, run, phase, at, commitLinked = false) {
   const id = run?.id;
   const attempt = run?.run_attempt;
   const sha = run?.head_sha;
@@ -111,7 +113,11 @@ export function exactRun(pr, run, phase, at) {
     attempt < 1 ||
     !/^[0-9a-f]{40}$/i.test(sha ?? '') ||
     run?.name !== 'ci' ||
-    !String(run.path ?? '').startsWith('.github/workflows/ci.yml@')
+    !['.github/workflows/ci.yml', '.github/workflows/ci.yml@'].some((path) =>
+      path.endsWith('@') ? String(run.path ?? '').startsWith(path) : run.path === path,
+    ) ||
+    run.repository?.full_name !== pr.repo ||
+    run.html_url !== `https://github.com/${pr.repo}/actions/runs/${id}`
   )
     return null;
   const status = runStatus(run);
@@ -121,7 +127,8 @@ export function exactRun(pr, run, phase, at) {
     const linked = run.pull_requests?.some(
       (link) => link.number === pr.number && link.head?.sha === pr.head_sha,
     );
-    if (!linked) return null;
+    if (!linked && (!commitLinked || sha !== pr.head_sha || (run.pull_requests?.length ?? 0) > 0))
+      return null;
   } else if (phase === 'main') {
     if (
       pr.state !== 'merged' ||
@@ -178,20 +185,23 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
   const start = repos.length > 0 ? (state?.next_repo ?? 0) % repos.length : 0;
   const order = [...repos.slice(start), ...repos.slice(0, start)];
   let used = 0;
+  let graphqlUsed = 0;
   let paused = null;
   let finished = 0;
 
   const fetchPage = async (query, owner, repoName, cursor) => {
     used += 1;
+    graphqlUsed += 1;
     const response = await gh.graphql(query, { owner, name: repoName, cursor }, signal);
     const { page, rate } = checkPage(response);
     if (rate && rate.remaining < RATE_FLOOR) paused = rate.resetAt ?? null;
     return page;
   };
   const spent = () => used >= MAX_REQUESTS || paused !== null;
+  const graphqlSpent = () => spent() || graphqlUsed >= MAX_REQUESTS - CI_REQUESTS_RESERVED;
 
   for (const repo of order) {
-    if (spent()) break;
+    if (graphqlSpent()) break;
     const [owner, repoName] = repo.split('/');
     const startedAt = now();
     const sinceText = next.repos[repo]?.since;
@@ -203,7 +213,7 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
     try {
       let cursor = null;
       for (let p = 0; p < MAX_PAGES_PER_QUERY; p += 1) {
-        if (spent()) {
+        if (graphqlSpent()) {
           complete = false;
           break;
         }
@@ -217,14 +227,16 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
       cursor = null;
       let reached = false;
       for (let p = 0; p < MAX_PAGES_PER_QUERY && !reached; p += 1) {
-        if (spent()) {
+        if (graphqlSpent()) {
           complete = false;
           break;
         }
         const page = await fetchPage(CHANGED_QUERY, owner, repoName, cursor);
         for (const pr of page.nodes) {
           const at = Date.parse(pr.updatedAt);
-          if (Number.isFinite(at) && at < since) {
+          // A recent merged PR still needs CI identity even after the ordinary
+          // change watermark passes it. The page cap and global budget bound this read.
+          if (Number.isFinite(at) && at < Math.min(since, startedAt - MERGED_CI_LOOKBACK_MS)) {
             reached = true;
             break;
           }
@@ -273,20 +285,69 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
     const candidates = [...records.values()]
       .filter((record) => record.kind === 'pr')
       .sort((a, b) => b.remote_updated_at.localeCompare(a.remote_updated_at));
-    for (const pr of candidates) {
+    const offset = candidates.length ? (state?.next_ci_offset ?? 0) % candidates.length : 0;
+    const ordered = [...candidates.slice(offset), ...candidates.slice(0, offset)];
+    let examined = 0;
+    for (const pr of ordered) {
       if (spent()) break;
+      // Never publish one phase of a merged PR because its other phase ran
+      // out of this cycle's budget. The offset retries it on a later cycle.
+      if (MAX_REQUESTS - used < (pr.state === 'merged' ? 3 : 1)) break;
+      examined += 1;
       const observed = [];
       const rest = async (filter) => {
         used += 1;
         const result = await gh.workflowRuns(pr.repo, filter, signal);
         return Array.isArray(result?.workflow_runs) ? result.workflow_runs : [];
       };
-      if (pr.state === 'open' && /^[A-Za-z0-9._/-]+$/.test(pr.head_branch)) {
+      if (
+        (pr.state === 'open' || pr.state === 'merged') &&
+        /^[A-Za-z0-9._/-]+$/.test(pr.head_branch)
+      ) {
         const runs = await rest({ event: 'pull_request', branch: pr.head_branch });
-        const exact = runs
+        let exact = runs
           .map((run) => exactRun(pr, run, 'pr_head', at))
           .filter(Boolean)
           .sort((a, b) => b.run_id - a.run_id)[0];
+        if (
+          !exact &&
+          pr.state === 'merged' &&
+          /^[0-9a-f]{40}$/i.test(pr.head_sha ?? '') &&
+          gh.commitPulls &&
+          !spent() &&
+          runs.some(
+            (run) =>
+              run?.event === 'pull_request' &&
+              run?.head_branch === pr.head_branch &&
+              run?.head_sha === pr.head_sha,
+          )
+        ) {
+          used += 1;
+          let pulls;
+          try {
+            pulls = await gh.commitPulls(pr.repo, pr.head_sha, signal);
+          } catch (error) {
+            if (error?.code !== 'gh_error') throw error;
+            // A malformed or unavailable commit association is Unknown for
+            // this PR; advance the bounded candidate rotation.
+            log('ci_link_unavailable', { repo: pr.repo });
+          }
+          const matching =
+            Array.isArray(pulls) && pulls.length < 100
+              ? pulls.filter(
+                  (link) =>
+                    link.head?.sha === pr.head_sha &&
+                    link.head?.ref === pr.head_branch &&
+                    link.base?.repo?.full_name === pr.repo,
+                )
+              : [];
+          const linked = matching.length === 1 && matching[0].number === pr.number;
+          if (linked)
+            exact = runs
+              .map((run) => exactRun(pr, run, 'pr_head', at, true))
+              .filter(Boolean)
+              .sort((a, b) => b.run_id - a.run_id)[0];
+        }
         if (exact) observed.push(exact);
       }
       if (pr.state === 'merged' && pr.merged_sha && !spent()) {
@@ -299,6 +360,7 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
       }
       pr.workflow_runs = observed;
     }
+    next.next_ci_offset = candidates.length ? (offset + examined) % candidates.length : 0;
   }
   if (paused) {
     next.paused_until = paused;
