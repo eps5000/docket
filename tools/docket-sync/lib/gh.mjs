@@ -4,7 +4,7 @@
  *
  * - No shell. `gh` is resolved to a full path from absolute PATH entries, so a
  *   file in the working directory can never stand in for it.
- * - Two commands exist: `gh auth status` and `gh api graphql` with a `query`.
+ * - Only auth status and fixed read-only GraphQL/REST queries exist.
  *   Anything else, including a GraphQL mutation, is refused here.
  * - The child gets a short allowlisted environment. Tokens in the environment
  *   are dropped, so only the machine's `gh` login is ever used.
@@ -114,6 +114,14 @@ export function assertReadOnly(args) {
     )
   )
     return;
+  if (
+    first === 'api' &&
+    args.length === 2 &&
+    /^repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/commits\/[0-9a-f]{40}\/pulls\?per_page=100$/i.test(
+      second,
+    )
+  )
+    return;
   if (first === 'api' && second === 'graphql') {
     const query = args.find((arg) => arg.startsWith('query='));
     if (query && /^query=\s*query\b/.test(query) && !/\bmutation\b/i.test(query)) return;
@@ -177,7 +185,7 @@ function run(exe, args, { env, signal, timeoutMs = TIMEOUT_MS, keepOutput = true
   });
 }
 
-/** `{ authStatus, graphql, workflowRuns }`, for one `gh` on this machine. */
+/** `{ authStatus, graphql, workflowRuns, commitPulls }`, for one `gh` on this machine. */
 export function createGh({ env = process.env, platform = process.platform } = {}) {
   const exe = () => {
     const found = findGh(env, platform);
@@ -226,6 +234,21 @@ export function createGh({ env = process.env, platform = process.platform } = {}
         throw new GhError('not_read_only');
       }
       const output = await run(exe(), ['api', `repos/${repo}/actions/runs?${query}`], {
+        env,
+        signal,
+      });
+      try {
+        return JSON.parse(output);
+      } catch {
+        throw new GhError('gh_error');
+      }
+    },
+
+    /** One bounded page of PRs associated by GitHub with the exact head commit. */
+    async commitPulls(repo, sha, signal) {
+      if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || !/^[0-9a-f]{40}$/i.test(sha))
+        throw new GhError('not_read_only');
+      const output = await run(exe(), ['api', `repos/${repo}/commits/${sha}/pulls?per_page=100`], {
         env,
         signal,
       });

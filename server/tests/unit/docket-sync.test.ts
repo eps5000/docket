@@ -129,6 +129,8 @@ describe('reading GitHub', () => {
       head_branch: pr.head_branch,
       name: 'ci',
       path: '.github/workflows/ci.yml@dev/GF-7-x',
+      repository: { full_name: 'acme/web' },
+      html_url: 'https://github.com/acme/web/actions/runs/77',
       event: 'pull_request',
       status: 'completed',
       conclusion: 'failure',
@@ -154,6 +156,7 @@ describe('reading GitHub', () => {
         {
           ...run,
           id: 78,
+          html_url: 'https://github.com/acme/web/actions/runs/78',
           head_sha: 'b'.repeat(40),
           head_branch: 'main',
           event: 'push',
@@ -180,6 +183,8 @@ describe('reading GitHub', () => {
             head_branch: 'dev/GF-7-x',
             name: 'ci',
             path: '.github/workflows/ci.yml@dev/GF-7-x',
+            repository: { full_name: 'acme/web' },
+            html_url: 'https://github.com/acme/web/actions/runs/90',
             event: 'pull_request',
             status: 'in_progress',
             conclusion: null,
@@ -196,6 +201,119 @@ describe('reading GitHub', () => {
         (run: { phase: string }) => run.phase === 'combined' || run.phase === 'main',
       ),
     ).toBe(false);
+  });
+
+  it('uses exact REST run identity and a unique commit-to-PR link for a merged PR behind the watermark', async () => {
+    const merged = prNode(249, {
+      state: 'MERGED',
+      updatedAt: '2026-11-23T08:30:00Z',
+      mergedAt: '2026-11-23T08:30:00Z',
+      mergeCommit: { oid: 'b'.repeat(40) },
+    });
+    const prRun = {
+      id: 2490,
+      run_attempt: 1,
+      head_sha: 'a'.repeat(40),
+      head_branch: 'dev/GF-249-x',
+      name: 'ci',
+      path: '.github/workflows/ci.yml',
+      repository: { full_name: 'acme/web' },
+      html_url: 'https://github.com/acme/web/actions/runs/2490',
+      event: 'pull_request',
+      status: 'completed',
+      conclusion: 'success',
+      pull_requests: [],
+    };
+    const mainRun = {
+      ...prRun,
+      id: 2491,
+      html_url: 'https://github.com/acme/web/actions/runs/2491',
+      head_sha: 'b'.repeat(40),
+      head_branch: 'main',
+      event: 'push',
+    };
+    const gh = {
+      ...fakeGh((query) =>
+        query.includes('states:OPEN')
+          ? page([])
+          : page([merged, prNode(2, { updatedAt: '2026-11-20T00:00:00Z' })]),
+      ),
+      workflowRuns: async (_repo: string, filter: { event: string }) => ({
+        workflow_runs: [filter.event === 'push' ? mainRun : prRun],
+      }),
+      commitPulls: async () => [
+        {
+          number: 249,
+          head: { sha: 'a'.repeat(40), ref: 'dev/GF-249-x' },
+          base: { repo: { full_name: 'acme/web' } },
+        },
+      ],
+    };
+    const { records } = await collect(gh, {
+      repos: { 'acme/web': { since: '2026-11-23T10:00:00Z' } },
+    });
+    expect(
+      records.find((r: { key: string }) => r.key === 'acme/web#249').workflow_runs,
+    ).toMatchObject([
+      { phase: 'pr_head', run_id: 2490, status: 'passed' },
+      { phase: 'main', run_id: 2491, status: 'passed' },
+    ]);
+    expect(records.map((r: { key: string }) => r.key)).not.toContain('acme/web#2');
+    const exactPr = toRecord('acme/web', merged);
+    const at = new Date(NOW).toISOString();
+    expect(
+      exactRun(exactPr, { ...prRun, repository: { full_name: 'other/web' } }, 'pr_head', at, true),
+    ).toBeNull();
+    expect(
+      exactRun(
+        exactPr,
+        { ...prRun, html_url: 'https://github.com/acme/web/actions/runs/other' },
+        'pr_head',
+        at,
+        true,
+      ),
+    ).toBeNull();
+    expect(
+      exactRun(exactPr, { ...prRun, head_sha: 'c'.repeat(40) }, 'pr_head', at, true),
+    ).toBeNull();
+    expect(exactRun(exactPr, prRun, 'pr_head', at)).toBeNull();
+    expect(exactRun(exactPr, prRun, 'combined', at, true)).toBeNull();
+  });
+
+  it('fails closed when the commit-to-PR association is ambiguous', async () => {
+    const merged = prNode(7, {
+      state: 'MERGED',
+      mergedAt: '2026-11-23T11:00:00Z',
+      mergeCommit: { oid: 'b'.repeat(40) },
+    });
+    const run = {
+      id: 7,
+      run_attempt: 1,
+      head_sha: 'a'.repeat(40),
+      head_branch: 'dev/GF-7-x',
+      name: 'ci',
+      path: '.github/workflows/ci.yml',
+      event: 'pull_request',
+      repository: { full_name: 'acme/web' },
+      html_url: 'https://github.com/acme/web/actions/runs/7',
+      status: 'completed',
+      conclusion: 'success',
+      pull_requests: [],
+    };
+    const gh = {
+      ...fakeGh(() => page([merged])),
+      workflowRuns: async (_repo: string, filter: { event: string }) => ({
+        workflow_runs: filter.event === 'pull_request' ? [run] : [],
+      }),
+      commitPulls: async () =>
+        [7, 8].map((number) => ({
+          number,
+          head: { sha: 'a'.repeat(40), ref: 'dev/GF-7-x' },
+          base: { repo: { full_name: 'acme/web' } },
+        })),
+    };
+    const { records } = await collect(gh);
+    expect(records.find((r: { key: string }) => r.key === 'acme/web#7').workflow_runs).toEqual([]);
   });
 
   it('finds keys in prose as whole tokens', () => {
@@ -296,6 +414,9 @@ describe('the gh wrapper', () => {
         'api',
         'repos/acme/web/actions/runs?event=push&head_sha=' + 'a'.repeat(40) + '&per_page=100',
       ]),
+    ).not.toThrow();
+    expect(() =>
+      assertReadOnly(['api', 'repos/acme/web/commits/' + 'a'.repeat(40) + '/pulls?per_page=100']),
     ).not.toThrow();
     for (const args of [
       ['api', 'graphql', '-f', 'query=mutation { addComment }'],
