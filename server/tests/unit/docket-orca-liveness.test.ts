@@ -203,7 +203,7 @@ describe('scoped Orca supervisor liveness inspection', () => {
     expect(f.treeReads()).toBe(0);
   });
 
-  it('accepts a complete 119-target audit but holds stale or incomplete inventory', async () => {
+  it('accepts a complete 160-target audit but holds stale or incomplete inventory', async () => {
     const f = fixture();
     const source = await f.ports.docketSource();
     const selected = source.settings.targets[0]!;
@@ -213,7 +213,7 @@ describe('scoped Orca supervisor liveness inspection', () => {
         ...source.settings,
         targets: [
           selected,
-          ...Array.from({ length: 118 }, (_, i) => ({
+          ...Array.from({ length: 159 }, (_, i) => ({
             ...selected,
             run_id: `run_other_${i}`,
             dispatch_id: `ctx_other_${i}`,
@@ -231,7 +231,7 @@ describe('scoped Orca supervisor liveness inspection', () => {
       ...source,
       settings: {
         ...source.settings,
-        targets: Array.from({ length: 129 }, (_, i) => ({
+        targets: Array.from({ length: 161 }, (_, i) => ({
           ...selected,
           run_id: `run_other_${i}`,
           dispatch_id: `ctx_other_${i}`,

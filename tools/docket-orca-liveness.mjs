@@ -10,7 +10,7 @@ const RUN = /^run_[A-Za-z0-9_-]{1,96}$/;
 const DISPATCH = /^ctx_[A-Za-z0-9_-]{1,96}$/;
 const ITEM = /^[A-Z][A-Z0-9]*-[0-9]+$/;
 const AUTOMATION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MAX_AUDIT_TARGETS = 128;
+const MAX_AUDIT_TARGETS = 160;
 
 const hold = (reason) => ({ status: 'hold', reason });
 const problem = (reason, observation = null) => ({
