@@ -141,20 +141,43 @@ function exactDispatch(mapping, dispatch) {
   );
 }
 
-function activeProducer(mapping, workers) {
+const SETTLED_WORKER = new Set(['succeeded', 'failed', 'stopped', 'abandoned']);
+const SETTLED_DISPATCH = new Set(['completed', 'failed', 'stopped', 'abandoned', 'cancelled']);
+
+async function activeProducer(mapping, workers, orca) {
   if (!Array.isArray(workers) || workers.length > 500) return null;
+  if (workers.some((worker) => !worker.workspace || !worker.host)) return null;
   const relevant = workers.filter(
     (worker) => worker.workspace === mapping.workspace_id && worker.host === 'local',
   );
-  if (relevant.some((worker) => worker.outcome === 'in_progress' || worker.state === 'ready'))
-    return true;
   if (
     relevant.some(
       (worker) =>
-        ['unknown', 'unverifiable'].includes(worker.liveness) && worker.state !== 'succeeded',
+        worker.outcome === 'in_progress' ||
+        worker.liveness === 'live' ||
+        !SETTLED_WORKER.has(worker.state),
     )
   )
-    return null;
+    return true;
+  if (relevant.length > 30) return null;
+  for (const worker of relevant) {
+    if (worker.liveness === 'exited') continue;
+    if (!['unknown', 'unverifiable'].includes(worker.liveness)) return null;
+    if (!DISPATCH.test(worker.dispatchId ?? '')) return null;
+    const receipt = await orca.showDispatch(worker.dispatchId);
+    if (
+      !receipt?.found ||
+      receipt.runId !== mapping.orca_run_id ||
+      receipt.workspaceId !== mapping.workspace_id ||
+      !SETTLED_DISPATCH.has(receipt.status) ||
+      receipt.workerState !== worker.state ||
+      typeof receipt.capabilityRevokedAt !== 'string' ||
+      receipt.resourceState !== 'absent' ||
+      receipt.terminalAbsent !== true ||
+      receipt.terminalResourceAbsent !== true
+    )
+      return null;
+  }
   return false;
 }
 
@@ -235,9 +258,13 @@ export async function scanContinuations({
           record.reason = 'identity_mismatch';
           save();
         } else {
-          const active = activeProducer(mapping, workers);
-          if (active === true) continue;
-          if (active === null) {
+          const active = await activeProducer(mapping, workers, orca);
+          if (active === true) {
+            if (t - record.first_at < ACK_MS) continue;
+            record.state = 'escalated';
+            record.reason = 'active_producer_no_ack';
+            save();
+          } else if (active === null) {
             record.state = 'escalated';
             record.reason = 'worker_custody_unknown';
             save();
@@ -249,7 +276,7 @@ export async function scanContinuations({
             if ((await docket.readDocketPause()) !== false) continue;
             if (!exactItem(mapping, await docket.readContinuationItem(mapping.epic))) continue;
             const freshWorkers = await orca.listWorkers(mapping.orca_run_id);
-            if (activeProducer(mapping, freshWorkers) !== false) continue;
+            if ((await activeProducer(mapping, freshWorkers, orca)) !== false) continue;
             const requestId = requestIdFor('continuation', finding.key);
             const spec = `Docket-only due coordinator wake for ${mapping.epic}, same Docket run ${mapping.docket_run_id}. The prior Orca Dispatch ${mapping.dispatch_id} completed. Verify your exact claim, installed Docket state, producer worktree and current admission before any work. Send a status receipt to your Orca coordinator, then continue only authorized Docket work; if the external gate remains held, report it with a bounded next action. Do not release a claim or resource, start Gameflow work, mutate a host, or treat this wake as owner approval.`;
             record.attempts += 1;

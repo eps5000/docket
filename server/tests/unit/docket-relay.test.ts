@@ -79,6 +79,9 @@ if (path.basename(process.argv[1] ?? '') === 'orchestration') {
     reply({ ok: true, result: {
       dispatch: { status: d.status, runId: d.runId, capabilityRevokedAt: d.revoked ?? null },
       worker: d.workerState ? { state: d.workerState, worktreeId: d.worktreeId ?? null } : null,
+      projection: { resource: { state: d.resourceState ?? 'absent' } },
+      terminal: null,
+      terminalResource: null,
     } }, 0);
   }
   if (args[0] === 'worker-list') {
@@ -181,6 +184,10 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     status: 'completed',
     capabilityRevokedAt: '2026-11-27T05:02:39.183Z',
     workspaceId,
+    workerState: 'succeeded',
+    resourceState: 'absent',
+    terminalAbsent: true,
+    terminalResourceAbsent: true,
   };
 
   function continuationHarness() {
@@ -384,6 +391,55 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
       state: 'escalated',
       reason: 'worker_custody_unknown',
+    });
+  });
+
+  it('proves settled unverifiable history has no retained Orca resource before starting', async () => {
+    const h = continuationHarness();
+    h.setWorkers([
+      {
+        dispatchId: mapping.dispatch_id,
+        workspace: workspaceId,
+        host: 'local',
+        state: 'succeeded',
+        liveness: 'unverifiable',
+      },
+    ]);
+    await h.scan();
+    expect(h.starts).toHaveLength(1);
+  });
+
+  it('holds live settled and unidentified worker custody, then escalates an active producer overdue wake', async () => {
+    const live = continuationHarness();
+    live.setWorkers([{ workspace: workspaceId, host: 'local', state: 'failed', liveness: 'live' }]);
+    await live.scan();
+    expect(live.starts).toHaveLength(0);
+    live.advance(5 * MINUTE);
+    await live.scan();
+    expect(live.starts).toHaveLength(0);
+    expect(live.escalations).toHaveLength(1);
+    expect(live.state.continuations[mapping.docket_run_id]?.reason).toBe('active_producer_no_ack');
+
+    const unidentified = continuationHarness();
+    unidentified.setWorkers([{ state: 'failed', liveness: 'unverifiable' }]);
+    await unidentified.scan();
+    expect(unidentified.starts).toHaveLength(0);
+    expect(unidentified.state.continuations[mapping.docket_run_id]?.reason).toBe(
+      'worker_custody_unknown',
+    );
+  });
+
+  it('escalates a verified start that receives no Docket transition or repark acknowledgement', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    expect(h.starts).toHaveLength(1);
+    h.advance(5 * MINUTE);
+    await h.scan();
+    expect(h.starts).toHaveLength(1);
+    expect(h.escalations).toHaveLength(1);
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'escalated',
+      attempts: 1,
     });
   });
 
@@ -3161,6 +3217,29 @@ process.exit(c === 'stop' ? ${stopCode} : 0);
 });
 
 describe('calling Orca safely', () => {
+  it('requires a full settled worker receipt with absent terminal and resource', async () => {
+    const h = await harness();
+    h.plan({
+      dispatches: {
+        ctx_old: {
+          status: 'completed',
+          runId: 'run_8cc91a814db8',
+          revoked: '2026-11-27T05:02:39Z',
+          workerState: 'succeeded',
+          worktreeId: '48ca27d0-4847-4d2e-a2e5-6c6c74a2133e::C:/exact/worktree',
+        },
+      },
+    });
+    const receipt = await createOrca({ exe: fakeExe, env: h.env }).showDispatch('ctx_old');
+    expect(receipt).toMatchObject({
+      found: true,
+      resourceState: 'absent',
+      terminalAbsent: true,
+      terminalResourceAbsent: true,
+      capabilityRevokedAt: '2026-11-27T05:02:39Z',
+    });
+  });
+
   it('uses exact existing worktree and stable request ID for a fresh same-Run follow-up', async () => {
     const h = await harness();
     const orca = createOrca({ exe: fakeExe, env: h.env });

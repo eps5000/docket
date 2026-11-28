@@ -137,6 +137,9 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
         capabilityRevokedAt: dispatch.capabilityRevokedAt ?? null,
         workspaceId: reply.result.worker?.worktreeId ?? null,
         workerState: reply.result.worker?.state ?? null,
+        resourceState: reply.result.projection?.resource?.state ?? null,
+        terminalAbsent: reply.result.terminal === null,
+        terminalResourceAbsent: reply.result.terminalResource === null,
       };
     },
 
