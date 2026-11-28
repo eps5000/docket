@@ -181,7 +181,9 @@ test.describe('notifications', () => {
       const claim = await agent.call('claim_lead', { id: 'RCP-17', agent_label: 'e2e-w1' });
       expect(claim.isError, claim.text).toBe(false);
       const run_id = claim.structured.run_id as string;
-      await expect(page.locator('[data-item="RCP-17"]').first()).toContainText('codex');
+      const activity = page.locator('a.tcard[data-item="RCP-17"] [data-work-activity]');
+      await expect(activity).toHaveAttribute('data-work-activity', /^(live|reported)$/);
+      await expect(activity).toContainText('Lead');
       const declared = await agent.call('declare_human_review', {
         id: 'RCP-17',
         run_id,

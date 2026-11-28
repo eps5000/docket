@@ -10,18 +10,55 @@ const LABEL: Record<CardActivity['state'], string> = {
 };
 
 /** Run and wait evidence for a Work row or card; workflow status is shown separately. */
-export function WorkActivity({ activity }: { activity: CardActivity | null | undefined }) {
-  if (!activity) return null;
+export function WorkActivity({
+  activity,
+  github,
+}: {
+  activity: CardActivity | null | undefined;
+  github?: CardGithub | null;
+}) {
+  const ci = activity?.state === 'live' ? null : ciProgress(github);
+  if (!activity && !ci) return null;
   return (
-    <span className={`work-activity wa-${activity.state}`} data-work-activity={activity.state}>
-      <span className="wa-heading">
-        <i className="wa-dot" aria-hidden="true" />
-        <span>{LABEL[activity.state]}</span>
-        {activity.actor && <span className="wa-actor"> · {activity.actor}</span>}
-      </span>
-      {activity.action && <span className="wa-action">{activity.action}</span>}
+    <span
+      className={`work-activity wa-${activity?.state ?? 'unknown'}`}
+      data-work-activity={activity?.state ?? 'unknown'}
+    >
+      {activity && (
+        <>
+          <span className="wa-heading">
+            <i className="wa-dot" aria-hidden="true" />
+            <span>{LABEL[activity.state]}</span>
+            {activity.actor && <span className="wa-actor"> · {activity.actor}</span>}
+          </span>
+          {activity.action && <span className="wa-action">{activity.action}</span>}
+        </>
+      )}
+      {ci && (
+        <span className="wa-ci-progress" data-ci-progress="">
+          {ci}
+        </span>
+      )}
     </span>
   );
+}
+
+/** Fixed, owner-facing CI progress text from fresh PR facts and exact main runs. */
+function ciProgress(github: CardGithub | null | undefined): string | null {
+  if (!github) return null;
+  if (github.stale) return 'CI out of date';
+  if (github.state === 'merged') {
+    const main = github.workflow_runs.find((run) => run.phase === 'main');
+    if (!main) return 'Waiting for resulting-main CI evidence';
+    if (main.status === 'pending') return 'Waiting for resulting-main CI';
+    if (main.status === 'failed') return 'Resulting-main CI failed';
+    return null;
+  }
+  if (github.state !== 'open') return null;
+  if (github.checks_status === 'failed') return 'CI failed (PR checks)';
+  if (github.checks_status === 'pending') return 'Waiting for CI (PR checks)';
+  if (github.checks_status === 'passed') return 'Waiting for merge';
+  return null;
 }
 
 const safeRepo = (repo: string) =>

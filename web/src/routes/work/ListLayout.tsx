@@ -13,7 +13,7 @@ import {
   leadName,
   leadReason,
 } from '../../components/kit';
-import { WorkActivity } from '../../components/kit/WorkActivity';
+import { GithubCiLinks, WorkActivity } from '../../components/kit/WorkActivity';
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { useRenderLimit } from '../../lib/progressive';
@@ -89,7 +89,7 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                 </td>
                 <td>
                   {i.activity !== undefined ? (
-                    <WorkActivity activity={i.activity} />
+                    <WorkActivity activity={i.activity} github={i.github} />
                   ) : i.lead ? (
                     <RunLine
                       state={i.lead.run_state}
@@ -97,6 +97,11 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                       agent={leadName(i.lead)}
                     />
                   ) : null}
+                  {i.github && (
+                    <div onClick={(event) => event.stopPropagation()}>
+                      <GithubCiLinks github={i.github} />
+                    </div>
+                  )}
                 </td>
                 <td>
                   <ReviewChip item={i} />

@@ -148,4 +148,43 @@ describe('Work card activity', () => {
     ]);
     for (const sensitive of [secret, path, privateId]) expect(projected).not.toContain(sensitive);
   });
+
+  it('keeps typed parked waits and ready-to-resume distinct on Work cards and rows', () => {
+    const parked = (
+      id: string,
+      waiting_on: { orchestrator?: boolean; person?: boolean; items?: string[] },
+      resume_ready = false,
+    ): WorkItem =>
+      ({
+        ...item(id, 'parked'),
+        lead_parked: {
+          waiting_on,
+          resume_ready,
+          since: '2026-11-28T05:00:00Z',
+        },
+      }) as WorkItem;
+    const items = [
+      parked('DKT-41', { orchestrator: true }),
+      parked('DKT-42', { items: ['DKT-99'] }, true),
+      parked('DKT-43', { person: true }),
+      parked('DKT-44', { items: ['DKT-88'] }),
+    ];
+    for (const layout of ['board', 'list'] as const) {
+      const result = withCardActivity(
+        { layout, items, epics: [] } as unknown as WorkResponse,
+        {
+          rows: items.map((entry) =>
+            row(`run_${entry.id}`, 'parked', 'paused', 'Parked · secret C:\\private'),
+          ),
+        } as AgentsResponse,
+      );
+      expect(result.items.map((entry) => entry.activity?.action)).toEqual([
+        'Waiting on the coordinator',
+        'Ready to resume',
+        'Waiting on a person',
+        'Waiting on another item',
+      ]);
+      expect(JSON.stringify(result.items.map((entry) => entry.activity))).not.toContain('DKT-99');
+    }
+  });
 });

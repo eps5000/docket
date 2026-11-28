@@ -157,7 +157,7 @@ export function TicketCard({
       {/* Decision 61: a partial exit leads, ahead of the run line. */}
       {item.finished_partly && <FinishedPartlyNote partly={item.finished_partly} />}
       {item.activity !== undefined ? (
-        <WorkActivity activity={item.activity} />
+        <WorkActivity activity={item.activity} github={item.github} />
       ) : item.lead ? (
         <RunLine
           state={item.lead.run_state}
@@ -269,7 +269,7 @@ export function EpicCard({
         </span>
         {/* An epic with no tickets has no bar (B35): "0/0 done" over an empty bar read as broken. */}
         {total > 0 && <StatusBar counts={by_status} label={`${done} of ${total} done`} mini />}
-        <WorkActivity activity={epic.activity} />
+        <WorkActivity activity={epic.activity} github={epic.github} />
         {epic.child_activity && (
           <span className="epic-child-activity">
             <span className="src">Child progress</span>

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EpicCard as EpicCardData, WorkItem } from '@docket/shared';
 import { EpicCard, TicketCard } from '../../components/kit';
@@ -85,6 +85,11 @@ const epic = (over: Partial<EpicCardData> = {}): EpicCardData =>
 
 const show = (node: React.ReactNode) => render(<MemoryRouter>{node}</MemoryRouter>);
 
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-path="">{location.pathname}</span>;
+}
+
 describe('live Work and Epic cards', () => {
   it('keeps the primary item link separate from keyboard-reachable exact CI links', async () => {
     const { container } = show(<TicketCard item={ticket()} />);
@@ -112,6 +117,35 @@ describe('live Work and Epic cards', () => {
     expect(container.querySelector('[data-ci-phase="main"]')?.textContent).toContain('Unknown');
   });
 
+  it('keeps list-row PR and exact-run links keyboard reachable without opening the item', async () => {
+    const { container } = show(
+      <>
+        <ListLayout items={[ticket({ activity: activity('waiting') })]} />
+        <LocationProbe />
+      </>,
+    );
+    const user = userEvent.setup();
+    expect(container.querySelector('a a')).toBeNull();
+    await user.tab();
+    expect(document.activeElement?.getAttribute('href')).toBe('/items/DKT-41');
+    await user.tab();
+    expect(document.activeElement?.getAttribute('href')).toBe(
+      'https://github.com/eps5000/docket/pull/244',
+    );
+    await user.tab();
+    expect(document.activeElement?.getAttribute('href')).toBe(
+      'https://github.com/eps5000/docket/pull/244/checks',
+    );
+    await user.tab();
+    expect(document.activeElement?.getAttribute('href')).toBe(
+      'https://github.com/eps5000/docket/actions/runs/456/attempts/2',
+    );
+    document.activeElement?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
+    expect(container.querySelector('[data-path]')?.textContent).toBe('/');
+  });
+
   it('shows stale and waiting without a green Live dot on the same cards and row', () => {
     const { container } = show(
       <>
@@ -127,11 +161,97 @@ describe('live Work and Epic cards', () => {
 
   it('shows merged main CI as Unknown until its exact run is observed', () => {
     const merged = ticket({
+      activity: activity('waiting'),
       github: { ...ticket().github!, state: 'merged', checks_status: 'passed', workflow_runs: [] },
     });
     const { container } = show(<TicketCard item={merged} />);
     expect(container.querySelector('[data-ci-phase="main"]')?.textContent).toContain('Unknown');
     expect(container.querySelector('[data-ci-phase="combined"]')?.textContent).toContain('Unknown');
+    expect(container.querySelector('[data-ci-progress]')?.textContent).toBe(
+      'Waiting for resulting-main CI evidence',
+    );
+  });
+
+  it.each([
+    ['pending', 'Waiting for CI (PR checks)'],
+    ['failed', 'CI failed (PR checks)'],
+    ['passed', 'Waiting for merge'],
+  ] as const)('shows fresh open PR %s as %s on card and list', (checks_status, phrase) => {
+    const current = ticket({
+      activity: activity('waiting'),
+      github: { ...ticket().github!, checks_status, workflow_runs: [] },
+    });
+    const { container } = show(
+      <>
+        <TicketCard item={current} />
+        <ListLayout items={[current]} />
+      </>,
+    );
+    expect(
+      Array.from(container.querySelectorAll('[data-ci-progress]')).map((node) => node.textContent),
+    ).toEqual([phrase, phrase]);
+    expect(container.querySelectorAll('[data-ci-phase="combined"]')[0]?.textContent).toContain(
+      'Unknown',
+    );
+    expect(container.querySelectorAll('[data-ci-phase="main"]')[0]?.textContent).toContain(
+      'Unknown',
+    );
+  });
+
+  it('does not call stale GitHub facts fresh CI or override verified Live', () => {
+    const stale = ticket({
+      activity: activity('stale'),
+      github: { ...ticket().github!, stale: true, checks_status: 'passed' },
+    });
+    const live = ticket({ activity: activity('live') });
+    const { container } = show(
+      <>
+        <TicketCard item={stale} />
+        <TicketCard item={live} />
+      </>,
+    );
+    expect(container.querySelector('.wa-stale [data-ci-progress]')?.textContent).toBe(
+      'CI out of date',
+    );
+    expect(container.querySelector('.wa-live [data-ci-progress]')).toBeNull();
+    expect(container.querySelector('[data-ci-phase="combined"]')?.textContent).toContain(
+      'Out of date',
+    );
+  });
+
+  it('shows exact resulting-main pending and failed states without inferring combined', () => {
+    const main = ticket().github!.workflow_runs[0]!;
+    const cases = [
+      { ...main, phase: 'main' as const, status: 'pending' as const },
+      { ...main, phase: 'main' as const, status: 'failed' as const },
+    ];
+    const { container } = show(
+      <>
+        {cases.map((run) => (
+          <TicketCard
+            key={run.status}
+            item={ticket({
+              id: `DKT-${run.status}`,
+              activity: activity('waiting'),
+              github: {
+                ...ticket().github!,
+                state: 'merged',
+                checks_status: 'passed',
+                workflow_runs: [run],
+              },
+            })}
+          />
+        ))}
+      </>,
+    );
+    expect(
+      Array.from(container.querySelectorAll('[data-ci-progress]')).map((node) => node.textContent),
+    ).toEqual(['Waiting for resulting-main CI', 'Resulting-main CI failed']);
+    expect(
+      Array.from(container.querySelectorAll('[data-ci-phase="combined"]')).every((node) =>
+        node.textContent?.includes('Unknown'),
+      ),
+    ).toBe(true);
   });
 
   it('refuses unsafe or nonexact external run addresses', () => {

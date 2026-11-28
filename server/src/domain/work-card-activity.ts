@@ -9,6 +9,7 @@ import type {
   AgentsResponse,
   CardActivity,
   EpicCard,
+  LeadParked,
   WorkItem,
   WorkResponse,
 } from '@docket/shared';
@@ -36,9 +37,27 @@ function classifiedWait(wait: NonNullable<WorkItem['wait']>): string {
   return 'Work is held';
 }
 
+/** Park custody is typed; never show the free-form parked reason or item IDs. */
+function classifiedPark(parked: LeadParked | null | undefined): string {
+  if (!parked) return 'Work is paused';
+  if (parked.resume_ready) return 'Ready to resume';
+  if (parked.activity) return 'New activity since paused';
+  const waiting = parked.waiting_on;
+  const kinds = [
+    waiting.items?.length ? 'another item' : null,
+    waiting.orchestrator ? 'the coordinator' : null,
+    waiting.person ? 'a person' : null,
+  ].filter(Boolean);
+  if (kinds.length) return `Waiting on ${kinds.join(' and ')}`;
+  if (waiting.until) return 'Waiting until a scheduled time';
+  if (waiting.wake) return 'Waiting for a scheduled event';
+  return 'Work is paused';
+}
+
 function runActivity(
   item: Pick<WorkItem | EpicCard, 'id' | 'lead' | 'status'>,
   rows: Map<string, AgentRow>,
+  parked?: LeadParked | null,
 ): CardActivity | null {
   const lead = item.lead;
   if (!lead)
@@ -62,7 +81,7 @@ function runActivity(
     return {
       ...base,
       state: 'waiting',
-      action: row.run_state === 'needs_input' ? 'Waiting for input' : 'Work is paused',
+      action: row.run_state === 'needs_input' ? 'Waiting for input' : classifiedPark(parked),
     };
   }
   if (row.run_state === 'stale' || row.lease === 'expired') {
@@ -92,7 +111,7 @@ function ticketActivity(item: WorkItem, rows: Map<string, AgentRow>): CardActivi
       observed_at: null,
     };
   }
-  return runActivity(item, rows);
+  return runActivity(item, rows, item.lead_parked);
 }
 
 /** One bounded Agents read, keyed by exact Docket run ID, for the Work response. */
