@@ -15,6 +15,20 @@ Docket runs in a container and can't call the host's `orca` CLI, so this bridges
 
 It never writes to Docket. It doesn't resume, park, claim, change a status or call MCP `get_item`.
 
+## Docket producer continuation (DKT-38)
+
+The optional continuation lane is separate from the owner-change pointer above. It is off until an operator places a reviewed `continuation-config.json` in the relay state folder. Only exact `DKT-*` Epic producers are eligible. A mapping names the Docket lead run and its original Dispatch, the Orca parent Run, the existing producer worktree identity, and `codex` as the agent. Example shape (replace every identifier with a freshly verified value):
+
+```json
+{"version":1,"mappings":[{"epic":"DKT-3","docket_run_id":"run_...","dispatch_id":"ctx_...","orca_run_id":"run_...","workspace_id":"<repo-id>::C:/exact/producer/worktree","agent":"codex"}]}
+```
+
+Each minute the relay reads the current Docket roster, project pause, exact Epic and lead, original Orca Dispatch, and exhaustive same-Run Orca workers. It acts only after a named coordinator wake is due, the exact lead claim remains parked, the project is not paused, no owner decision or unanswered question holds it, the original Dispatch is completed with capability revoked, and the Docket and Orca worktree/Run identities match. A current worker in that worktree suppresses a new start. Unknown or inconsistent custody fails closed. Gameflow is never eligible.
+
+Before starting, it durably saves the wake intent. It asks Orca for **one** fresh follow-up in the same existing worktree and same Orca Run with a stable `--retry-request` ID. It retries an unconfirmed start at most three times (first attempt, then after 1 and 2 minutes); a crash reuses the same ID. The follow-up prompt explicitly requires fresh claim/admission review and carries no owner or host authority. A verified fresh Dispatch is the delivery receipt. A later Docket run transition or revised park is the continuation acknowledgement. If that acknowledgement is absent for five minutes, or three starts fail, the lane sends an idempotent `escalation` to the exact parent Orca Run and records it in `status`; it never starts another worker for the same wake. Three bounded escalation sends are attempted, with failure still visible in state. No claim or resource is released, no automation is changed, and no helper or Gameflow process is touched.
+
+`status --json` shows each mapped run's state, attempt count, fresh Dispatch receipt and escalation reason. Stop the relay and preserve its state before changing the reviewed mapping or installing new bytes. A new Docket producer run needs a newly reviewed exact mapping; a stale mapping is a hold, not a wildcard.
+
 **A limit to know.** An agent using the owner API is recorded as the owner, and Docket can't always tell them apart. That is why the message says "from the owner side". The relay does drop an event whose item activity shows another actor.
 
 ## Which events count

@@ -37,6 +37,8 @@ const { createDocket } = await lib('docket.mjs');
 const { acquireLock, openStore, requestStop } = await lib('store.mjs');
 const { reconcileDeliver, reconcileSkip } = await lib('hold.mjs');
 const { createRelay } = await lib('relay.mjs');
+const { scanContinuations, continuationProblem, loadContinuationConfig } =
+  await lib('continuation.mjs');
 
 const SECRET = 'PRIVATE-OWNER-TEXT';
 const START = Date.parse('2026-11-23T12:00:00.000Z');
@@ -76,8 +78,15 @@ if (path.basename(process.argv[1] ?? '') === 'orchestration') {
     }
     reply({ ok: true, result: {
       dispatch: { status: d.status, runId: d.runId, capabilityRevokedAt: d.revoked ?? null },
-      worker: d.workerState ? { state: d.workerState } : null,
+      worker: d.workerState ? { state: d.workerState, worktreeId: d.worktreeId ?? null } : null,
     } }, 0);
+  }
+  if (args[0] === 'worker-list') {
+    reply({ ok: true, result: { workers: plan.workers ?? [], nextCursor: null } }, 0);
+  }
+  if (args[0] === 'worker-start') {
+    if (plan.startFails) refuse('runtime_unavailable');
+    reply({ ok: true, result: { dispatchId: plan.startDispatch ?? 'ctx_fresh' } }, 0);
   }
   if (args[0] === 'send') {
     const to = flag('--to');
@@ -126,6 +135,298 @@ const lead = (o: { dispatch?: string; runId?: string; state?: string } = {}): Fa
     o.dispatch || o.runId
       ? { name: 'producer-x', dispatch_id: o.dispatch ?? null, run_id: o.runId ?? null }
       : null,
+});
+
+describe('DKT-38 durable completed-dispatch continuation', () => {
+  it('interprets the live bootstrap pause shape and holds malformed pause data', async () => {
+    let pause: unknown = undefined;
+    const docket = createDocket({
+      baseUrl: 'http://127.0.0.1:7420',
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            projects: [{ key: 'DKT', ...(pause === undefined ? {} : { paused: pause }) }],
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+    });
+    expect(await docket.readDocketPause()).toBe(false);
+    pause = {
+      decision_id: 'dec_pause',
+      reason: 'hold',
+      paused_by: 'owner',
+      paused_at: '2026-11-28T03:00:00Z',
+    };
+    expect(await docket.readDocketPause()).toBe(true);
+    pause = false;
+    await expect(docket.readDocketPause()).rejects.toMatchObject({ code: 'bad_response' });
+  });
+
+  const workspacePath = 'C:/Users/erics/orca/workspaces/task-lite/dkt-1-producer';
+  const workspaceId = `48ca27d0-4847-4d2e-a2e5-6c6c74a2133e::${workspacePath}`;
+  const mapping = {
+    epic: 'DKT-1',
+    docket_run_id: 'run_01M8DNKW8E2W15YRMX2B77MCFZ',
+    dispatch_id: 'ctx_03f5c492b73c',
+    orca_run_id: 'run_8cc91a814db8',
+    workspace_id: workspaceId,
+    agent: 'codex',
+  };
+  const due = '2026-11-28T03:00:00.000Z';
+  const original = {
+    found: true,
+    runId: mapping.orca_run_id,
+    status: 'completed',
+    capabilityRevokedAt: '2026-11-27T05:02:39.183Z',
+    workspaceId,
+  };
+
+  function continuationHarness() {
+    let time = Date.parse('2026-11-28T04:00:00.000Z');
+    let paused = false;
+    const saves: string[] = [];
+    const starts: { requestId: string; spec: string; workspaceId: string }[] = [];
+    const escalations: { type: string; body: string; requestId: string }[] = [];
+    let workers: unknown[] = [];
+    let workerListFails = false;
+    let driftOnList = false;
+    let startResult: { ok: boolean; dispatchId?: string } = { ok: true, dispatchId: 'ctx_fresh' };
+    const state = {
+      continuations: {} as Record<
+        string,
+        {
+          state: string;
+          attempts: number;
+          dispatch_id?: string;
+          [key: string]: unknown;
+        }
+      >,
+    };
+    const row = {
+      row_kind: 'run',
+      run_id: mapping.docket_run_id,
+      item_id: mapping.epic,
+      project: 'DKT',
+      run_state: 'parked',
+      lease: 'paused',
+      lead_parked: {
+        since: '2026-11-27T04:53:28.974Z',
+        waiting_on: {
+          orchestrator: true,
+          wake: { actor: 'orca-coordinator', event: 'bounded producer wake', due_at: due },
+        },
+      },
+    };
+    const detail = {
+      item: {
+        id: mapping.epic,
+        project: 'DKT',
+        type: 'Epic',
+        open_question: null,
+        runs: [
+          {
+            run_id: mapping.docket_run_id,
+            run_state: 'parked',
+            is_lead: true,
+            orchestrator: { dispatch_id: mapping.dispatch_id, run_id: mapping.orca_run_id },
+            workspace: { path: workspacePath },
+          },
+        ],
+      },
+      decisions: [],
+    };
+    const docket = {
+      readAgents: async () => ({ rows: [row] }),
+      readDocketPause: async () => paused,
+      readContinuationItem: async () => detail,
+    };
+    const orca = {
+      showDispatch: async (id: string) =>
+        id === mapping.dispatch_id
+          ? original
+          : {
+              found: true,
+              runId: mapping.orca_run_id,
+              status: 'dispatched',
+              capabilityRevokedAt: null,
+              workerState: 'ready',
+              workspaceId,
+            },
+      listWorkers: async () => {
+        if (workerListFails) throw new Error('unavailable');
+        if (driftOnList) {
+          driftOnList = false;
+          row.lead_parked.waiting_on.wake.due_at = '2026-11-28T05:00:00Z';
+        }
+        return workers;
+      },
+      startFollowup: async (input: { requestId: string; spec: string; workspaceId: string }) => {
+        starts.push(input);
+        return startResult;
+      },
+      send: async (input: { type: string; body: string; requestId: string }) => {
+        escalations.push(input);
+        return { ok: true };
+      },
+    };
+    const scan = () =>
+      scanContinuations({
+        mappings: [mapping],
+        state,
+        docket,
+        orca,
+        save: () => saves.push(JSON.stringify(state)),
+        now: () => time,
+      });
+    return {
+      mapping,
+      state,
+      row,
+      detail,
+      starts,
+      escalations,
+      saves,
+      scan,
+      advance: (ms: number) => {
+        time += ms;
+      },
+      setWorkers: (rows: unknown[]) => {
+        workers = rows;
+      },
+      setStartResult: (result: typeof startResult) => {
+        startResult = result;
+      },
+      setPaused: (value: boolean) => {
+        paused = value;
+      },
+      setWorkerListFails: (value: boolean) => {
+        workerListFails = value;
+      },
+      setDriftOnList: () => {
+        driftOnList = true;
+      },
+    };
+  }
+
+  it('starts one exact follow-up for the DKT-1 completed and revoked dispatch, then observes its receipt', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    expect(h.starts).toHaveLength(1);
+    expect(h.starts[0]).toMatchObject({ workspaceId, requestId: expect.any(String) });
+    expect(h.starts[0]!.spec).toContain(mapping.dispatch_id);
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'started',
+      dispatch_id: 'ctx_fresh',
+      attempts: 1,
+    });
+    await h.scan();
+    expect(h.starts).toHaveLength(1);
+    const restarted = continuationHarness();
+    Object.assign(restarted.state.continuations, JSON.parse(JSON.stringify(h.state.continuations)));
+    await restarted.scan();
+    expect(restarted.starts).toHaveLength(0);
+    h.row.run_state = 'reported';
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]?.state).toBe('acknowledged');
+    expect(h.saves.length).toBeGreaterThanOrEqual(3); // intent, attempt, observed follow-up, Docket acknowledgement
+  });
+
+  it('retries with one stable idempotency key, then escalates after bounded failed starts', async () => {
+    const h = continuationHarness();
+    h.setStartResult({ ok: false });
+    await h.scan();
+    h.advance(60_000);
+    await h.scan();
+    h.advance(120_000);
+    await h.scan();
+    expect(h.starts).toHaveLength(3);
+    expect(new Set(h.starts.map((x) => x.requestId)).size).toBe(1);
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'escalated',
+      attempts: 3,
+    });
+    expect(h.escalations).toHaveLength(1);
+    expect(h.escalations[0]).toMatchObject({ type: 'escalation', requestId: expect.any(String) });
+    expect(h.escalations[0]!.body).not.toContain(SECRET);
+    h.advance(10 * MINUTE);
+    await h.scan();
+    expect(h.starts).toHaveLength(3);
+    expect(h.escalations).toHaveLength(2);
+  });
+
+  it('does not start a second worker while the exact producer worktree is active or the wake is not due', async () => {
+    const h = continuationHarness();
+    h.row.lead_parked.waiting_on.wake.due_at = '2026-11-28T05:00:00Z';
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+    h.setPaused(true);
+    h.setWorkers([]);
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+    h.row.lead_parked.waiting_on.wake.due_at = due;
+    h.setPaused(false);
+    h.setWorkers([
+      { workspace: workspaceId, host: 'local', outcome: 'in_progress', state: 'ready' },
+    ]);
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+  });
+
+  it('holds owner choices and malformed state rather than manufacturing a producer', async () => {
+    const h = continuationHarness();
+    h.detail.decisions.push({ authority: 'owner', status: 'active' } as never);
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+    expect(h.state.continuations[mapping.docket_run_id]?.state).toBe('escalated');
+    expect(continuationProblem({ [mapping.docket_run_id]: { key: 'broken' } })).toBe(
+      'continuations_shape',
+    );
+  });
+
+  it('escalates after three unavailable Orca custody reads without starting', async () => {
+    const h = continuationHarness();
+    h.setWorkerListFails(true);
+    await h.scan();
+    h.advance(MINUTE);
+    await h.scan();
+    h.advance(MINUTE);
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'escalated',
+      read_failures: 3,
+      reason: 'read_or_start_unknown',
+    });
+    expect(h.escalations).toHaveLength(1);
+  });
+
+  it('re-reads the due wait immediately before worker start and holds on drift', async () => {
+    const h = continuationHarness();
+    h.setDriftOnList();
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+  });
+
+  it('loads only exact Docket Epic mappings and rejects duplicate or Gameflow scope', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'docket-continuation-config-'));
+    try {
+      const path = join(dir, 'continuation-config.json');
+      expect(loadContinuationConfig(dir)).toEqual([]);
+      writeFileSync(path, JSON.stringify({ version: 1, mappings: [mapping] }));
+      expect(loadContinuationConfig(dir)).toEqual([mapping]);
+      writeFileSync(path, JSON.stringify({ version: 1, mappings: [mapping, mapping] }));
+      expect(() => loadContinuationConfig(dir)).toThrow('continuation_config_invalid');
+      writeFileSync(
+        path,
+        JSON.stringify({ version: 1, mappings: [{ ...mapping, epic: 'GF-231' }] }),
+      );
+      expect(() => loadContinuationConfig(dir)).toThrow('continuation_config_invalid');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 /** The two Docket routes the relay reads. Its item reply is full of private text on purpose. */
@@ -2847,6 +3148,29 @@ process.exit(c === 'stop' ? ${stopCode} : 0);
 });
 
 describe('calling Orca safely', () => {
+  it('uses exact existing worktree and stable request ID for a fresh same-Run follow-up', async () => {
+    const h = await harness();
+    const orca = createOrca({ exe: fakeExe, env: h.env });
+    const id = requestIdFor('continuation', 'due-key');
+    expect(
+      await orca.startFollowup({
+        runId: 'run_8cc91a814db8',
+        workspaceId: '48ca27d0-4847-4d2e-a2e5-6c6c74a2133e::C:/exact/worktree',
+        agent: 'codex',
+        spec: 'Bounded Docket wake',
+        requestId: id,
+      }),
+    ).toEqual({ ok: true, dispatchId: 'ctx_fresh' });
+    const call = h.calls().find((entry) => entry.args[0] === 'worker-start')!;
+    expect(call.args).toContain('--retry-request');
+    expect(call.args[call.args.indexOf('--retry-request') + 1]).toBe(id);
+    expect(call.args[call.args.indexOf('--worktree') + 1]).toBe(
+      'id:48ca27d0-4847-4d2e-a2e5-6c6c74a2133e::C:/exact/worktree',
+    );
+    expect(call.args[call.args.indexOf('--run') + 1]).toBe('run_8cc91a814db8');
+    expect(call.orcaEnv).toEqual([]);
+  });
+
   it('passes awkward text as one argument, with no shell', async () => {
     const h = await harness();
     const orca = createOrca({ exe: fakeExe, env: h.env });

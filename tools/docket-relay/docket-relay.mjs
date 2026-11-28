@@ -16,6 +16,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { createDocket } from './lib/docket.mjs';
+import { loadContinuationConfig } from './lib/continuation.mjs';
 import { canDeliver, holdFacts, reconcileDeliver, reconcileSkip } from './lib/hold.mjs';
 import { createOrca, findOrca } from './lib/orca.mjs';
 import { createRelay } from './lib/relay.mjs';
@@ -85,11 +86,23 @@ async function start(env) {
   }
   const exe = findOrca(env);
   if (!exe) log('orca_not_found');
+  let continuationMappings;
+  try {
+    continuationMappings = loadContinuationConfig(home);
+  } catch (error) {
+    log('continuation_config_hold', { reason: error.message });
+    process.stderr.write(
+      'Docket continuation config is unreadable or invalid; nothing was started.\n',
+    );
+    await release();
+    return EXIT_HOLD;
+  }
   const relay = createRelay({
     docket: createDocket({ baseUrl: baseUrl(env) }),
     orca: createOrca({ exe, env }),
     store,
     log,
+    continuationMappings,
   });
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
@@ -140,6 +153,7 @@ function statusLines(running, state, facts) {
     `last delivery: ${state.last_delivery ? `${state.last_delivery.at} ${state.last_delivery.item} to ${state.last_delivery.to} (${state.last_delivery.kinds.join(', ')}) in ${state.last_delivery.latency_ms} ms` : 'never'}`,
     `last failure: ${state.last_failure ? `${state.last_failure.at} ${state.last_failure.reason}` : 'none'}`,
     `waiting to send: ${Object.keys(state.batches).length} ticket(s)`,
+    `continuations: ${Object.values(state.continuations).filter((r) => r.state === 'started').length} started, ${Object.values(state.continuations).filter((r) => r.state === 'escalated').length} escalated`,
     `counts: delivered ${c.delivered}, no live lead ${c.no_live_lead}, undelivered ${c.undelivered}, skipped ${c.skipped}, send failures ${c.send_failures}`,
   ];
   for (const entry of state.undelivered.slice(-5)) {
@@ -174,6 +188,20 @@ async function status(env, args) {
           last_delivery: state.last_delivery,
           last_failure: state.last_failure,
           counters: state.counters,
+          continuations: Object.fromEntries(
+            Object.entries(state.continuations).map(([id, r]) => [
+              id,
+              {
+                state: r.state,
+                attempts: r.attempts,
+                dispatch_id: r.dispatch_id ?? null,
+                started_at: r.started_at ? new Date(r.started_at).toISOString() : null,
+                ack_at: r.ack_at ? new Date(r.ack_at).toISOString() : null,
+                escalated_at: r.escalated_at ? new Date(r.escalated_at).toISOString() : null,
+                reason: r.reason ?? null,
+              },
+            ]),
+          ),
           undelivered: state.undelivered,
           reconciles: state.reconciles,
         }
