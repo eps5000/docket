@@ -63,15 +63,19 @@ export function continuationProblem(records) {
       typeof record !== 'object' ||
       record === null ||
       !/^[a-f0-9]{64}$/.test(record.key ?? '') ||
-      !['intent', 'started', 'acknowledged', 'escalated'].includes(record.state) ||
+      !['intent', 'requested', 'started', 'acknowledged', 'escalated'].includes(record.state) ||
       !Number.isInteger(record.attempts) ||
       record.attempts < 0 ||
       record.attempts > RETRIES_MS.length ||
       !Number.isFinite(record.next_at) ||
       !Number.isFinite(record.first_at) ||
+      (record.wait_since !== undefined && typeof record.wait_since !== 'string') ||
+      (['requested', 'started'].includes(record.state) && !Number.isFinite(record.requested_at)) ||
+      (record.state === 'started' && !Number.isFinite(record.started_at)) ||
       (record.dispatch_id !== null &&
         record.dispatch_id !== undefined &&
-        !DISPATCH.test(record.dispatch_id))
+        !DISPATCH.test(record.dispatch_id)) ||
+      (record.current_dispatch_id !== undefined && !DISPATCH.test(record.current_dispatch_id))
     )
       return 'continuations_shape';
   }
@@ -146,6 +150,54 @@ function exactDispatch(mapping, dispatch) {
   );
 }
 
+function utcMillis(value) {
+  if (typeof value !== 'string') return NaN;
+  return Date.parse(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`);
+}
+
+/** A coordinator-created Dispatch must be recorded on the same Docket run. */
+async function verifiedHandoff(mapping, detail, orca, requestedAt) {
+  if (
+    detail?.item?.id !== mapping.epic ||
+    detail.item.project !== 'DKT' ||
+    detail.item.type !== 'Epic' ||
+    (detail.item.open_question && !detail.item.open_question.answered_at) ||
+    detail.decisions?.some(
+      (decision) => decision.authority === 'owner' && decision.status === 'active',
+    )
+  )
+    return null;
+  const runs = detail.item.runs?.filter((run) => run.run_id === mapping.docket_run_id);
+  if (runs?.length !== 1) return null;
+  const run = runs[0];
+  if (
+    run.is_lead !== true ||
+    !['live', 'reported', 'parked'].includes(run.run_state) ||
+    (run.orchestrator?.run_id && run.orchestrator.run_id !== mapping.orca_run_id)
+  )
+    return null;
+  if (
+    run.workspace?.path?.replaceAll('\\', '/').toLowerCase() !==
+    mapping.workspace_id.split('::')[1].replaceAll('\\', '/').toLowerCase()
+  )
+    return null;
+  const id = run.orchestrator?.dispatch_id;
+  if (!DISPATCH.test(id ?? '') || id === mapping.dispatch_id) return null;
+  const dispatch = await orca.showDispatch(id);
+  if (
+    !dispatch?.found ||
+    dispatch.runId !== mapping.orca_run_id ||
+    dispatch.workspaceId !== mapping.workspace_id ||
+    dispatch.creatorDispatchId !== null ||
+    dispatch.agent !== mapping.agent ||
+    !Number.isFinite(utcMillis(dispatch.dispatchedAt)) ||
+    utcMillis(dispatch.dispatchedAt) + 999 < requestedAt ||
+    !['dispatched', 'completed'].includes(dispatch.status)
+  )
+    return null;
+  return id;
+}
+
 const SETTLED_WORKER = new Set(['succeeded', 'failed', 'stopped', 'abandoned']);
 const SETTLED_DISPATCH = new Set(['completed', 'failed', 'stopped', 'abandoned', 'cancelled']);
 
@@ -186,6 +238,27 @@ async function activeProducer(mapping, workers, orca) {
   return false;
 }
 
+async function sendEscalation(mapping, record, orca, save, now, log, t) {
+  if (record.state !== 'escalated' || (record.escalation_attempts ?? 0) >= 3 || t < record.next_at)
+    return;
+  const requestId = requestIdFor('continuation-escalation', record.key);
+  record.escalation_attempts = (record.escalation_attempts ?? 0) + 1;
+  record.next_at = t + 5 * 60_000;
+  save();
+  const sent = await orca.send({
+    to: `run:${mapping.orca_run_id}`,
+    type: 'escalation',
+    subject: `${mapping.epic} producer continuation needs custody review`,
+    body: `Docket run ${mapping.docket_run_id} still has a due coordinator wake. The exact coordinator handoff was not confirmed (${record.reason ?? 'no_ack'}). Recheck exact Docket and Orca custody; keep unknown or protected resources held.`,
+    requestId,
+  });
+  if (sent.ok || sent.code === 'request_mismatch') {
+    record.escalated_at = now();
+    save();
+    log('continuation_escalated', { item: mapping.epic, reason: record.reason ?? 'no_ack' });
+  }
+}
+
 /** One bounded scan. All ports are read-only except Orca's idempotent follow-up and escalation. */
 export async function scanContinuations({
   mappings,
@@ -210,23 +283,47 @@ export async function scanContinuations({
   }
   for (const mapping of mappings) {
     const t = now();
-    const finding = candidate(mapping, agents, t);
     const prior = state.continuations[mapping.docket_run_id];
-    if (finding.inactive) {
-      if (prior?.state === 'started') {
-        prior.state = 'acknowledged';
-        prior.ack_at = t;
-        save();
-        log('continuation_acknowledged', { item: mapping.epic });
+    const effective = prior?.current_dispatch_id
+      ? { ...mapping, dispatch_id: prior.current_dispatch_id }
+      : mapping;
+    const finding = candidate(effective, agents, t);
+    if (prior && ['requested', 'started'].includes(prior.state)) {
+      try {
+        const detail = await docket.readContinuationItem(mapping.epic);
+        const handoff = await verifiedHandoff(effective, detail, orca, prior.requested_at);
+        if (handoff && !prior.dispatch_id) {
+          prior.dispatch_id = handoff;
+          prior.state = 'started';
+          prior.started_at = t;
+          save();
+          log('continuation_started', { item: mapping.epic, dispatch: handoff });
+        }
+        const currentRow = agents.rows.find(
+          (row) => row.row_kind === 'run' && row.run_id === mapping.docket_run_id,
+        );
+        const revisedPark =
+          typeof currentRow?.lead_parked?.since === 'string' &&
+          currentRow.lead_parked.since !== prior.wait_since;
+        if (handoff && (finding.inactive || revisedPark)) {
+          prior.state = 'acknowledged';
+          prior.current_dispatch_id = handoff;
+          prior.ack_at = t;
+          save();
+          log('continuation_acknowledged', { item: mapping.epic });
+          continue;
+        }
+      } catch {
+        // An unreadable handoff cannot acknowledge the wake.
       }
-      continue;
+      if (t - (prior.started_at ?? prior.requested_at) >= ACK_MS) {
+        prior.state = 'escalated';
+        prior.reason = prior.dispatch_id ? 'started_no_ack' : 'coordinator_no_handoff';
+        save();
+      } else continue;
     }
-    if (finding.notDue || finding.hold) continue;
-    if (prior && prior.key !== finding.key && prior.state === 'started') {
-      prior.state = 'acknowledged';
-      prior.ack_at = t;
-      save();
-      log('continuation_acknowledged', { item: mapping.epic });
+    if (finding.inactive || finding.notDue || finding.hold) {
+      if (prior) await sendEscalation(mapping, prior, orca, save, now, log, t);
       continue;
     }
     const record =
@@ -237,8 +334,12 @@ export async function scanContinuations({
             state: 'intent',
             attempts: 0,
             first_at: t,
+            wait_since: finding.row.lead_parked.since,
             next_at: t,
             dispatch_id: null,
+            ...(prior?.current_dispatch_id
+              ? { current_dispatch_id: prior.current_dispatch_id }
+              : {}),
             escalation_attempts: 0,
           };
     if (record !== prior) {
@@ -246,19 +347,14 @@ export async function scanContinuations({
       save();
     }
     if (record.state === 'acknowledged' || t < record.next_at) continue;
-    if (record.state === 'started') {
-      if (t - record.started_at < ACK_MS) continue;
-      record.state = 'escalated';
-      save();
-    }
     if (record.state === 'intent') {
       try {
         const [detail, dispatch, workers] = await Promise.all([
           docket.readContinuationItem(mapping.epic),
-          orca.showDispatch(mapping.dispatch_id),
+          orca.showDispatch(effective.dispatch_id),
           orca.listWorkers(mapping.orca_run_id),
         ]);
-        if (!exactItem(mapping, detail) || !exactDispatch(mapping, dispatch)) {
+        if (!exactItem(effective, detail) || !exactDispatch(effective, dispatch)) {
           record.state = 'escalated';
           record.reason = 'identity_mismatch';
           save();
@@ -276,45 +372,36 @@ export async function scanContinuations({
           } else {
             // Docket and Orca cannot share a transaction. Narrow the race at the
             // start boundary, then make the new agent recheck before acting.
-            const fresh = candidate(mapping, await docket.readAgents(), now());
+            const fresh = candidate(effective, await docket.readAgents(), now());
             if (fresh.key !== finding.key || fresh.hold || fresh.inactive || fresh.notDue) continue;
             if ((await docket.readDocketPause()) !== false) continue;
-            if (!exactItem(mapping, await docket.readContinuationItem(mapping.epic))) continue;
+            if (!exactItem(effective, await docket.readContinuationItem(mapping.epic))) continue;
             const freshWorkers = await orca.listWorkers(mapping.orca_run_id);
             if ((await activeProducer(mapping, freshWorkers, orca)) !== false) continue;
             const requestId = requestIdFor('continuation', finding.key);
-            const spec = `Docket-only due coordinator wake for ${mapping.epic}, same Docket run ${mapping.docket_run_id}. The prior Orca Dispatch ${mapping.dispatch_id} completed. Verify your exact claim, installed Docket state, producer worktree and current admission before any work. Send a status receipt to your Orca coordinator, then continue only authorized Docket work; if the external gate remains held, report it with a bounded next action. Do not release a claim or resource, start Gameflow work, mutate a host, or treat this wake as owner approval.`;
+            const body = `ACTIONABLE Docket-only producer wake for ${mapping.epic}: Docket run ${mapping.docket_run_id} has a due coordinator-only wait and prior completed Dispatch ${effective.dispatch_id}. As the verified coordinator of Orca Run ${mapping.orca_run_id}, recheck the exact Docket run, mapped producer worktree, active producer custody, admission, and wait; then start at most one codex follow-up in that same Run/worktree under your own Orca authority. Record the verified new Dispatch as Docket dispatch_observation live and require its heartbeat or new bounded park. This request ${requestId} is idempotent; do not start Gameflow work, release claims/resources, mutate a host, or treat the wake as owner approval. If any gate fails, report the precise hold. The relay will escalate if no exact handoff is observed within five minutes.`;
             record.attempts += 1;
+            record.requested_at = t;
             record.next_at = t + RETRIES_MS[Math.min(record.attempts, RETRIES_MS.length - 1)];
             save();
-            const started = await orca.startFollowup({
-              runId: mapping.orca_run_id,
-              workspaceId: mapping.workspace_id,
-              agent: mapping.agent,
-              spec,
+            const sent = await orca.send({
+              to: `run:${mapping.orca_run_id}`,
+              type: 'status',
+              subject: `${mapping.epic} due producer continuation request`,
+              body,
               requestId,
             });
-            if (started?.ok && DISPATCH.test(started.dispatchId ?? '')) {
-              const receipt = await orca.showDispatch(started.dispatchId);
-              if (
-                receipt?.found &&
-                receipt.runId === mapping.orca_run_id &&
-                receipt.workspaceId === mapping.workspace_id &&
-                receipt.status === 'dispatched' &&
-                receipt.capabilityRevokedAt === null &&
-                receipt.workerState === 'ready'
-              ) {
-                record.state = 'started';
-                record.dispatch_id = started.dispatchId;
-                record.started_at = now();
-                save();
-                log('continuation_started', { item: mapping.epic, dispatch: started.dispatchId });
-                continue;
-              }
+            if (sent?.ok) {
+              record.state = 'requested';
+              record.next_at = t + ACK_MS;
+              save();
+              log('continuation_requested', { item: mapping.epic });
+              continue;
             }
             if (record.attempts >= RETRIES_MS.length) {
               record.state = 'escalated';
-              record.reason = 'start_unconfirmed';
+              record.reason = 'request_unconfirmed';
+              record.next_at = t;
               save();
             }
           }
@@ -325,29 +412,12 @@ export async function scanContinuations({
         if (record.read_failures >= 3 || record.attempts >= RETRIES_MS.length) {
           record.state = 'escalated';
           record.reason = 'read_or_start_unknown';
+          record.next_at = t;
         }
         save();
       }
     }
-    if (record.state === 'escalated' && (record.escalation_attempts ?? 0) < 3) {
-      const to = `run:${mapping.orca_run_id}`;
-      const requestId = requestIdFor('continuation-escalation', finding.key);
-      record.escalation_attempts = (record.escalation_attempts ?? 0) + 1;
-      record.next_at = t + 5 * 60_000;
-      save();
-      const sent = await orca.send({
-        to,
-        type: 'escalation',
-        subject: `${mapping.epic} producer continuation needs custody review`,
-        body: `Docket run ${mapping.docket_run_id} still has a due coordinator wake. Automatic follow-up was not confirmed (${record.reason ?? 'no_ack'}). Recheck exact Docket and Orca custody; keep unknown or protected resources held.`,
-        requestId,
-      });
-      if (sent.ok || sent.code === 'request_mismatch') {
-        record.escalated_at = now();
-        save();
-        log('continuation_escalated', { item: mapping.epic, reason: record.reason ?? 'no_ack' });
-      }
-    }
+    await sendEscalation(mapping, record, orca, save, now, log, t);
   }
 }
 

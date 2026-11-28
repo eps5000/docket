@@ -46,7 +46,7 @@ export const emptyState = () => ({
   reconciles: [],
   seen: {},
   batches: {},
-  /** DKT-only due-wake intents, saved before Orca worker-start. */
+  /** DKT-only due-wake intents, saved before the Orca Run coordinator request. */
   continuations: {},
   rate: {},
   undelivered: [],

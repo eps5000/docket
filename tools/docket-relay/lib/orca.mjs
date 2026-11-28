@@ -137,6 +137,9 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
         capabilityRevokedAt: dispatch.capabilityRevokedAt ?? null,
         workspaceId: reply.result.worker?.worktreeId ?? null,
         workerState: reply.result.worker?.state ?? null,
+        dispatchedAt: dispatch.dispatchedAt ?? null,
+        creatorDispatchId: dispatch.creatorDispatchId ?? null,
+        agent: reply.result.worker?.startOptions?.launch?.effective?.agent ?? null,
         resourceState: reply.result.projection?.resource?.state ?? null,
         terminalAbsent: reply.result.terminal === null,
         terminalResourceAbsent: reply.result.terminalResource === null,
@@ -159,34 +162,6 @@ export function createOrca({ exe, env = process.env, timeoutMs = TIMEOUT_MS }) {
         if (!cursor) return workers;
       }
       throw new Error('worker_list_incomplete');
-    },
-
-    /** Orca request dedupe makes a crash after start safe to retry with the same request ID. */
-    async startFollowup({ runId, workspaceId, agent, spec, requestId }) {
-      const reply = await run([
-        'orchestration',
-        'worker-start',
-        '--run',
-        runId,
-        '--from',
-        SENDER,
-        '--worktree',
-        `id:${workspaceId}`,
-        '--agent',
-        agent,
-        '--spec',
-        spec,
-        '--retry-request',
-        requestId,
-        '--json',
-      ]);
-      if (!reply.ok) return reply;
-      const dispatchId =
-        reply.result?.dispatch?.id ??
-        reply.result?.dispatch?.dispatchId ??
-        reply.result?.dispatchId ??
-        null;
-      return { ok: true, dispatchId };
     },
 
     /**
