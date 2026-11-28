@@ -2,6 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import type { ItemDetailResponse, ItemGithubResponse, ItemPr } from '@docket/shared';
 import { Chip, Section, type ChipKind } from '../../../components/kit';
+import {
+  CiPhases,
+  safeGithubBranchUrl,
+  safeGithubPrUrl,
+} from '../../../components/kit/WorkActivity';
 import { apiClient } from '../../../app/queryClient';
 import { HelpLink } from '../../../help/HelpLink';
 import { queryKeys } from '../../../lib/api';
@@ -14,10 +19,10 @@ const STATE: Record<ItemPr['state'], { kind: ChipKind; label: string }> = {
 };
 
 const CI: Record<ItemPr['ci'], { kind: ChipKind; label: string }> = {
-  passed: { kind: 'ok', label: '✓ CI passed' },
-  failed: { kind: 'bad', label: 'CI failed' },
-  pending: { kind: 'warn', label: 'CI running' },
-  none: { kind: 'neutral', label: 'No CI' },
+  passed: { kind: 'ok', label: 'PR checks passed' },
+  failed: { kind: 'bad', label: 'PR checks failed' },
+  pending: { kind: 'warn', label: 'PR checks running' },
+  none: { kind: 'neutral', label: 'No PR checks' },
 };
 
 /** Opens outside Docket, and says so to assistive tech. */
@@ -30,30 +35,49 @@ function Out({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-function PrLine({ pr }: { pr: ItemPr }) {
+function PrLine({ pr, stale }: { pr: ItemPr; stale: boolean }) {
+  const safePr = safeGithubPrUrl(pr.repo, pr.number);
+  const safeBranch = safeGithubBranchUrl(pr.repo, pr.branch);
   return (
     <li className="github-pr" data-github-pr={pr.number}>
       <div>
-        <Out href={pr.url}>
-          #{pr.number} {pr.title}
-        </Out>
+        {safePr ? (
+          <Out href={safePr}>
+            #{pr.number} {pr.title}
+          </Out>
+        ) : (
+          <span>
+            #{pr.number} {pr.title}
+          </span>
+        )}
       </div>
       <div className="row wrap github-facts">
         <Chip kind={STATE[pr.state].kind}>{STATE[pr.state].label}</Chip>
         {pr.draft && pr.state === 'open' && <Chip>Draft</Chip>}
-        <Out href={pr.checks_url}>
-          <Chip kind={CI[pr.ci].kind}>{CI[pr.ci].label}</Chip>
-        </Out>
+        {safePr ? (
+          <Out href={`${safePr}/checks`}>
+            <Chip kind={CI[pr.ci].kind}>{stale ? 'PR checks out of date' : CI[pr.ci].label}</Chip>
+          </Out>
+        ) : (
+          <Chip>PR checks unavailable</Chip>
+        )}
         {pr.merged_at && (
           <span className="src" title={isoTitle(pr.merged_at)}>
             Merged {formatStamp(pr.merged_at)}
           </span>
         )}
       </div>
+      <div className="row wrap github-facts" aria-label="Workflow runs">
+        <CiPhases repo={pr.repo} runs={pr.workflow_runs ?? []} stale={stale} />
+      </div>
       <div className="src github-branch">
-        <Out href={pr.branch_url}>
+        {safeBranch ? (
+          <Out href={safeBranch}>
+            <span className="mono">{pr.branch}</span>
+          </Out>
+        ) : (
           <span className="mono">{pr.branch}</span>
-        </Out>
+        )}
       </div>
     </li>
   );
@@ -100,7 +124,7 @@ export function GitHubSection({ data }: { data: ItemDetailResponse }) {
       {d.primary.length > 0 && (
         <ul className="github-prs" aria-label="Pull requests for this ticket">
           {d.primary.map((pr) => (
-            <PrLine key={pr.url} pr={pr} />
+            <PrLine key={pr.url} pr={pr} stale={pr.stale ?? d.stale} />
           ))}
         </ul>
       )}
@@ -113,7 +137,7 @@ export function GitHubSection({ data }: { data: ItemDetailResponse }) {
           <p className="src">These mention this ticket, but aren’t its pull request.</p>
           <ul className="github-prs" aria-label="Related pull requests" data-github-related>
             {d.related.map((pr) => (
-              <PrLine key={pr.url} pr={pr} />
+              <PrLine key={pr.url} pr={pr} stale={pr.stale ?? d.stale} />
             ))}
           </ul>
         </>

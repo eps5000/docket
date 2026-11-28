@@ -13,6 +13,7 @@ import {
   leadName,
   leadReason,
 } from '../../components/kit';
+import { GithubCiLinks, WorkActivity } from '../../components/kit/WorkActivity';
 import { formatAge, isoTitle } from '../../lib/format';
 import { paths } from '../../lib/paths';
 import { useRenderLimit } from '../../lib/progressive';
@@ -87,12 +88,19 @@ export function ListLayout({ items }: { items: readonly WorkItem[] }) {
                   <Priority p={i.priority} />
                 </td>
                 <td>
-                  {i.lead && (
+                  {i.activity !== undefined ? (
+                    <WorkActivity activity={i.activity} github={i.github} />
+                  ) : i.lead ? (
                     <RunLine
                       state={i.lead.run_state}
                       reason={leadReason(i.lead_parked)}
                       agent={leadName(i.lead)}
                     />
+                  ) : null}
+                  {i.github && (
+                    <div onClick={(event) => event.stopPropagation()}>
+                      <GithubCiLinks github={i.github} />
+                    </div>
                   )}
                 </td>
                 <td>

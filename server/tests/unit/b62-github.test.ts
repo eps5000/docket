@@ -216,6 +216,86 @@ describe('ingest', () => {
     expect(panel(id).primary).toHaveLength(1);
   });
 
+  it('shows only exact observed workflow runs for the current PR head and merge SHA', () => {
+    start();
+    const id = ticket('Exact CI');
+    const at = d.clock.now().toISOString();
+    const head = 'a'.repeat(40);
+    const merged = 'b'.repeat(40);
+    const runs = [
+      {
+        phase: 'pr_head' as const,
+        run_id: 111,
+        attempt: 2,
+        head_sha: 'c'.repeat(40),
+        status: 'failed' as const,
+        observed_at: at,
+      },
+      {
+        phase: 'main' as const,
+        run_id: 222,
+        attempt: 1,
+        head_sha: merged,
+        status: 'pending' as const,
+        observed_at: at,
+      },
+      {
+        phase: 'combined' as const,
+        run_id: 999,
+        attempt: 1,
+        head_sha: 'e'.repeat(40),
+        status: 'passed' as const,
+        observed_at: at,
+      },
+    ];
+    ingest([
+      pr(81, {
+        head_branch: `dev/${id}-x`,
+        head_sha: head,
+        state: 'merged',
+        merged_at: at,
+        merged_sha: merged,
+        workflow_runs: runs,
+      }),
+      { key: `repo:${REPO}`, kind: 'repo', repo: REPO, ok: true, error: null, at },
+    ]);
+    expect(panel(id).primary[0]?.workflow_runs).toEqual(runs.slice(0, 2));
+    expect(JSON.stringify(d.rows('SELECT * FROM github_prs'))).not.toContain('111');
+    ingest([pr(81, { head_branch: `dev/${id}-x`, head_sha: 'd'.repeat(40) })]);
+    expect(panel(id).primary[0]?.workflow_runs).toEqual([]);
+  });
+
+  it('fails closed on stale GitHub observations', () => {
+    start();
+    const id = ticket('Old CI');
+    ingest([
+      pr(82, {
+        head_branch: `dev/${id}-x`,
+        workflow_runs: [
+          {
+            phase: 'pr_head',
+            run_id: 333,
+            attempt: 1,
+            head_sha: 'a'.repeat(40),
+            status: 'passed',
+            observed_at: d.clock.now().toISOString(),
+          },
+        ],
+      }),
+      {
+        key: `repo:${REPO}`,
+        kind: 'repo',
+        repo: REPO,
+        ok: true,
+        error: null,
+        at: d.clock.now().toISOString(),
+      },
+    ]);
+    d.clock.advance(minutes(20));
+    expect(panel(id).stale).toBe(true);
+    expect(panel(id).primary[0]?.workflow_runs).toEqual([]);
+  });
+
   it('moves a link when the PR changes, and records one event', () => {
     start();
     const a = ticket('First');

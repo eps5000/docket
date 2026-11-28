@@ -20,7 +20,7 @@ const OVERLAP_MS = 2 * 60_000;
 const MAX_RELATED = 40;
 const TITLE_MAX = 300;
 
-const FIELDS = `number title state isDraft headRefName headRefOid createdAt updatedAt mergedAt body
+const FIELDS = `number title state isDraft headRefName headRefOid createdAt updatedAt mergedAt mergeCommit{oid} body
 commits(last:1){nodes{commit{statusCheckRollup{state}}}}`;
 
 export const OPEN_QUERY = `query($owner:String!,$name:String!,$cursor:String){
@@ -86,6 +86,61 @@ export function toRecord(repo, pr) {
     opened_at: pr.createdAt,
     remote_updated_at: pr.updatedAt,
     related_keys: keysInText(pr.title, pr.body),
+    merged_sha: /^[0-9a-f]{40}$/i.test(pr.mergeCommit?.oid ?? '') ? pr.mergeCommit.oid : null,
+  };
+}
+
+const runStatus = (run) => {
+  if (['queued', 'in_progress', 'waiting', 'pending', 'requested'].includes(run.status))
+    return 'pending';
+  if (run.status !== 'completed') return null;
+  if (run.conclusion === 'success') return 'passed';
+  if (['failure', 'timed_out', 'action_required'].includes(run.conclusion)) return 'failed';
+  return null;
+};
+
+/** A CI workflow run bound to an exact PR head or resulting-main commit. */
+export function exactRun(pr, run, phase, at) {
+  const id = run?.id;
+  const attempt = run?.run_attempt;
+  const sha = run?.head_sha;
+  if (
+    !Number.isSafeInteger(id) ||
+    id < 1 ||
+    !Number.isSafeInteger(attempt) ||
+    attempt < 1 ||
+    !/^[0-9a-f]{40}$/i.test(sha ?? '') ||
+    run?.name !== 'ci' ||
+    !String(run.path ?? '').startsWith('.github/workflows/ci.yml@')
+  )
+    return null;
+  const status = runStatus(run);
+  if (!status) return null;
+  if (phase === 'pr_head') {
+    if (run.event !== 'pull_request' || run.head_branch !== pr.head_branch) return null;
+    const linked = run.pull_requests?.some(
+      (link) => link.number === pr.number && link.head?.sha === pr.head_sha,
+    );
+    if (!linked) return null;
+  } else if (phase === 'main') {
+    if (
+      pr.state !== 'merged' ||
+      run.event !== 'push' ||
+      sha !== pr.merged_sha ||
+      run.head_branch !== 'main'
+    )
+      return null;
+  } else {
+    // Queue membership has no verified source in this collector. It stays Unknown.
+    return null;
+  }
+  return {
+    phase,
+    run_id: id,
+    attempt,
+    head_sha: sha,
+    status,
+    observed_at: at,
   };
 }
 
@@ -209,6 +264,40 @@ export async function collectWith(gh, { state, log, signal, settings }, now = Da
         error: err.code,
         at: new Date(startedAt).toISOString(),
       });
+    }
+  }
+  // The PR rollup is a checks summary, not a workflow identity. Read a small
+  // bounded set of exact Actions runs; a missing or ambiguous result stays absent.
+  if (gh.workflowRuns) {
+    const at = new Date(now()).toISOString();
+    const candidates = [...records.values()]
+      .filter((record) => record.kind === 'pr')
+      .sort((a, b) => b.remote_updated_at.localeCompare(a.remote_updated_at));
+    for (const pr of candidates) {
+      if (spent()) break;
+      const observed = [];
+      const rest = async (filter) => {
+        used += 1;
+        const result = await gh.workflowRuns(pr.repo, filter, signal);
+        return Array.isArray(result?.workflow_runs) ? result.workflow_runs : [];
+      };
+      if (pr.state === 'open' && /^[A-Za-z0-9._/-]+$/.test(pr.head_branch)) {
+        const runs = await rest({ event: 'pull_request', branch: pr.head_branch });
+        const exact = runs
+          .map((run) => exactRun(pr, run, 'pr_head', at))
+          .filter(Boolean)
+          .sort((a, b) => b.run_id - a.run_id)[0];
+        if (exact) observed.push(exact);
+      }
+      if (pr.state === 'merged' && pr.merged_sha && !spent()) {
+        const runs = await rest({ event: 'push', head_sha: pr.merged_sha });
+        const exact = runs
+          .map((run) => exactRun(pr, run, 'main', at))
+          .filter(Boolean)
+          .sort((a, b) => b.run_id - a.run_id)[0];
+        if (exact) observed.push(exact);
+      }
+      pr.workflow_runs = observed;
     }
   }
   if (paused) {

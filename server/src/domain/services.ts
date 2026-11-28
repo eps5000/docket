@@ -36,6 +36,7 @@ import { createSyncService } from './sync.js';
 import { createUsageService } from './usage.js';
 import { createUndoService } from './undo.js';
 import { createViewsService } from './views.js';
+import { withCardActivity } from './work-card-activity.js';
 
 /** Replace some methods of some services (tests only). */
 export type ServiceOverrides = { [K in keyof Services]?: Partial<Services[K]> };
@@ -46,6 +47,7 @@ export function createServices(
 ): Services {
   // Late-bound, so a service can call another (e.g. evidence → packets.markStale).
   const full: ServiceDeps = { ...deps, services: () => services };
+  const baseViews = createViewsService(full);
   const services: Services = {
     items: createItemsService(full),
     runs: createRunsService(full),
@@ -56,7 +58,16 @@ export function createServices(
     evidence: createEvidenceService(full),
     search: createSearchService(full),
     digest: createDigestService(full),
-    views: createViewsService(full),
+    views: {
+      ...baseViews,
+      work: (read, query) =>
+        withCardActivity(
+          baseViews.work(read, query),
+          full.services().views.agents(read, { scope: query.scope }),
+          read.db,
+          read.now,
+        ),
+    },
     links: createLinksService(full),
     subgraph: createSubgraphService(full),
     decisions: createDecisionsService(full),

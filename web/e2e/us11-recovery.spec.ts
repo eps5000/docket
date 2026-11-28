@@ -302,18 +302,17 @@ test.describe.serial('US11 recovery', () => {
     );
     await expect(bar.locator('[data-ab="parked"]')).toContainText('Ready to resume');
 
-    // Board: one run line per parked card, state · reason · agent.
+    // Board: one classified, privacy-safe activity line per parked card.
     await page.goto('/work');
-    const runLine = (id: string) => page.locator(`a.tcard[data-item="${id}"] .runline`);
-    await expect(runLine('RCP-17')).toHaveCount(1);
-    await expect(runLine('RCP-17').locator('.rl')).toHaveText(
-      /^parked\s· waiting on the coordinator\s· claude · orca-w3$/,
-    );
-    await expect(runLine('RCP-18').locator('.rl')).toHaveText(
-      /^parked\s· ready to resume\s· claude · orca-w4$/,
-    );
+    const activity = (id: string) =>
+      page.locator(`a.tcard[data-item="${id}"] [data-work-activity]`);
+    await expect(activity('RCP-17')).toHaveCount(1);
+    await expect(activity('RCP-17')).toHaveAttribute('data-work-activity', 'waiting');
+    await expect(activity('RCP-17')).toContainText('Waiting on the coordinator');
+    await expect(activity('RCP-18')).toHaveAttribute('data-work-activity', 'waiting');
+    await expect(activity('RCP-18')).toContainText('Ready to resume');
     // No wrapped run line starts with the separator: each "·" sits on its segment's line.
-    const leading = await page.locator('a.tcard .runline .rl').evaluateAll((els) =>
+    const leading = await page.locator('a.tcard .work-activity .wa-heading').evaluateAll((els) =>
       els.flatMap((el) => {
         const lines = new Map<number, string>();
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -332,6 +331,20 @@ test.describe.serial('US11 recovery', () => {
     );
     expect(leading).toEqual([]);
     await expectAxeClean(page, 'board with parked cards', { include: '[data-layout="board"]' });
+
+    // List rows use the same activity projection and retain distinct waits.
+    await page.goto('/work?layout=list');
+    const listRow = (id: string) =>
+      page
+        .locator('[data-layout="list"]')
+        .getByRole('row')
+        .filter({ has: page.getByRole('link', { name: id, exact: true }) });
+    await expect(listRow('RCP-17').locator('[data-work-activity="waiting"]')).toContainText(
+      'Waiting on the coordinator',
+    );
+    await expect(listRow('RCP-18').locator('[data-work-activity="waiting"]')).toContainText(
+      'Ready to resume',
+    );
 
     // The epic's Tickets list uses the same pieces.
     await page.goto('/items/RCP-1');

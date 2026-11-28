@@ -188,8 +188,7 @@ test.describe('Work', () => {
       .getByRole('row')
       .filter({ has: page.getByRole('link', { name: 'RCP-14', exact: true }) });
     await expect(row).toContainText('In progress');
-    await expect(row).toContainText('claude · orca-w3');
-    await expect(row).toContainText('live');
+    await expect(row.locator('[data-work-activity="live"]')).toContainText('Live · Lead');
     await row.getByRole('cell').nth(1).click();
     await expect(page).toHaveURL(/\/items\/RCP-14$/);
   });
