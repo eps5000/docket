@@ -46,6 +46,8 @@ export const emptyState = () => ({
   reconciles: [],
   seen: {},
   batches: {},
+  /** DKT-only due-wake intents, saved before Orca worker-start. */
+  continuations: {},
   rate: {},
   undelivered: [],
   counters: {
@@ -111,6 +113,7 @@ function parseState(text) {
     !cursorOk ||
     !batchesOk ||
     !isMap(parsed.seen) ||
+    (parsed.continuations !== undefined && !isMap(parsed.continuations)) ||
     !isMap(parsed.rate) ||
     !isMap(parsed.counters) ||
     !Array.isArray(parsed.undelivered)
