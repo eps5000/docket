@@ -178,7 +178,7 @@ export function assessSupervisor({
       full.runId !== m.producer_orca_run_id ||
       full.workspace !== m.producer_workspace_id ||
       row.host !== 'local' ||
-      row.agent?.startsWith('codex')
+      !/^claude(?:\/|$)/.test(row.agent ?? '')
     );
   });
   if (competing) return result('hold', 'unknown', 'unknown', 'competing_producer_possible');

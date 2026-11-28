@@ -189,6 +189,26 @@ describe('Docket-only Epic supervisor', () => {
     });
   });
 
+  it('holds a live peer with missing or unknown agent identity', () => {
+    const input = base();
+    const peer = {
+      ...worker,
+      dispatchId: 'ctx_unknown',
+      agent: undefined as string | null | undefined,
+    };
+    input.inventory.workers.push(peer);
+    input.peerWorkers.push({ ...worker, dispatchId: 'ctx_unknown' });
+    expect(assessSupervisor(input)).toMatchObject({
+      status: 'hold',
+      reason: 'competing_producer_possible',
+    });
+    peer.agent = null;
+    expect(assessSupervisor(input)).toMatchObject({
+      status: 'hold',
+      reason: 'competing_producer_possible',
+    });
+  });
+
   it('reports a named future coordinator wait without promising automatic resumption', () => {
     const input = base();
     const waiting_on = {
