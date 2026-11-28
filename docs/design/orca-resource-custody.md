@@ -15,13 +15,18 @@ update time for an ended run. A missing run or a run in a deleted project is
 paths, summaries, errors, wait reasons, private artifacts, or audit payloads,
 and it does not deliver a wake or change a claim.
 
-The audit source remains a bounded inventory: at most 128 eligible configured
+The audit source remains a bounded inventory: at most 160 eligible configured
 targets, with `more=false`. The helper admits that inventory only when all
-priority targets fit in its 42-target pass and the ended targets fit within
-four rotations of the remaining slots. The measured 117-target roster has 11
-parked and 106 ended runs, leaving 31 ended slots per pass. A larger or
+priority targets fit in its 51-target pass and the ended targets fit within
+four rotations of the remaining slots: for prompt-custody count P and ended
+count E, P <= 51 and E <= 4 * (51 - P). The observed 148 raw rows contain 129
+eligible targets, 13 prompt-custody and 116 ended, leaving 38 ended slots per
+pass. At P16/E140, four passes fit exactly; P16/E141, P17/E143 and P52 stop. A larger or
 unschedulable roster stops with `audit_overflow`; raw scan truncation also
-sets `more=true` and stops the audit. The 42-target pass uses 14 bounded lanes:
+sets `more=true` and stops the audit. The 161st eligible target sets `more=true`,
+and the helper independently rejects more than 160 targets. Duplicate Docket run
+IDs stop the pass; distinct historical runs sharing one Orca dispatch remain
+separate. The 51-target pass uses 17 bounded lanes:
 three 17-second target waves plus cancellation grace fit inside the 80-second
 collection limit. With 15 seconds for settings, 30 for one POST, and 60 between
 passes, a complete bounded pass cycle is 185 seconds. Allowing 95 seconds of
