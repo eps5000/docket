@@ -98,15 +98,20 @@ function runsFromSnapshot(
     !headSha ||
     snapshot.head_sha !== headSha ||
     !Array.isArray(snapshot.workflow_runs) ||
-    !Number.isFinite(Date.parse(snapshot.observed_at)) ||
-    Date.parse(now) - Date.parse(snapshot.observed_at) > STALE_MIN_MS
+    !Number.isFinite(Date.parse(snapshot.observed_at))
   )
     return [];
   return snapshot.workflow_runs.flatMap((raw) => {
     const parsed = githubWorkflowRunSchema.safeParse(raw);
     if (!parsed.success) return [];
     const run = parsed.data;
-    return run.phase === 'pr_head' || (run.phase === 'main' && run.head_sha === snapshot.merged_sha)
+    if (
+      Date.parse(now) - Date.parse(snapshot.observed_at) > STALE_MIN_MS &&
+      run.status !== 'passed'
+    )
+      return [];
+    return (run.phase === 'pr_head' && run.head_sha === headSha) ||
+      (run.phase === 'main' && run.head_sha === snapshot.merged_sha)
       ? [run]
       : [];
   });
@@ -660,7 +665,10 @@ const githubHandler: SyncHandler<GithubRecord> = {
           workflow_runs: [...phases.values()],
           observed_at: now,
         };
-      } else if (prior && prior.head_sha !== record.head_sha) {
+      } else if (
+        prior &&
+        (prior.head_sha !== record.head_sha || prior.merged_sha !== (record.merged_sha ?? null))
+      ) {
         delete snapshots[id];
       }
     }
