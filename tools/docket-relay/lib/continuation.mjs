@@ -148,7 +148,12 @@ function activeProducer(mapping, workers) {
   );
   if (relevant.some((worker) => worker.outcome === 'in_progress' || worker.state === 'ready'))
     return true;
-  if (relevant.some((worker) => worker.liveness === 'unknown' && worker.state !== 'succeeded'))
+  if (
+    relevant.some(
+      (worker) =>
+        ['unknown', 'unverifiable'].includes(worker.liveness) && worker.state !== 'succeeded',
+    )
+  )
     return null;
   return false;
 }

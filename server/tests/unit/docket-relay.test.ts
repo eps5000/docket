@@ -374,6 +374,19 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     expect(h.starts).toHaveLength(0);
   });
 
+  it('holds an unverifiable unsettled producer instead of treating it as exited', async () => {
+    const h = continuationHarness();
+    h.setWorkers([
+      { workspace: workspaceId, host: 'local', state: 'failed', liveness: 'unverifiable' },
+    ]);
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'escalated',
+      reason: 'worker_custody_unknown',
+    });
+  });
+
   it('holds owner choices and malformed state rather than manufacturing a producer', async () => {
     const h = continuationHarness();
     h.detail.decisions.push({ authority: 'owner', status: 'active' } as never);
