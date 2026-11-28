@@ -118,7 +118,8 @@ const base = (): any => ({
       },
     ],
   },
-  producerWorker: worker,
+  producerWorker: { ...worker, followUpOf: 'ctx_child' },
+  peerWorkers: [],
   relay: { running: true, hold: null, docket: { connected: true } },
   now,
 });
@@ -145,15 +146,16 @@ describe('Docket-only Epic supervisor', () => {
     expect(precheckSafe(mapping, { complete: false, workers: [] })).toBe(false);
   });
 
-  it('identifies the mapped producer separately from a live reviewer and surfaces a lost child', () => {
+  it('identifies the mapped producer separately from a live reviewer and a child follow-up', () => {
     const input = base();
     input.inventory.workers.push({ ...worker, dispatchId: 'ctx_reviewer', agent: 'claude/opus' });
+    input.peerWorkers.push({ ...worker, dispatchId: 'ctx_reviewer' });
     const output = assessSupervisor(input);
     expect(output).toMatchObject({
-      status: 'problem',
+      status: 'ok',
       dkt3: 'active',
-      dkt12: 'lost_worker',
-      next_actor: 'dkt-3-producer',
+      dkt12: 'active_followup',
+      next_actor: null,
     });
     expect(JSON.stringify(output)).not.toContain('private');
     expect(JSON.stringify(output)).not.toContain('ctx_');
@@ -162,15 +164,28 @@ describe('Docket-only Epic supervisor', () => {
   it('holds on a possible second Codex producer or a mismatched current Dispatch', () => {
     const input = base();
     input.inventory.workers.push({ ...worker, dispatchId: 'ctx_other' });
+    input.peerWorkers.push({ ...worker, dispatchId: 'ctx_other' });
     expect(assessSupervisor(input)).toMatchObject({
       status: 'hold',
       reason: 'competing_producer_possible',
     });
     input.inventory.workers.pop();
+    input.peerWorkers.pop();
     input.producerWorker = { ...worker, workspace: supervisor };
     expect(assessSupervisor(input)).toMatchObject({
       status: 'hold',
       reason: 'producer_identity_unknown',
+    });
+  });
+
+  it('surfaces a reported child whose original Dispatch has no verified follow-up', () => {
+    const input = base();
+    input.producerWorker.followUpOf = 'ctx_unrelated';
+    expect(assessSupervisor(input)).toMatchObject({
+      status: 'problem',
+      dkt3: 'active',
+      dkt12: 'lost_worker',
+      next_actor: 'dkt-3-producer',
     });
   });
 

@@ -107,6 +107,7 @@ export function assessSupervisor({
   audit,
   inventory,
   producerWorker,
+  peerWorkers,
   relay,
   ready,
   now,
@@ -162,13 +163,24 @@ export function assessSupervisor({
     producerWorker.workspace !== m.producer_workspace_id
   )
     return result('hold', 'unknown', 'unknown', 'producer_identity_unknown');
-  const competing = workers.some(
+  const peers = workers.filter(
     (w) =>
       w.dispatchId !== m.current_producer_dispatch_id &&
       active(w) &&
-      w.workspace === m.producer_workspace_id &&
-      (w.agent?.startsWith('codex') || w.runId !== m.producer_orca_run_id),
+      w.workspace === m.producer_workspace_id,
   );
+  if (!Array.isArray(peerWorkers) || peerWorkers.length !== peers.length || peers.length > 30)
+    return result('hold', 'unknown', 'unknown', 'peer_custody_unknown');
+  const competing = peers.some((row) => {
+    const full = peerWorkers.find((entry) => entry?.dispatchId === row.dispatchId);
+    return (
+      !full ||
+      full.runId !== m.producer_orca_run_id ||
+      full.workspace !== m.producer_workspace_id ||
+      row.host !== 'local' ||
+      row.agent?.startsWith('codex')
+    );
+  });
   if (competing) return result('hold', 'unknown', 'unknown', 'competing_producer_possible');
   let parentCategory = 'unknown';
   if (producerAgent.run_state === 'reported' || producerAgent.run_state === 'live') {
@@ -182,7 +194,12 @@ export function assessSupervisor({
     childCategory = namedWait(child, now);
   } else if (childAgent.run_state === 'reported' || childAgent.run_state === 'live') {
     const exact = workers.filter((w) => w.dispatchId === child.orchestrator?.dispatch_id);
-    childCategory = exact.length === 1 && active(exact[0]) ? 'active' : 'lost_worker';
+    childCategory =
+      exact.length === 1 && active(exact[0])
+        ? 'active'
+        : active(producerWorker) && producerWorker.followUpOf === child.orchestrator?.dispatch_id
+          ? 'active_followup'
+          : 'lost_worker';
   }
   if (parentCategory === 'unknown' || childCategory === 'unknown')
     return result('hold', parentCategory, childCategory, 'state_unknown');
@@ -321,6 +338,18 @@ async function main() {
       localGet('/api/sync/orca-audit'),
       relayStatus(),
     ]);
+  const peerRows = workers.workers.filter(
+    (w) =>
+      w.dispatchId !== m.current_producer_dispatch_id &&
+      active(w) &&
+      w.workspace === m.producer_workspace_id,
+  );
+  if (peerRows.length > 30) throw Error('read_unknown');
+  const peerWorkers = await Promise.all(
+    peerRows.map((row) =>
+      orcaCall(exe, ['orchestration', 'worker-show', '--dispatch', row.dispatchId]),
+    ),
+  );
   const output = assessSupervisor({
     mapping,
     automation: automationReply.automation,
@@ -332,6 +361,7 @@ async function main() {
     audit,
     inventory: workers,
     producerWorker,
+    peerWorkers,
     relay,
     now: Date.now(),
   });
