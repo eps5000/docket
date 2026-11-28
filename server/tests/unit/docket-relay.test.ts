@@ -510,6 +510,20 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     });
   });
 
+  it('acknowledges a verified handoff when Docket derives the open run as live', async () => {
+    const h = continuationHarness();
+    await h.scan();
+    h.handoff();
+    h.detail.item.runs[0]!.run_state = 'live';
+    h.row.run_state = 'live';
+    h.advance(1000);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'acknowledged',
+      dispatch_id: 'ctx_fresh',
+    });
+  });
+
   it('keeps a delivered request idempotent across relay restart until coordinator handoff', async () => {
     const h = continuationHarness();
     await h.scan();

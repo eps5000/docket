@@ -172,7 +172,7 @@ async function verifiedHandoff(mapping, detail, orca, requestedAt) {
   const run = runs[0];
   if (
     run.is_lead !== true ||
-    !['reported', 'parked'].includes(run.run_state) ||
+    !['live', 'reported', 'parked'].includes(run.run_state) ||
     (run.orchestrator?.run_id && run.orchestrator.run_id !== mapping.orca_run_id)
   )
     return null;
