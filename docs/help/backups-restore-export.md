@@ -67,6 +67,20 @@ docker compose exec docket docket export
 
 It writes one `.tar.gz` with every table as JSON, every document version, and a manifest with checksums, then prints the command to copy it out. It never includes the owner key or the agent token. An export is for reading, not for restoring: use a backup to restore.
 
+### Current export without a live-volume write
+
+For a supervised current-state check, use a **separate one-shot container** from the exact installed Docket image. Mount the running Docket data volume at `/source` **read-only** and a uniquely named disposable volume at `/scratch` writable. Create `/scratch/exports` on the disposable volume before the export. The container must have no published port, no network access, no host-code mount, and no other writable mount. Verify the image, both volume identities, exclusive scratch ownership, free capacity and a recovery backup before starting it.
+
+Run this command *inside that isolated container*, after checking its mount manifest:
+
+```bash
+docket export --read-only-source --data-dir /source --out /scratch/exports/current.tar.gz
+```
+
+The read-only mode requires Linux mount metadata proving `/source` and `/scratch` are the exact mount points, the output is below `/scratch` on that mount, and their backing roots are disjoint; a second bind of the source volume or an output on `/tmp` is refused. The operator must still verify the exact Docker volume names and mount manifest independently. It opens SQLite without a write handle, includes committed WAL state in one snapshot, and checks the installed schema without migrating it. It reads existing service secrets only inside the one-shot process to scan exported table and document bytes; it does not create or change source secret files. Each referenced document must be a regular file beneath the docs root with no traversal or symlink component, and its file identity must remain stable through the read. It refuses a missing secret guard, an unsafe or missing referenced document, a source/destination mount alias, a pre-existing output file, a schema mismatch or a secret-bearing export. It prints bounded counts and checksums, not source paths or secret values.
+
+Inspect the archive manifest and gzip integrity on the disposable volume, compare source database, WAL, SHM, document and secret metadata before and after, and verify the live service identity and health. Release only the exact one-shot container and disposable volume after an independent readback. A restored older backup can prove backup integrity, but its export is **historical** and does not satisfy a current export check. The ordinary `docket export` command above remains a writable-source operation and must not be used in place of this procedure when source writes are forbidden.
+
 ## What deletes data
 
 - `docker compose down` keeps your data. `docker compose down --volumes` deletes the volume and everything in it, except backup copies on your machine.

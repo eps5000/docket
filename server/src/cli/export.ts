@@ -22,7 +22,7 @@
  * export refuses to finish if a known secret appears in any table's JSON.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import type { Config } from '../config.js';
@@ -69,6 +69,10 @@ export interface ExportDeps {
   secrets: () => readonly string[];
   /** Where to write the archive; default `<data>/exports/docket-export-<time>.tar.gz`. */
   out?: string;
+  /** Refuse an archive that omits any document referenced by the snapshot. */
+  requireCompleteDocuments?: boolean;
+  /** Strict source reader for a read-only mounted volume. */
+  readDocument?: (path: string) => { bytes: Buffer; mtime: Date };
 }
 
 const sha = () => createHash('sha256');
@@ -158,22 +162,48 @@ export async function runExport(deps: ExportDeps): Promise<ExportResult> {
           const full = join(config.paths.docs, ...path.split('/'));
           let size: number;
           let mtime: Date;
-          try {
-            const st = statSync(full);
-            size = st.size;
-            mtime = st.mtime;
-          } catch {
-            manifest.documents.missing.push(path);
-            continue;
+          let guardedBytes: Buffer | undefined;
+          if (deps.readDocument) {
+            // Refuse invalid paths and aliases before any filesystem read.
+            // Missing documents still fail the complete-export requirement.
+            const document = deps.readDocument(path);
+            guardedBytes = document.bytes;
+            size = guardedBytes.length;
+            mtime = document.mtime;
+          } else {
+            try {
+              const st = statSync(full);
+              size = st.size;
+              mtime = st.mtime;
+            } catch {
+              manifest.documents.missing.push(path);
+              continue;
+            }
           }
-          const hash = sha();
           const name = `documents/${path}`;
-          yield { name, size, source: { path: full }, hash, mtime };
-          const digest = hash.digest('hex');
+          let digest: string;
+          if (deps.requireCompleteDocuments) {
+            // Scan the exact bytes that will be archived. Read one document
+            // at a time to avoid a separate-scan/archive race.
+            const bytes = guardedBytes ?? readFileSync(full);
+            if (secrets.some((secret) => bytes.includes(Buffer.from(secret)))) {
+              throw new Error('Export stopped: a service secret appeared in a document.');
+            }
+            size = bytes.length;
+            digest = sha().update(bytes).digest('hex');
+            yield { name, size, source: { bytes }, mtime };
+          } else {
+            const hash = sha();
+            yield { name, size, source: { path: full }, hash, mtime };
+            digest = hash.digest('hex');
+          }
           docHashes.set(path, digest);
           manifest.files[name] = { size, sha256: digest };
           manifest.documents.count += 1;
           manifest.documents.bytes += size;
+        }
+        if (deps.requireCompleteDocuments && manifest.documents.missing.length > 0) {
+          throw new Error('Export stopped: referenced document missing; no archive written.');
         }
         manifest.checksums = dataChecksums(snap, (p) => docHashes.get(p) ?? null);
         const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf8');

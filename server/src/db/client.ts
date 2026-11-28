@@ -81,7 +81,7 @@ export interface MigrationStatus {
 }
 
 /** Whether every migration shipped with this build has been applied, and nothing newer. */
-export function migrationStatus(db: Db): MigrationStatus {
+export function migrationStatus(db: Pick<Db, 'sqlite'>): MigrationStatus {
   const expected = readMigrationFiles({ migrationsFolder: migrationsFolder() });
   let applied: { hash: string }[] = [];
   const hasTable = db.sqlite
