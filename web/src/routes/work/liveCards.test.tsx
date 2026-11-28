@@ -98,7 +98,9 @@ describe('live Work and Epic cards', () => {
       'https://github.com/eps5000/docket/pull/244/checks',
     );
     const run = screen.getByRole('link', { name: /PR run · failed \(run 456, attempt 2\)/ });
-    expect(run.getAttribute('href')).toBe('https://github.com/eps5000/docket/actions/runs/456');
+    expect(run.getAttribute('href')).toBe(
+      'https://github.com/eps5000/docket/actions/runs/456/attempts/2',
+    );
     expect(run.getAttribute('rel')).toContain('noopener');
     await user.tab();
     expect(document.activeElement?.getAttribute('href')).toBe('/items/DKT-41');
@@ -137,5 +139,11 @@ describe('live Work and Epic cards', () => {
     expect(safeGithubPrUrl('eps5000/../docket', 1)).toBeNull();
     expect(safeGithubRunUrl('eps5000/docket', -1, 1)).toBeNull();
     expect(safeGithubRunUrl('eps5000/docket', 12, 0)).toBeNull();
+    expect(safeGithubRunUrl('eps5000/docket', 456, 1)).toBe(
+      'https://github.com/eps5000/docket/actions/runs/456/attempts/1',
+    );
+    expect(safeGithubRunUrl('eps5000/docket', 456, 2)).toBe(
+      'https://github.com/eps5000/docket/actions/runs/456/attempts/2',
+    );
   });
 });

@@ -56,13 +56,13 @@ describe('Work card activity', () => {
     );
     expect(result.items[0]?.activity).toMatchObject({
       state: 'live',
-      action: 'Reviewing the source',
-      actor: 'dkt-1-producer',
+      action: 'Reviewing work',
+      actor: 'Lead',
     });
     expect(result.epics[0]?.activity?.state).toBe('reported');
     expect(result.epics[0]?.child_activity).toMatchObject({
       state: 'live',
-      action: 'DKT-41: Reviewing the source',
+      action: 'Child item: Reviewing work',
     });
   });
 
@@ -80,7 +80,14 @@ describe('Work card activity', () => {
     const waiting = {
       ...item('DKT-43', 'reported'),
       lead: null,
-      wait: { text: 'Waits for DKT-42' },
+      wait: {
+        kind: 'queued',
+        reason: null,
+        after: 'DKT-42',
+        more: 0,
+        on: null,
+        text: 'Waits for DKT-42',
+      },
     };
     const result = project(
       [item('DKT-41', 'stale'), parked, waiting as WorkItem, item('DKT-44', 'live')],
@@ -95,6 +102,50 @@ describe('Work card activity', () => {
       'waiting',
       'unknown',
     ]);
-    expect(result.items[2]?.activity?.action).toBe('Waits for DKT-42');
+    expect(result.items[2]?.activity?.action).toBe('Queued behind another item');
+    expect(result.items[1]?.activity?.action).toBe('Work is paused');
+  });
+
+  it('classifies free-form activity and waits without copying secrets, paths or identifiers', () => {
+    const secret = 'ghp_exampleSecret123';
+    const path = 'C:\\Users\\private\\notes.txt';
+    const privateId = 'run_private_identifier';
+    const live = {
+      ...item('DKT-41', 'live'),
+      lead: { ...lead('run_DKT-41', 'live'), label: `${path} ${privateId}` },
+    } as WorkItem;
+    const blocked = {
+      ...item('DKT-43', 'reported'),
+      lead: null,
+      producer: { name: `${secret} ${privateId}`, between_workers: false },
+      wait: {
+        kind: 'held',
+        reason: 'decision',
+        after: 'DKT-42',
+        more: 0,
+        on: 'DKT-42',
+        text: `Waiting for ${path} ${secret} ${privateId}`,
+      },
+    } as WorkItem;
+    const result = project(
+      [live, item('DKT-42', 'parked'), blocked],
+      [
+        {
+          ...row('run_DKT-41', 'live', 'held', `Lead · Reviewing ${path} ${secret} ${privateId}`),
+          producer: secret,
+        },
+        row('run_DKT-42', 'parked', 'paused', `Parked · ${path} ${secret} ${privateId}`),
+      ],
+    );
+    const projected = JSON.stringify({
+      items: result.items.map((entry) => entry.activity),
+      epics: result.epics.map((entry) => [entry.activity, entry.child_activity]),
+    });
+    expect(result.items.map((entry) => entry.activity?.action)).toEqual([
+      'Reviewing work',
+      'Work is paused',
+      'Waiting for an owner decision',
+    ]);
+    for (const sensitive of [secret, path, privateId]) expect(projected).not.toContain(sensitive);
   });
 });

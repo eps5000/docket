@@ -1,7 +1,8 @@
 /**
  * Project the existing run and wait evidence onto Work cards. This is a read
  * adapter: views.ts remains the owner of run-state calculation and the Agents
- * response supplies the exact run, lease and latest reported action.
+ * response supplies the exact run and lease. Free-form run text never reaches
+ * these compact owner-facing cards.
  */
 import type {
   AgentRow,
@@ -14,17 +15,26 @@ import type {
 import type { Db } from '../db/client.js';
 import { cardGithubOf } from './sync.js';
 
-const cleanAction = (value: string | null): string | null => {
-  const action = value
-    ?.replace(/^(?:Lead|Child run) · /, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!action) return null;
-  return action.length > 220 ? `${action.slice(0, 219)}…` : action;
-};
+/** Return only a fixed phrase; summaries, paths, IDs and secrets are never echoed. */
+function classifiedAction(doing: string | null): string {
+  if (!doing) return 'Working on this item';
+  if (/\b(review(?:ing)?|inspect(?:ing)?|audit(?:ing)?)\b/i.test(doing)) return 'Reviewing work';
+  if (/\b(test(?:ing)?|checks?|verif(?:y|ying)|validat(?:e|ing))\b/i.test(doing))
+    return 'Running checks';
+  if (/\b(implement(?:ing)?|cod(?:e|ing)|fix(?:ing)?|edit(?:ing)?)\b/i.test(doing))
+    return 'Updating work';
+  if (/\b(investigat(?:e|ing)|diagnos(?:e|ing)|triag(?:e|ing))\b/i.test(doing))
+    return 'Investigating';
+  return 'Working on this item';
+}
 
-const actorOf = (lead: { client: string; label: string | null }, row?: AgentRow): string =>
-  row?.producer ?? (lead.label ? `${lead.client} · ${lead.label}` : lead.client);
+function classifiedWait(wait: NonNullable<WorkItem['wait']>): string {
+  if (wait.kind === 'queued') return 'Queued behind another item';
+  if (wait.kind === 'blocked') return 'Blocked by a dependency';
+  if (wait.reason === 'paused') return 'Project is paused';
+  if (wait.reason === 'decision') return 'Waiting for an owner decision';
+  return 'Work is held';
+}
 
 function runActivity(
   item: Pick<WorkItem | EpicCard, 'id' | 'lead' | 'status'>,
@@ -36,39 +46,41 @@ function runActivity(
       ? { state: 'unknown', action: null, actor: null, observed_at: null }
       : null;
   const row = rows.get(lead.run_id);
-  const actor = actorOf(lead, row);
   if (!row || row.item_id !== item.id) {
-    return { state: 'unknown', action: null, actor, observed_at: null };
+    return { state: 'unknown', action: null, actor: null, observed_at: null };
   }
   const base = {
-    action: cleanAction(row.doing),
-    actor,
+    actor: 'Lead',
     observed_at: row.last_signal_at,
   };
   // A recent report does not prove a working session. A live run with a lost
   // lead lease likewise cannot be called Live.
   if (lead.run_state === 'live' && row.run_state === 'live' && row.lease === 'held') {
-    return { ...base, state: 'live' };
+    return { ...base, state: 'live', action: classifiedAction(row.doing) };
   }
   if (row.run_state === 'parked' || row.run_state === 'needs_input') {
-    return { ...base, state: 'waiting' };
+    return {
+      ...base,
+      state: 'waiting',
+      action: row.run_state === 'needs_input' ? 'Waiting for input' : 'Work is paused',
+    };
   }
   if (row.run_state === 'stale' || row.lease === 'expired') {
-    return { ...base, state: 'stale' };
+    return { ...base, state: 'stale', action: 'Latest update is out of date' };
   }
-  if (row.run_state === 'failed') return { ...base, state: 'failed' };
+  if (row.run_state === 'failed') return { ...base, state: 'failed', action: 'Run failed' };
   if (row.run_state === 'reported' && row.lease === 'held') {
-    return { ...base, state: 'reported' };
+    return { ...base, state: 'reported', action: 'Recent activity reported' };
   }
-  return { ...base, state: 'unknown' };
+  return { ...base, state: 'unknown', action: null };
 }
 
 function ticketActivity(item: WorkItem, rows: Map<string, AgentRow>): CardActivity | null {
   if (item.wait) {
     return {
       state: 'waiting',
-      action: item.wait.text,
-      actor: item.producer?.name ?? null,
+      action: classifiedWait(item.wait),
+      actor: null,
       observed_at: null,
     };
   }
@@ -76,7 +88,7 @@ function ticketActivity(item: WorkItem, rows: Map<string, AgentRow>): CardActivi
     return {
       state: 'waiting',
       action: 'Between workers',
-      actor: item.producer.name,
+      actor: 'Producer',
       observed_at: null,
     };
   }
@@ -117,7 +129,7 @@ export function withCardActivity(
     if (item.epic && item.activity?.state === 'live' && !childActivity.has(item.epic)) {
       childActivity.set(item.epic, {
         ...item.activity,
-        action: item.activity.action ? `${item.id}: ${item.activity.action}` : item.id,
+        action: item.activity.action ? `Child item: ${item.activity.action}` : 'Child item active',
       });
     }
   }

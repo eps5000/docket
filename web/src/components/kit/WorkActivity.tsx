@@ -19,12 +19,7 @@ export function WorkActivity({ activity }: { activity: CardActivity | null | und
         <span>{LABEL[activity.state]}</span>
         {activity.actor && <span className="wa-actor"> · {activity.actor}</span>}
       </span>
-      {activity.action && (
-        <span className="wa-action">
-          {activity.state === 'live' ? 'Last reported: ' : ''}
-          {activity.action}
-        </span>
-      )}
+      {activity.action && <span className="wa-action">{activity.action}</span>}
     </span>
   );
 }
@@ -57,7 +52,7 @@ export function safeGithubRunUrl(repo: string, runId: number, attempt: number): 
     runId > 0 &&
     Number.isSafeInteger(attempt) &&
     attempt > 0
-    ? `https://github.com/${repo}/actions/runs/${runId}`
+    ? `https://github.com/${repo}/actions/runs/${runId}/attempts/${attempt}`
     : null;
 }
 
