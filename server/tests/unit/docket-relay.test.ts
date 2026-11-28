@@ -454,6 +454,14 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     );
   });
 
+  it('does not interpret one due external wake as clearing additional wait conditions', async () => {
+    const h = continuationHarness();
+    (h.row.lead_parked.waiting_on as { items?: string[] }).items = ['DKT-2'];
+    await h.scan();
+    expect(h.starts).toHaveLength(0);
+    expect(h.state.continuations[mapping.docket_run_id]).toBeUndefined();
+  });
+
   it('escalates after three unavailable Orca custody reads without starting', async () => {
     const h = continuationHarness();
     h.setWorkerListFails(true);

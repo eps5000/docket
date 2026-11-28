@@ -91,6 +91,11 @@ function candidate(mapping, agents, now) {
   const waiting = row.lead_parked.waiting_on;
   if (waiting?.orchestrator !== true || waiting?.person === true)
     return { hold: 'not_coordinator_wake' };
+  if (
+    (waiting.items && (!Array.isArray(waiting.items) || waiting.items.length > 0)) ||
+    waiting.until
+  )
+    return { hold: 'additional_wait_conditions' };
   const wake = waiting.wake;
   const due = Date.parse(wake?.due_at ?? '');
   if (!Number.isFinite(due) || !wake?.actor || !wake?.event) return { hold: 'wake_unknown' };
