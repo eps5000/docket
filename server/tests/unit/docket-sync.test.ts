@@ -515,8 +515,8 @@ describe('the runner', () => {
     expect(docket.posts[0]!.body.run).toMatchObject({ ok: true, partial: false });
   });
 
-  it('posts the 42-record Orca audit pass as one accepted batch', async () => {
-    const records = Array.from({ length: 42 }, (_, index) => ({ key: `audit:${index}` }));
+  it('posts the 51-record Orca audit pass as one accepted batch', async () => {
+    const records = Array.from({ length: 51 }, (_, index) => ({ key: `audit:${index}` }));
     const docket = makeDocket();
     const store = openStore(home);
     const runner = createRunner({
@@ -530,12 +530,42 @@ describe('the runner', () => {
       store,
       log: logs().log,
     });
-    expect(auditSource.batchSize).toBe(42);
+    expect(auditSource.batchSize).toBe(51);
+    expect(auditSource.batchSize).toBeLessThanOrEqual(BATCH_SIZE);
     expect(await runner.once()).toEqual({ 'orca-audit': 'ran' });
     expect(docket.posts).toHaveLength(1);
-    expect(docket.posts[0]!.body.records).toHaveLength(42);
+    expect(docket.posts[0]!.body.records).toHaveLength(51);
     expect(docket.posts[0]!.body.run).toMatchObject({ ok: true, partial: false });
     expect(store.source('orca-audit').state).toEqual({ ended: ['run_done'] });
+  });
+
+  it('reports audit overflow and keeps the old rotation state without a success POST', async () => {
+    const docket = makeDocket();
+    const store = openStore(home);
+    store.source('orca-audit').state = { ended: ['run_previous'] };
+    const runner = createRunner({
+      docket,
+      sources: [
+        makeSource(
+          () => {
+            throw Object.assign(new Error('Audit inventory incomplete'), {
+              code: 'audit_overflow',
+            });
+          },
+          { name: 'orca-audit', batchSize: auditSource.batchSize },
+        ),
+      ],
+      store,
+      log: logs().log,
+    });
+    expect(await runner.once()).toEqual({ 'orca-audit': 'failed' });
+    expect(docket.posts).toHaveLength(1);
+    expect(docket.posts[0]!.body).toMatchObject({
+      records: [],
+      run: { ok: false, error: 'audit_overflow' },
+    });
+    expect(store.source('orca-audit').state).toEqual({ ended: ['run_previous'] });
+    expect(store.source('orca-audit').last_error).toBe('audit_overflow');
   });
 
   it('spends nothing on the source while Docket is down, then recovers', async () => {

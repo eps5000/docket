@@ -8,8 +8,9 @@ export const name = 'orca-audit';
 export const intervalMs = 60_000;
 export const independent = true;
 // One POST per pass; the runner's 30-second POST timeout is part of the cadence bound.
-export const batchSize = 42;
-export const auditConcurrency = 14;
+export const batchSize = 51;
+export const auditConcurrency = 17;
+export const targetLimit = 160;
 export const targetLimitMs = 17_000;
 export const collectionLimitMs = 80_000;
 let drainingBatch = null;
@@ -21,6 +22,7 @@ const LOCAL_PATH = /^[A-Za-z]:[\\/](?![\\/])/;
 const workspacePath = (id) =>
   typeof id === 'string' && id.includes('::') ? id.slice(id.indexOf('::') + 2) : null;
 const pathKey = (path) =>
+  // eslint-disable-next-line no-control-regex -- Reject control characters in host paths.
   typeof path === 'string' && LOCAL_PATH.test(path) && !/[\x00-\x1f\x7f]/.test(path)
     ? path.replaceAll('/', '\\').replace(/\\+$/, '').toLowerCase()
     : null;
@@ -30,7 +32,7 @@ const RUN_STATES = new Set(['open', 'parked', 'needs_input', 'finished', 'failed
 
 /** Keep prompt-custody targets on every pass; rotate all other exact dispatches by ID. */
 export function selectTargets(targets, state = {}, more = false) {
-  if (!Array.isArray(targets) || targets.length > 128 || more)
+  if (!Array.isArray(targets) || targets.length > targetLimit || more)
     throw Object.assign(new Error('Audit inventory incomplete'), { code: 'audit_overflow' });
   if (
     targets.some(
@@ -152,6 +154,7 @@ export function safeLocalPath(path) {
     typeof path !== 'string' ||
     path.length > 1024 ||
     !LOCAL_PATH.test(path) ||
+    // eslint-disable-next-line no-control-regex -- Reject control characters in host paths.
     /[\x00-\x1f\x7f]/.test(path)
   )
     return false;
@@ -380,6 +383,13 @@ export async function collectBounded(batch, audit, signal, limitMs = collectionL
   return records;
 }
 
+/** Keep the first observation younger than 55 seconds before the bounded POST. */
+export function observationsFreshForPost(records, nowMs = Date.now()) {
+  if (records.length === 0) return true;
+  const oldest = Math.min(...records.map((record) => Date.parse(record.observed_at)));
+  return Number.isFinite(oldest) && nowMs - oldest < 55_000;
+}
+
 export async function collect({ signal, settings, state }) {
   const exe = orcaExecutable();
   if (!exe) throw Object.assign(new Error('Orca unavailable'), { code: 'orca_unavailable' });
@@ -460,10 +470,7 @@ export async function collect({ signal, settings, state }) {
   };
   const records = await collectBounded(selected.batch, audit, signal);
   // Leave room for the runner's single 30-second POST and the 90-second ingest limit.
-  if (
-    records.length &&
-    Date.now() - Math.min(...records.map((r) => Date.parse(r.observed_at))) >= 55_000
-  )
+  if (!observationsFreshForPost(records))
     throw Object.assign(new Error('Audit observations too old to post'), { code: 'audit_timeout' });
   return { records, state: selected.state };
 }
