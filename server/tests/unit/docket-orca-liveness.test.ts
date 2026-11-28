@@ -83,10 +83,23 @@ function fixture() {
     lastRunAt: now - 10 * 60_000,
   };
   let tree = { worktree: { id: workspaceId } };
+  let mapping = {
+    version: 1,
+    entries: [
+      {
+        epic_id: 'GF-231',
+        automation_id: 'dfc4d245-d983-4be8-a6e2-5bca12d98c3b',
+        workspace_id: workspaceId,
+      },
+    ],
+  };
   let treeReads = 0;
   let automationReads = 0;
   const ports = {
-    docketSource: async () => ({ settings: { targets: [target], more: false } }),
+    docketSource: async () => ({
+      settings: { enabled: true, targets: [target], more: false },
+      status: { stale: false, last_error: null, last_success_at: new Date(now).toISOString() },
+    }),
     agents: async () => ({ rows: [agent] }),
     item: async () => item,
     bootstrap: async () => ({ projects: [project] }),
@@ -100,13 +113,14 @@ function fixture() {
       return tree;
     },
   };
-  const run = (dispatchId = 'ctx_exact') =>
+  const run = (dispatchId = 'ctx_exact', epicId = 'GF-231') =>
     liveness.inspect({
       runId: 'run_claimed',
       dispatchId,
-      epicId: 'GF-231',
+      epicId,
       automationId: 'dfc4d245-d983-4be8-a6e2-5bca12d98c3b',
       workspaceId,
+      mapping,
       now,
       ports,
     });
@@ -138,6 +152,9 @@ function fixture() {
     },
     getWorker: () => worker,
     getItem: () => item,
+    mapping: (change: typeof mapping) => {
+      mapping = change;
+    },
   };
 }
 
@@ -185,6 +202,125 @@ describe('scoped Orca supervisor liveness inspection', () => {
     expect(f.automationReads()).toBe(0);
     expect(f.treeReads()).toBe(0);
   });
+
+  it('accepts a complete 119-target audit but holds stale or incomplete inventory', async () => {
+    const f = fixture();
+    const source = await f.ports.docketSource();
+    const selected = source.settings.targets[0]!;
+    f.ports.docketSource = async () => ({
+      ...source,
+      settings: {
+        ...source.settings,
+        targets: [
+          selected,
+          ...Array.from({ length: 118 }, (_, i) => ({
+            ...selected,
+            run_id: `run_other_${i}`,
+            dispatch_id: `ctx_other_${i}`,
+          })),
+        ],
+      },
+    });
+    expect(await f.run()).toMatchObject({ status: 'parked', reason: 'legitimate_wait' });
+    f.ports.docketSource = async () => ({
+      ...source,
+      settings: { ...source.settings, more: true },
+    });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_inventory_unknown' });
+    f.ports.docketSource = async () => ({
+      ...source,
+      settings: {
+        ...source.settings,
+        targets: Array.from({ length: 129 }, (_, i) => ({
+          ...selected,
+          run_id: `run_other_${i}`,
+          dispatch_id: `ctx_other_${i}`,
+        })),
+      },
+    });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_inventory_unknown' });
+    f.ports.docketSource = async () => ({
+      ...source,
+      status: { ...source.status, stale: true },
+    });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_inventory_unknown' });
+    f.ports.docketSource = async () => ({
+      ...source,
+      status: {
+        ...source.status,
+        last_success_at: new Date(now - 6 * 60_000).toISOString(),
+      },
+    });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'docket_inventory_unknown' });
+  });
+
+  it('requires one exact per-Epic mapping before reading any supervisor', async () => {
+    const f = fixture();
+    f.mapping({ version: 1, entries: [] });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'supervisor_mapping_unknown' });
+    f.mapping({
+      version: 1,
+      entries: [
+        {
+          epic_id: 'GF-310',
+          automation_id: 'dfc4d245-d983-4be8-a6e2-5bca12d98c3b',
+          workspace_id: workspaceId,
+        },
+      ],
+    });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'supervisor_mapping_unknown' });
+    f.mapping({
+      version: 1,
+      entries: [
+        {
+          epic_id: 'GF-231',
+          automation_id: 'dfc4d245-d983-4be8-a6e2-5bca12d98c3b',
+          workspace_id: workspaceId,
+        },
+        {
+          epic_id: 'GF-310',
+          automation_id: 'dfc4d245-d983-4be8-a6e2-5bca12d98c3b',
+          workspace_id: workspaceId,
+        },
+      ],
+    });
+    expect(await f.run()).toMatchObject({ status: 'hold', reason: 'supervisor_mapping_unknown' });
+    expect(f.automationReads()).toBe(0);
+    expect(f.treeReads()).toBe(0);
+  });
+
+  it('does not recycle the GF-231 watchdog for an unmapped Epic', async () => {
+    const f = fixture();
+    f.agent({ item_id: 'GF-310' });
+    f.item({
+      item: { ...f.getItem().item, id: 'GF-310', type: 'Epic', epic: null },
+    } as never);
+    expect(await f.run('ctx_exact', 'GF-310')).toMatchObject({
+      status: 'hold',
+      reason: 'supervisor_mapping_unknown',
+    });
+    expect(f.automationReads()).toBe(0);
+  });
+
+  it.each(['GF-457', 'GF-459', 'GF-454', 'GF-461'])(
+    'keeps %s on the exact GF-231 custody path without launching a replacement',
+    async (itemId) => {
+      const f = fixture();
+      f.agent({ item_id: itemId });
+      f.item({ item: { ...f.getItem().item, id: itemId, epic: 'GF-231' } } as never);
+      const worker = f.getWorker() as {
+        dispatch: Record<string, unknown>;
+        projection: Record<string, unknown>;
+      };
+      f.worker({ ...worker, dispatch: { ...worker.dispatch, status: 'failed' } });
+      expect(await f.run()).toMatchObject({
+        status: 'problem',
+        reason: 'dispatch_custody',
+        next_actor: 'coordinator',
+      });
+      expect(f.automationReads()).toBe(0);
+    },
+  );
 
   it('holds a child item in another Epic before any automation or worktree scope read', async () => {
     const f = fixture();

@@ -1,5 +1,6 @@
 /** Scoped, read-only Docket/Orca liveness check. Orca remains the only executor. */
 import { execFile } from 'node:child_process';
+import { readFile, stat } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { createDocket } from './docket-sync/lib/docket.mjs';
 import { verifiedCustody } from './docket-sync/sources/orca-audit.mjs';
@@ -9,6 +10,7 @@ const RUN = /^run_[A-Za-z0-9_-]{1,96}$/;
 const DISPATCH = /^ctx_[A-Za-z0-9_-]{1,96}$/;
 const ITEM = /^[A-Z][A-Z0-9]*-[0-9]+$/;
 const AUTOMATION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_AUDIT_TARGETS = 128;
 
 const hold = (reason) => ({ status: 'hold', reason });
 const problem = (reason, observation = null) => ({
@@ -67,6 +69,36 @@ function dispatchState(target, worker) {
   )
     return 'live';
   return 'unknown';
+}
+
+function mappedSupervisor(mapping, epicId, automationId, workspaceId) {
+  if (mapping?.version !== 1 || !Array.isArray(mapping.entries)) return false;
+  if (mapping.entries.length === 0 || mapping.entries.length > 20) return false;
+  const epics = new Set();
+  const automations = new Set();
+  const workspaces = new Set();
+  for (const entry of mapping.entries) {
+    if (
+      !entry ||
+      !ITEM.test(entry.epic_id ?? '') ||
+      !AUTOMATION.test(entry.automation_id ?? '') ||
+      typeof entry.workspace_id !== 'string' ||
+      !/^[0-9a-f-]{36}::[A-Za-z]:[\\/]/i.test(entry.workspace_id) ||
+      epics.has(entry.epic_id) ||
+      automations.has(entry.automation_id) ||
+      workspaces.has(entry.workspace_id)
+    )
+      return false;
+    epics.add(entry.epic_id);
+    automations.add(entry.automation_id);
+    workspaces.add(entry.workspace_id);
+  }
+  return mapping.entries.some(
+    (entry) =>
+      entry.epic_id === epicId &&
+      entry.automation_id === automationId &&
+      entry.workspace_id === workspaceId,
+  );
 }
 
 export function assess({
@@ -172,6 +204,7 @@ export async function inspect({
   epicId,
   automationId,
   workspaceId,
+  mapping,
   now = Date.now(),
   ports,
 }) {
@@ -191,7 +224,18 @@ export async function inspect({
     return hold('docket_read_unknown');
   }
   const targets = source?.settings?.targets;
-  if (!Array.isArray(targets) || targets.length > 80 || source.settings.more === true)
+  const lastSuccess = Date.parse(source?.status?.last_success_at ?? '');
+  if (
+    source?.settings?.enabled !== true ||
+    !Array.isArray(targets) ||
+    targets.length > MAX_AUDIT_TARGETS ||
+    source.settings.more !== false ||
+    source?.status?.stale !== false ||
+    source.status.last_error !== null ||
+    !Number.isFinite(lastSuccess) ||
+    lastSuccess > now + 60_000 ||
+    now - lastSuccess > 5 * 60_000
+  )
     return hold('docket_inventory_unknown');
   const rows = agents?.rows;
   if (!Array.isArray(rows) || rows.length > 500) return hold('docket_inventory_unknown');
@@ -216,6 +260,8 @@ export async function inspect({
   const project = projects.find((p) => p.key === agent.project);
   const preflight = earlyAssessment({ target, agent, item, project, worker, epicId, now });
   if (preflight) return preflight;
+  if (!mappedSupervisor(mapping, epicId, automationId, workspaceId))
+    return hold('supervisor_mapping_unknown');
   let automations;
   try {
     automations = await ports.automations();
@@ -286,9 +332,14 @@ async function main() {
   if (
     args.some(
       (arg) =>
-        !['--run-id', '--dispatch-id', '--epic-id', '--automation-id', '--workspace-id'].includes(
-          arg,
-        ) && arg.startsWith('--'),
+        ![
+          '--run-id',
+          '--dispatch-id',
+          '--epic-id',
+          '--automation-id',
+          '--workspace-id',
+          '--mapping-file',
+        ].includes(arg) && arg.startsWith('--'),
     )
   ) {
     process.stderr.write('Unsupported option. This tool is read-only.\n');
@@ -297,6 +348,14 @@ async function main() {
   }
   const exe = orcaExecutable();
   if (!exe) throw new Error('orca_unavailable');
+  let mapping = null;
+  try {
+    const file = value('--mapping-file');
+    if (file && (await stat(file)).size <= 16 * 1024)
+      mapping = JSON.parse(await readFile(file, 'utf8'));
+  } catch {
+    // An unavailable or malformed mapping stays a hold in inspect().
+  }
   const docket = createDocket({ baseUrl: 'http://127.0.0.1:7420' });
   const result = await inspect({
     runId: value('--run-id'),
@@ -304,6 +363,7 @@ async function main() {
     epicId: value('--epic-id'),
     automationId: value('--automation-id'),
     workspaceId: value('--workspace-id'),
+    mapping,
     ports: {
       docketSource: () => docket.readSource('orca-audit'),
       agents: () => docket.reader().get('/api/agents'),
