@@ -173,7 +173,7 @@ async function verifiedHandoff(mapping, detail, orca, requestedAt) {
   if (
     run.is_lead !== true ||
     !['reported', 'parked'].includes(run.run_state) ||
-    run.orchestrator?.run_id !== mapping.orca_run_id
+    (run.orchestrator?.run_id && run.orchestrator.run_id !== mapping.orca_run_id)
   )
     return null;
   if (
@@ -191,7 +191,7 @@ async function verifiedHandoff(mapping, detail, orca, requestedAt) {
     dispatch.creatorDispatchId !== null ||
     dispatch.agent !== mapping.agent ||
     !Number.isFinite(utcMillis(dispatch.dispatchedAt)) ||
-    utcMillis(dispatch.dispatchedAt) < requestedAt ||
+    utcMillis(dispatch.dispatchedAt) + 999 < requestedAt ||
     !['dispatched', 'completed'].includes(dispatch.status)
   )
     return null;
@@ -381,6 +381,7 @@ export async function scanContinuations({
             const requestId = requestIdFor('continuation', finding.key);
             const body = `ACTIONABLE Docket-only producer wake for ${mapping.epic}: Docket run ${mapping.docket_run_id} has a due coordinator-only wait and prior completed Dispatch ${effective.dispatch_id}. As the verified coordinator of Orca Run ${mapping.orca_run_id}, recheck the exact Docket run, mapped producer worktree, active producer custody, admission, and wait; then start at most one codex follow-up in that same Run/worktree under your own Orca authority. Record the verified new Dispatch as Docket dispatch_observation live and require its heartbeat or new bounded park. This request ${requestId} is idempotent; do not start Gameflow work, release claims/resources, mutate a host, or treat the wake as owner approval. If any gate fails, report the precise hold. The relay will escalate if no exact handoff is observed within five minutes.`;
             record.attempts += 1;
+            record.requested_at = t;
             record.next_at = t + RETRIES_MS[Math.min(record.attempts, RETRIES_MS.length - 1)];
             save();
             const sent = await orca.send({
@@ -392,8 +393,7 @@ export async function scanContinuations({
             });
             if (sent?.ok) {
               record.state = 'requested';
-              record.requested_at = now();
-              record.next_at = record.requested_at + ACK_MS;
+              record.next_at = t + ACK_MS;
               save();
               log('continuation_requested', { item: mapping.epic });
               continue;

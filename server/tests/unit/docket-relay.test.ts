@@ -250,7 +250,10 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
             run_id: mapping.docket_run_id,
             run_state: 'parked',
             is_lead: true,
-            orchestrator: { dispatch_id: mapping.dispatch_id, run_id: mapping.orca_run_id },
+            orchestrator: {
+              dispatch_id: mapping.dispatch_id,
+              run_id: mapping.orca_run_id as string | null,
+            },
             workspace: { path: workspacePath },
           },
         ],
@@ -489,6 +492,21 @@ describe('DKT-38 durable completed-dispatch continuation', () => {
     expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
       state: 'acknowledged',
       current_dispatch_id: 'ctx_fresh',
+    });
+  });
+
+  it('accepts a null legacy Docket Orca Run id only with exact Orca proof and same-second dispatch time', async () => {
+    const h = continuationHarness();
+    h.detail.item.runs[0]!.orchestrator.run_id = null;
+    h.advance(500);
+    await h.scan();
+    h.setFreshReceipt({ dispatchedAt: '2026-11-28 04:00:00' });
+    h.handoff();
+    h.advance(100);
+    await h.scan();
+    expect(h.state.continuations[mapping.docket_run_id]).toMatchObject({
+      state: 'acknowledged',
+      dispatch_id: 'ctx_fresh',
     });
   });
 
